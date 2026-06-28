@@ -117,6 +117,11 @@ app.get('/api/dashboard', async (_req, res) => {
   }
 });
 
+// ── Healthcheck (Railway) ────────────────────────────────────────────────────
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // ── Manual triggers (admin use) ───────────────────────────────────────────────
 app.post('/api/suggestions/run-now', async (_req, res) => {
   res.json({ message: 'Suggestion job started' });
