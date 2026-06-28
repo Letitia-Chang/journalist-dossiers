@@ -187,6 +187,24 @@ export async function initDb(): Promise<void> {
       );
     `);
 
+    // ── Column migrations (safe to run repeatedly) ───────────────────────────
+    await client.query(`
+      ALTER TABLE publications ADD COLUMN IF NOT EXISTS "rssUrl"           TEXT DEFAULT '';
+      ALTER TABLE publications ADD COLUMN IF NOT EXISTS "rssStatus"        TEXT DEFAULT 'unknown';
+      ALTER TABLE publications ADD COLUMN IF NOT EXISTS "rssLastChecked"   TEXT DEFAULT '';
+      ALTER TABLE publications ADD COLUMN IF NOT EXISTS "healthStatus"     TEXT DEFAULT 'unknown';
+      ALTER TABLE publications ADD COLUMN IF NOT EXISTS "lastHealthCheck"  TEXT DEFAULT '';
+      ALTER TABLE publications ADD COLUMN IF NOT EXISTS "isVirtual"        INTEGER DEFAULT 0;
+      ALTER TABLE publications ADD COLUMN IF NOT EXISTS "createdAt"        TIMESTAMPTZ DEFAULT NOW();
+      ALTER TABLE publications ADD COLUMN IF NOT EXISTS "updatedAt"        TIMESTAMPTZ DEFAULT NOW();
+
+      ALTER TABLE journalists ADD COLUMN IF NOT EXISTS "staleFlag"         INTEGER DEFAULT 0;
+      ALTER TABLE journalists ADD COLUMN IF NOT EXISTS "isFavorite"        INTEGER DEFAULT 0;
+      ALTER TABLE journalists ADD COLUMN IF NOT EXISTS "lastArticleDate"   TEXT DEFAULT '';
+
+      ALTER TABLE campaign_journalists ADD COLUMN IF NOT EXISTS "sentAt"   TEXT DEFAULT '';
+    `);
+
     // Seed campaign type styles
     await client.query(`
       INSERT INTO campaign_type_styles (type, instructions)
