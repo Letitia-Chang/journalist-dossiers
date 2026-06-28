@@ -12,6 +12,8 @@ Internal journalist CRM for **North Star AI Labs** — tracks AI/tech journalist
 
 ## Quick navigation
 
+> Last updated: June 2026
+
 - [Getting Started](getting-started.md) — first-time setup walkthrough
 - [Features](features/README.md) — how each part of the system works
 - [System Architecture](architecture.md) — tech stack and data model
