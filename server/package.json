@@ -2,6 +2,7 @@
   "name": "northstar-server",
   "version": "1.0.0",
   "type": "commonjs",
+  "engines": { "node": ">=20" },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only -r dotenv/config src/index.ts",
     "build": "tsc",
