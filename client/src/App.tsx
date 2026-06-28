@@ -1,6 +1,6 @@
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Users, PlusCircle, FileDown, Star, Settings, Rss, Megaphone, Wand2, Activity, Newspaper } from 'lucide-react';
+import { LayoutDashboard, Users, FileDown, Star, Settings, Rss, Megaphone, Wand2, Activity, Newspaper } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import JournalistsList from './pages/JournalistsList';
 import JournalistDetail from './pages/JournalistDetail';
