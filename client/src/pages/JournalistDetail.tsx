@@ -490,7 +490,7 @@ export default function JournalistDetail() {
   );
 }
 
-function BriefingView({ journalist, articles, outreach }: { journalist: Journalist; articles: Article[]; outreach: OutreachLog[] }) {
+function BriefingView({ journalist, articles, outreach: _outreach }: { journalist: Journalist; articles: Article[]; outreach: OutreachLog[] }) {
   const recentArticles = articles.slice(0, 6);
   const themes = [...new Set(articles.map(a => a.topic).filter(Boolean))].slice(0, 8);
 

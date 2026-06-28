@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Newspaper, Plus, ExternalLink, Search, X, Edit2, Trash2,
-  Check, Loader2, Link2, ChevronDown,
+  Loader2, Link2, ChevronDown,
 } from 'lucide-react';
 import { coverage as covApi, journalists as jApi } from '../api';
 import type { CoverageItem, CoverageType, CoverageSentiment, Journalist } from '../types';

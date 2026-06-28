@@ -106,7 +106,7 @@ export default function AdminPublications() {
   const [manualFeedLabel, setManualFeedLabel] = useState('');
   const [addingFeed, setAddingFeed] = useState(false);
   const [staffScanResult, setStaffScanResult] = useState<{ pubName: string; added: number; pageScanned: string | null; error?: string } | null>(null);
-  const [discoveringRssId, setDiscoveringRssId] = useState<number | null>(null);
+  const [_discoveringRssId, setDiscoveringRssId] = useState<number | null>(null);
   const [jSuggestionCount, setJSuggestionCount] = useState(0);
   const [opmlImporting, setOpmlImporting] = useState(false);
   const [opmlResult, setOpmlResult] = useState<{ added: number; total: number; skippedDuplicate: number; preview: string[]; message: string; error?: string } | null>(null);
@@ -132,7 +132,7 @@ export default function AdminPublications() {
 
   const startEdit = (p: Publication) => {
     setEditingId(p.id);
-    setForm({ name: p.name, url: p.url, tier: p.tier, focus: p.focus, notes: p.notes || '', active: p.active });
+    setForm({ name: p.name, url: p.url, tier: p.tier, focus: p.focus, notes: p.notes || '', rssUrl: p.rssUrl || '', active: p.active });
     setShowAdd(false);
   };
   const cancelEdit = () => { setEditingId(null); setForm({ ...empty }); };
@@ -196,7 +196,7 @@ export default function AdminPublications() {
     }
   };
 
-  const handleDiscoverRss = async (p: Publication) => {
+  const _handleDiscoverRss = async (p: Publication) => {
     setDiscoveringRssId(p.id);
     await pubApi.update(p.id, {}); // triggers backend discovery via PUT
     setTimeout(async () => { await loadPubs(); setDiscoveringRssId(null); }, 6000);

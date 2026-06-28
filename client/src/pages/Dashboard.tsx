@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, TrendingUp, Clock, MessageSquare, Star,
-  Megaphone, Send, Sparkles, AlertTriangle, CheckCircle2,
+  Megaphone, Send, Sparkles, AlertTriangle,
 } from 'lucide-react';
 import { dashboard } from '../api';
 import type { DashboardData, CampaignType } from '../types';
