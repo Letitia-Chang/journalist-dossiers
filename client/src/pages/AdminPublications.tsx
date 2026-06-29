@@ -106,7 +106,6 @@ export default function AdminPublications() {
   const [manualFeedLabel, setManualFeedLabel] = useState('');
   const [addingFeed, setAddingFeed] = useState(false);
   const [staffScanResult, setStaffScanResult] = useState<{ pubName: string; added: number; pageScanned: string | null; error?: string } | null>(null);
-  const [_discoveringRssId, setDiscoveringRssId] = useState<number | null>(null);
   const [jSuggestionCount, setJSuggestionCount] = useState(0);
   const [opmlImporting, setOpmlImporting] = useState(false);
   const [opmlResult, setOpmlResult] = useState<{ added: number; total: number; skippedDuplicate: number; preview: string[]; message: string; error?: string } | null>(null);
@@ -196,13 +195,7 @@ export default function AdminPublications() {
     }
   };
 
-  const _handleDiscoverRss = async (p: Publication) => {
-    setDiscoveringRssId(p.id);
-    await pubApi.update(p.id, {}); // triggers backend discovery via PUT
-    setTimeout(async () => { await loadPubs(); setDiscoveringRssId(null); }, 6000);
-  };
-
-  const handleDiscoverFeeds = async (p: Publication) => {
+const handleDiscoverFeeds = async (p: Publication) => {
     setDiscoveringFeedsId(p.id);
     setFeedsDiscoveryResult(null);
     await pubApi.discoverFeeds(p.id);
