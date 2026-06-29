@@ -11,6 +11,7 @@ import suggestionsRouter from './routes/suggestions';
 import journalistSuggestionsRouter from './routes/journalistSuggestions';
 import { startSuggestionCron, runSuggestionJob } from './cron/suggestionJob';
 import { startRssCron } from './cron/rssJob';
+import { scanAllRssFeeds } from './services/rssService';
 import { startHealthCheckCron, runHealthChecks } from './cron/healthCheckJob';
 import { refreshAllJournalistArticles } from './services/refreshJournalistArticles';
 import campaignsRouter from './routes/campaigns';
@@ -126,6 +127,11 @@ app.get('/api/health', (_req, res) => {
 app.post('/api/suggestions/run-now', async (_req, res) => {
   res.json({ message: 'Suggestion job started' });
   runSuggestionJob().catch(console.error);
+});
+
+app.post('/api/publications/check-feeds', async (_req, res) => {
+  res.json({ message: 'Feed check started — statuses will update in 1–2 minutes.' });
+  scanAllRssFeeds().catch(console.error);
 });
 
 app.post('/api/health-check/run-now', async (_req, res) => {

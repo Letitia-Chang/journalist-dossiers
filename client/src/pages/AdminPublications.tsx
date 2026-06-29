@@ -111,6 +111,8 @@ export default function AdminPublications() {
   const [opmlResult, setOpmlResult] = useState<{ added: number; total: number; skippedDuplicate: number; preview: string[]; message: string; error?: string } | null>(null);
   const opmlInputRef = useRef<HTMLInputElement>(null);
   const [healthWarnings, setHealthWarnings] = useState<{ unreachable: any[]; stale: any[]; inactiveFeeds: any[] }>({ unreachable: [], stale: [], inactiveFeeds: [] });
+  const [checkingFeeds, setCheckingFeeds] = useState(false);
+  const [checkFeedsMsg, setCheckFeedsMsg] = useState('');
 
   // Blog discovery
   const [showDiscover, setShowDiscover]     = useState(false);
@@ -302,6 +304,20 @@ const handleDiscoverFeeds = async (p: Publication) => {
     setTimeout(async () => { await loadSuggestions(); setRunningJob(false); }, 4000);
   };
 
+  const handleCheckAllFeeds = async () => {
+    setCheckingFeeds(true);
+    setCheckFeedsMsg('');
+    try {
+      await pubApi.checkAllFeeds();
+      setCheckFeedsMsg('Feed check running — statuses will update in 1–2 minutes.');
+      // Reload after 90s to show updated statuses
+      setTimeout(async () => { await loadPubs(); setCheckingFeeds(false); }, 90_000);
+    } catch {
+      setCheckFeedsMsg('Feed check failed. Check server logs.');
+      setCheckingFeeds(false);
+    }
+  };
+
   const loadHistory = async () => {
     const r = await suggestApi.history();
     setHistory(r.data);
@@ -357,10 +373,15 @@ const handleDiscoverFeeds = async (p: Publication) => {
               onChange={handleOpmlFile}
             />
             {/* Icon-only utility buttons */}
+            <button onClick={handleCheckAllFeeds} disabled={checkingFeeds}
+              title="Check all feeds — verifies every RSS feed URL and updates statuses"
+              className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all">
+              <RefreshCw className={`w-4 h-4 ${checkingFeeds ? 'animate-spin text-emerald-500' : ''}`} />
+            </button>
             <button onClick={handleRunNow} disabled={runningJob}
               title="Suggest with AI — runs weekly discovery and adds suggestions for review"
               className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all">
-              <RefreshCw className={`w-4 h-4 ${runningJob ? 'animate-spin text-indigo-500' : ''}`} />
+              <Sparkles className={`w-4 h-4 ${runningJob ? 'animate-pulse text-indigo-500' : ''}`} />
             </button>
             <button onClick={() => opmlInputRef.current?.click()} disabled={opmlImporting}
               title="Import publications from an OPML file (Feedly, Feedspot, etc.)"
@@ -534,6 +555,14 @@ const handleDiscoverFeeds = async (p: Publication) => {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* ── Feed check status message ── */}
+        {checkFeedsMsg && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
+            <RefreshCw className={`w-4 h-4 shrink-0 ${checkingFeeds ? 'animate-spin' : ''}`} />
+            {checkFeedsMsg}
           </div>
         )}
 
