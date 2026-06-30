@@ -104,8 +104,8 @@ Respond with ONLY a valid JSON array (which may be empty), no markdown:
 }
 
 export function startSuggestionCron() {
-  cron.schedule('0 8 * * 1', () => {
+  cron.schedule('0 6 * * 1', () => {
     runSuggestionJob().catch(console.error);
   }, { timezone: 'America/New_York' });
-  console.log('[SuggestionJob] Weekly cron scheduled — Mondays at 8am ET');
+  console.log('[SuggestionJob] Weekly cron scheduled — Mondays at 6am ET');
 }

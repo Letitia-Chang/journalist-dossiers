@@ -61,8 +61,8 @@ export async function runHealthChecks() {
 }
 
 export function startHealthCheckCron() {
-  cron.schedule('0 6 1 * *', () => {
+  cron.schedule('0 6 * * 1', () => {
     runHealthChecks().catch(err => console.error('[HealthCheck] Error:', err));
   }, { timezone: 'America/New_York' });
-  console.log('[HealthCheck] Monthly health check cron scheduled (1st of month, 6am ET)');
+  console.log('[HealthCheck] Weekly health check cron scheduled — Mondays at 6am ET');
 }
