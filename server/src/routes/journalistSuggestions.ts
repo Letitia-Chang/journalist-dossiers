@@ -74,15 +74,16 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
 
     // Seed articles
     let latestDate = '';
+    let allArticles: { title: string; url: string; date: string; categories?: string[] }[] = [];
     try {
-      const allArticles: { title: string; url: string; date: string }[] =
+      allArticles =
         suggestion.allArticles ? JSON.parse(suggestion.allArticles) : [];
 
       if (allArticles.length > 0) {
         for (const a of allArticles) {
           if (!a.title || !a.url) continue;
           // Label each article by its own topic, not the journalist's overall beat
-          const topic = inferArticleTopic(a.title, a.categories || []);
+          const topic = inferArticleTopic(a.title, (a as any).categories || []);
           await pool.query(`
             INSERT INTO articles ("journalistId", title, url, publication, "publishDate", topic)
             VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING
