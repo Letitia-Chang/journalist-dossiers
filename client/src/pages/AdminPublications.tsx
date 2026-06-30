@@ -153,6 +153,7 @@ export default function AdminPublications() {
   const [discoveringFeedsPubIds, setDiscoveringFeedsPubIds] = useState<Set<number>>(new Set());
 
   // Blog discovery
+  const [showSuggestions, setShowSuggestions] = useState(true);
   const [showDiscover, setShowDiscover]     = useState(false);
   const [discoverQuery, setDiscoverQuery]   = useState('AI startup machine learning');
   const [discovering, setDiscovering]       = useState(false);
@@ -564,18 +565,22 @@ const handleDiscoverFeeds = async (p: Publication) => {
         {/* ── AI suggestions banner ── */}
         {suggestions.length > 0 && (
           <div className="mb-6 bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
-            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-amber-100 bg-amber-50/60">
-              <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center">
+            <button
+              onClick={() => setShowSuggestions(v => !v)}
+              className="w-full flex items-center gap-3 px-5 py-3.5 border-b border-amber-100 bg-amber-50/60 hover:bg-amber-50 transition-colors text-left"
+            >
+              <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
                 <Sparkles className="w-3.5 h-3.5 text-amber-600" />
               </div>
-              <div>
+              <div className="flex-1">
                 <span className="text-sm font-semibold text-slate-800">
                   {suggestions.length} new suggestion{suggestions.length !== 1 ? 's' : ''} from AI Discovery
                 </span>
                 <span className="text-xs text-slate-400 ml-2">Review and accept or reject each one</span>
               </div>
-            </div>
-            <div className="divide-y divide-slate-50">
+              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${showSuggestions ? '' : '-rotate-90'}`} />
+            </button>
+            {showSuggestions && <div className="divide-y divide-slate-50">
               {suggestions.map(s => {
                 const tier = (s.tier || 'B') as Tier;
                 const cfg = TIER_CONFIG[tier];
@@ -618,7 +623,7 @@ const handleDiscoverFeeds = async (p: Publication) => {
                   </div>
                 );
               })}
-            </div>
+            </div>}
           </div>
         )}
 
