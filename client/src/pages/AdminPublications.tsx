@@ -151,6 +151,28 @@ export default function AdminPublications() {
   };
   const cancelEdit = () => { setEditingId(null); setForm({ ...empty }); };
 
+  const pollUntilDiscoveryDone = (pubId: number) => {
+    setDiscoveringFeedsPubIds(prev => new Set(prev).add(pubId));
+    let attempts = 0;
+    const maxAttempts = 24; // 2 minutes at 5s intervals
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const res = await pubApi.get(pubId);
+        const pub: Publication = res.data;
+        // Discovery is done when rssLastChecked is populated
+        if (pub.rssLastChecked || attempts >= maxAttempts) {
+          clearInterval(interval);
+          setDiscoveringFeedsPubIds(prev => { const s = new Set(prev); s.delete(pubId); return s; });
+          // Update just this pub in local state without a full reload
+          setPubs(prev => prev.map(p => p.id === pubId ? { ...p, ...pub } : p));
+        }
+      } catch {
+        // Non-fatal — keep polling
+      }
+    }, 5_000);
+  };
+
   const handleSave = async () => {
     if (!form.name.trim()) return alert('Name is required');
     setSaving(true);
@@ -161,14 +183,8 @@ export default function AdminPublications() {
       } else {
         const res = await pubApi.create(form);
         setShowAdd(false);
-        // Show feed discovery spinner on new publication
         if (res.data.discoveringFeeds && res.data.id) {
-          const pubId = res.data.id;
-          setDiscoveringFeedsPubIds(prev => new Set(prev).add(pubId));
-          setTimeout(() => {
-            setDiscoveringFeedsPubIds(prev => { const s = new Set(prev); s.delete(pubId); return s; });
-            loadPubs();
-          }, 30_000);
+          pollUntilDiscoveryDone(res.data.id);
         }
       }
       setForm({ ...empty });
@@ -192,14 +208,8 @@ export default function AdminPublications() {
     const res = await suggestApi.accept(s.id);
     await Promise.all([loadPubs(), loadSuggestions()]);
     setAcceptingId(null);
-    // Show feed discovery spinner on the new publication row
     if (res.data.discoveringFeeds && res.data.pubId) {
-      const pubId = res.data.pubId;
-      setDiscoveringFeedsPubIds(prev => new Set(prev).add(pubId));
-      setTimeout(() => {
-        setDiscoveringFeedsPubIds(prev => { const s = new Set(prev); s.delete(pubId); return s; });
-        loadPubs();
-      }, 30_000);
+      pollUntilDiscoveryDone(res.data.pubId);
     }
   };
 

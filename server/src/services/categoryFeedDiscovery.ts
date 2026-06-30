@@ -115,7 +115,7 @@ export async function discoverAndSaveFeeds(publicationId: number): Promise<FeedD
     feeds = await discoverCategoryFeeds(pub.url);
   } catch (err: any) {
     await pool.query(
-      `UPDATE publications SET "rssStatusNote" = $1 WHERE id = $2`,
+      `UPDATE publications SET "rssStatusNote" = $1, "rssLastChecked" = NOW()::TEXT WHERE id = $2`,
       [`Discovery failed: ${err.message}`, publicationId]
     );
     // Fire-and-forget Claude diagnostic (non-blocking)
@@ -150,7 +150,7 @@ export async function discoverAndSaveFeeds(publicationId: number): Promise<FeedD
     );
   } else {
     await pool.query(
-      `UPDATE publications SET "rssStatusNote" = $1 WHERE id = $2`,
+      `UPDATE publications SET "rssStatusNote" = $1, "rssLastChecked" = NOW()::TEXT WHERE id = $2`,
       [`Auto-discovery scanned the homepage but found no RSS feeds`, publicationId]
     );
     // Fire-and-forget Claude diagnostic (non-blocking)
