@@ -2,15 +2,15 @@
 
 ## What's automated
 
-The system runs several background jobs that require no manual action:
+All background jobs run on **Mondays at 6am ET** so the team starts each week with fresh data:
 
-| Job | When | What it does |
-|---|---|---|
-| RSS article refresh | Fridays 7am | Fetches new articles from all active publication feeds |
-| Publication health check | Weekly | Checks RSS feed reachability, flags unreachable ones |
-| AI publication suggestions | Weekly | Claude suggests new publications to consider tracking |
+| Job | What it does |
+|---|---|
+| RSS article refresh | Fetches new articles from all active publication feeds |
+| Publication health check | Checks RSS feed reachability, flags unreachable ones |
+| AI publication suggestions | Claude suggests new publications to consider tracking |
 
-Alerts for stale journalists (no articles in 30+ days) and unreachable publications appear on the Dashboard automatically.
+Alerts for stale journalists and unreachable publications appear on the Dashboard automatically.
 
 ## What needs manual attention
 
@@ -24,10 +24,36 @@ Alerts for stale journalists (no articles in 30+ days) and unreachable publicati
 | Update journalist notes / beat | When they change roles | Journalist profile → Edit |
 | Update House Style | When tone/approach changes | House Style (Admin) |
 
+## Understanding RSS feed statuses
+
+Each publication in the Publications admin shows one of four feed statuses:
+
+| Status | Meaning |
+|---|---|
+| 🟢 **Active** | At least one feed URL is working and returning articles |
+| 🔴 **Failed** | Feed URL(s) were saved but none are responding (404, 403, or timeout) |
+| ✖ **No RSS** | No feeds saved and auto-discovery found nothing |
+| 🟡 **Unknown** | Publication was just added — discovery hasn't run yet |
+
+### What to do when a feed shows Failed
+
+**Failed** means a feed URL was saved at some point but is now broken. This happens when a site changes its RSS structure or moves behind a paywall.
+
+**Step 1 — Hover the Failed badge.** A tooltip will appear with an AI-generated explanation of why it failed and a specific next step (e.g. a URL to try, or a recommendation to add journalists manually).
+
+**Step 2 — Click "Try auto-discover →"** (the small link below the feed count). This opens the feeds panel and immediately re-runs discovery, scanning the publication's homepage for any new working RSS URLs.
+
+**Step 3 — Manually fix the feed URL** (if auto-discover doesn't help). Click the feed count to expand the feeds panel, delete the broken feed (✕ button), then paste a new URL in the "Add feed" field. To find the right URL:
+- Visit the publication's website and look for an RSS icon
+- Try appending `/feed`, `/rss`, or `/feed.xml` to the section URL (e.g. `https://techcrunch.com/category/artificial-intelligence/feed/`)
+- Check the AI tooltip — it often suggests a specific URL to try
+
+**Step 4 — Deactivate if no public RSS exists.** Some publications (Bloomberg, WSJ, Boston Globe, Beehiiv newsletters) don't offer public RSS feeds. Toggle the publication off (Active switch) and add journalists from that outlet manually instead.
+
 ## Keeping the system healthy
 
 - **Stale journalists** — if a journalist hasn't had new articles in 30+ days, they'll be flagged on the dashboard. Check if they've changed beats or left the publication.
-- **Unreachable publications** — RSS feeds occasionally go down or change URLs. The health check flags these; update the feed URL in the Publications admin.
+- **Failed feeds** — click "Sync Feeds" in the Publications toolbar to re-run discovery and verification across all publications at once. Do this whenever you notice several Failed statuses.
 - **Score freshness** — scores are generated once when a journalist is accepted. If their beat changes significantly, use "Re-score with Claude" on the Journalists list.
 
 ## Pushing updates to GitHub
