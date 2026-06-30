@@ -159,12 +159,21 @@ export async function discoverAndSaveFeeds(publicationId: number): Promise<FeedD
       [`${feeds.length} feed${feeds.length !== 1 ? 's' : ''} discovered automatically`, publicationId]
     );
   } else if (hasExistingFeeds) {
-    // Feeds exist but discovery found nothing new — leave rssStatus for scanAllRssFeeds to determine
-    // (it will set 'inactive' based on whether existing feeds actually respond)
-    await pool.query(
-      `UPDATE publications SET "rssLastChecked" = NOW()::TEXT WHERE id = $1`,
-      [publicationId]
-    );
+    // Feeds exist but discovery found nothing new.
+    // If ALL existing feeds are already inactive, mark the publication as inactive too
+    // so the UI shows "Failed" instead of the stale "No RSS".
+    const allInactive = existingFeeds.every((f: any) => f.rssStatus === 'inactive');
+    if (allInactive) {
+      await pool.query(
+        `UPDATE publications SET "rssStatus" = 'inactive', "rssLastChecked" = NOW()::TEXT WHERE id = $1`,
+        [publicationId]
+      );
+    } else {
+      await pool.query(
+        `UPDATE publications SET "rssLastChecked" = NOW()::TEXT WHERE id = $1`,
+        [publicationId]
+      );
+    }
   } else {
     // Truly no feeds anywhere — mark as none and generate diagnostic
     await pool.query(
