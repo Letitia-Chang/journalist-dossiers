@@ -66,23 +66,48 @@ const RSS_STATUS = {
   unknown:  { label: 'Unknown',  cls: 'bg-amber-50 text-amber-600 ring-amber-200',        icon: HelpCircle },
 };
 
+function parseRssNote(note: string): { analysis: string; action: string } | null {
+  if (!note) return null;
+  try {
+    const parsed = JSON.parse(note);
+    if (parsed.analysis || parsed.action) return parsed;
+  } catch { /* plain text note from before structured format */ }
+  return null;
+}
+
 function RssStatusBadge({ status, note }: { status: string; note?: string }) {
   const s = RSS_STATUS[status as keyof typeof RSS_STATUS] ?? RSS_STATUS.unknown;
   const Icon = s.icon;
+  const structured = note ? parseRssNote(note) : null;
+  const hasNote = !!(structured || note);
+
   const badge = (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ${s.cls} ${note ? 'cursor-help' : ''}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ${s.cls} ${hasNote ? 'cursor-help' : ''}`}>
       <Icon className="w-3 h-3" /> {s.label}
     </span>
   );
-  if (!note) return badge;
+  if (!hasNote) return badge;
   return (
     <span className="relative group/rss inline-flex">
       {badge}
-      <span className="pointer-events-none absolute bottom-full left-0 mb-2 z-50 hidden group-hover/rss:flex w-72 flex-col">
-        <span className="rounded-lg bg-slate-800 px-3 py-2 text-xs text-slate-100 leading-relaxed shadow-lg">
-          {note}
+      <span className="pointer-events-none absolute bottom-full left-0 mb-2 z-50 hidden group-hover/rss:flex w-80 flex-col">
+        <span className="rounded-xl bg-slate-900 shadow-xl overflow-hidden">
+          {structured ? (
+            <>
+              <div className="px-3 pt-3 pb-2 border-b border-slate-700/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Analysis</p>
+                <p className="text-xs text-slate-100 leading-relaxed">{structured.analysis}</p>
+              </div>
+              <div className="px-3 pt-2 pb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 mb-1">Next Step</p>
+                <p className="text-xs text-slate-100 leading-relaxed">{structured.action}</p>
+              </div>
+            </>
+          ) : (
+            <p className="px-3 py-2 text-xs text-slate-100 leading-relaxed">{note}</p>
+          )}
         </span>
-        <span className="ml-3 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800" />
+        <span className="ml-3 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-900" />
       </span>
     </span>
   );
