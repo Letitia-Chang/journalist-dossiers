@@ -82,7 +82,7 @@ function RssStatusBadge({ status, note }: { status: string; note?: string }) {
   const hasNote = !!(structured || note);
 
   const badge = (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ${s.cls} ${hasNote ? 'cursor-help' : ''}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 whitespace-nowrap ${s.cls} ${hasNote ? 'cursor-help' : ''}`}>
       <Icon className="w-3 h-3" /> {s.label}
     </span>
   );
@@ -90,21 +90,22 @@ function RssStatusBadge({ status, note }: { status: string; note?: string }) {
   return (
     <span className="relative group/rss inline-flex">
       {badge}
-      <span className="pointer-events-none absolute bottom-full left-0 mb-2 z-50 hidden group-hover/rss:flex w-80 flex-col">
+      {/* pb-2 bridges the gap between arrow and badge so mouse doesn't leave hover zone */}
+      <span className="absolute bottom-full left-0 z-50 hidden group-hover/rss:flex w-80 flex-col pb-2">
         <span className="rounded-xl bg-slate-900 shadow-xl overflow-hidden">
           {structured ? (
             <>
               <div className="px-3 pt-3 pb-2 border-b border-slate-700/60">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Analysis</p>
-                <p className="text-xs text-slate-100 leading-relaxed">{structured.analysis}</p>
+                <p className="text-xs text-slate-100 leading-relaxed select-text">{structured.analysis}</p>
               </div>
               <div className="px-3 pt-2 pb-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 mb-1">Next Step</p>
-                <p className="text-xs text-slate-100 leading-relaxed">{structured.action}</p>
+                <p className="text-xs text-slate-100 leading-relaxed select-text">{structured.action}</p>
               </div>
             </>
           ) : (
-            <p className="px-3 py-2 text-xs text-slate-100 leading-relaxed">{note}</p>
+            <p className="px-3 py-2 text-xs text-slate-100 leading-relaxed select-text">{note}</p>
           )}
         </span>
         <span className="ml-3 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-900" />
