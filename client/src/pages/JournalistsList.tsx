@@ -1,12 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, ChevronRight, SortDesc, Sparkles, FileText, Star, Mail, LayoutList, Columns } from 'lucide-react';
+import { Search, ChevronRight, SortDesc, Sparkles, FileText, Star, Mail, LayoutList, Columns, CheckCircle2, Circle } from 'lucide-react';
 import { journalists as api, enrichment as enrichApi } from '../api';
 import type { Journalist } from '../types';
 import StatusBadge from '../components/StatusBadge';
 
 const STATUSES = ['Not Started', 'Researching', 'Ready to Pitch', 'Pitched', 'Responded', 'In Conversation', 'Covered', 'Not a Fit', 'On Hold'];
-const PUB_TYPES = ['National', 'Regional', 'Trade', 'Blog', 'Newsletter', 'Podcast', 'Wire'];
 
 // Pipeline columns — subset of statuses that form the main funnel
 const PIPELINE_COLS: { key: string; label: string; color: string; dot: string }[] = [
@@ -119,14 +118,13 @@ export default function JournalistsList() {
   const [rescoring, setRescoring] = useState(false);
   const [rescoreMsg, setRescoreMsg] = useState('');
   const [backfilling, setBackfilling] = useState(false);
-  const [backfillDone, setBackfillDone] = useState(false);
+  const [backfillDone, setBackfillDone] = useState(() => localStorage.getItem('backfillDone') === '1');
   const [enriching, setEnriching] = useState(false);
   const [view, setView] = useState<'list' | 'pipeline'>('list');
   const dragJournalist = useRef<Journalist | null>(null);
 
   const search = searchParams.get('search') || '';
   const tier = searchParams.get('tier') || '';
-  const publicationType = searchParams.get('publicationType') || '';
   const outreachStatus = searchParams.get('outreachStatus') || '';
   const sortBy = searchParams.get('sortBy') || 'totalScore';
   const favOnly = searchParams.get('favOnly') === '1';
@@ -149,7 +147,7 @@ export default function JournalistsList() {
   };
 
   const reload = () =>
-    api.list({ search, tier, publicationType, outreachStatus, sortBy })
+    api.list({ search, tier, outreachStatus, sortBy })
       .then(r => setList(r.data));
 
   const handleBulkRescore = async () => {
@@ -172,6 +170,7 @@ export default function JournalistsList() {
       const res = await api.backfillArticles();
       setRescoreMsg(res.data.message);
       setBackfillDone(true);
+      localStorage.setItem('backfillDone', '1');
     } catch (err: any) {
       setRescoreMsg('Backfill failed. Check server logs.');
     } finally {
@@ -222,7 +221,7 @@ export default function JournalistsList() {
 
   useEffect(() => {
     setLoading(true);
-    api.list({ search, tier, publicationType, outreachStatus, sortBy })
+    api.list({ search, tier, outreachStatus, sortBy })
       .then(r => setList(r.data))
       .finally(() => setLoading(false));
   }, [search, tier, publicationType, outreachStatus, sortBy]);
@@ -331,10 +330,6 @@ export default function JournalistsList() {
           <option value="">All Tiers</option>
           {[1,2,3,4].map(t => <option key={t} value={t}>Tier {t}</option>)}
         </select>
-        <select className="form-select w-auto" value={publicationType} onChange={e => update('publicationType', e.target.value)}>
-          <option value="">All Types</option>
-          {PUB_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
         {view === 'list' && (
           <select className="form-select w-auto" value={outreachStatus} onChange={e => update('outreachStatus', e.target.value)}>
             <option value="">All Statuses</option>
@@ -374,6 +369,7 @@ export default function JournalistsList() {
                   <th className="text-left px-4 py-3 font-medium text-slate-600 flex items-center gap-1">
                     <SortDesc className="w-3 h-3" /> Score
                   </th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600">Email</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Status</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -404,12 +400,31 @@ export default function JournalistsList() {
                     <td className="px-4 py-3 text-slate-600">{j.publication}</td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{j.beat}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-16 bg-slate-100 rounded-full h-1.5">
-                          <div className="bg-northstar-500 h-1.5 rounded-full" style={{ width: `${j.totalScore}%` }} />
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-16 bg-slate-100 rounded-full h-1.5">
+                            <div className="bg-northstar-500 h-1.5 rounded-full" style={{ width: `${j.totalScore}%` }} />
+                          </div>
+                          <span className="font-mono text-xs font-medium text-slate-700">{j.totalScore}</span>
                         </div>
-                        <span className="font-mono text-xs font-medium text-slate-700">{j.totalScore}</span>
+                        {j.priorityTier > 0 && (
+                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${TIER_COLOURS[j.priorityTier] ?? TIER_COLOURS[4]}`}>
+                            T{j.priorityTier}
+                          </span>
+                        )}
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {j.email
+                        ? <span className="inline-flex items-center gap-1 text-xs text-emerald-700" title={j.email}>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            <span className="truncate max-w-[160px]">{j.email}</span>
+                          </span>
+                        : <span className="inline-flex items-center gap-1 text-xs text-slate-300">
+                            <Circle className="w-3.5 h-3.5 shrink-0" />
+                            No email
+                          </span>
+                      }
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={j.outreachStatus} /></td>
                     <td className="px-4 py-3">
