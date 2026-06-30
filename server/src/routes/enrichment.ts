@@ -4,6 +4,21 @@ import pool from '../db';
 
 const router = Router();
 
+// GET /api/enrichment/credits
+router.get('/credits', async (_req, res) => {
+  const apiKey = process.env.APOLLO_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'APOLLO_API_KEY not set' });
+  try {
+    const r = await axios.get('https://api.apollo.io/api/v1/auth/health', {
+      headers: { 'x-api-key': apiKey },
+    });
+    const { credits_used, credits_limit, credits_remaining } = r.data;
+    res.json({ credits_used, credits_limit, credits_remaining });
+  } catch (err: any) {
+    res.status(500).json({ error: err.response?.data?.message || err.message });
+  }
+});
+
 function extractDomain(url: string): string {
   try {
     return new URL(url.startsWith('http') ? url : `https://${url}`).hostname.replace(/^www\./, '');

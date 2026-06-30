@@ -109,6 +109,7 @@ export const campaignStyles = {
 export const enrichment = {
   enrich:   (id: number) => api.post(`/enrichment/${id}`),
   bulkRun:  ()           => api.post('/enrichment/bulk/run'),
+  credits:  ()           => api.get('/enrichment/credits'),
 };
 
 export const exportUrl = (type: 'journalists' | 'articles' | 'outreach') =>
