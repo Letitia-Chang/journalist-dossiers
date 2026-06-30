@@ -65,7 +65,7 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
 
     const result = await pool.query(`
       INSERT INTO journalists (name, publication, beat, "outreachStatus", notes)
-      VALUES ($1,$2,$3,'Researching',$4) RETURNING id
+      VALUES ($1,$2,$3,'Not Started',$4) RETURNING id
     `, [suggestion.name, suggestion.publicationName || '', suggestion.suggestedBeat || '', notes]);
 
     await pool.query("UPDATE journalist_suggestions SET status='accepted' WHERE id=$1", [req.params.id]);
