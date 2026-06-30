@@ -2,6 +2,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import Parser from 'rss-parser';
 import pool from '../db';
+import { generateRssDiagnosticNote } from './rssDiagnostic';
 
 const parser = new Parser({ timeout: 8000 });
 
@@ -117,6 +118,11 @@ export async function discoverAndSaveFeeds(publicationId: number): Promise<FeedD
       `UPDATE publications SET "rssStatusNote" = $1 WHERE id = $2`,
       [`Discovery failed: ${err.message}`, publicationId]
     );
+    // Fire-and-forget Claude diagnostic (non-blocking)
+    generateRssDiagnosticNote(publicationId, pub.name, pub.url, {
+      failureType: 'fetch_error',
+      errorMessage: err.message,
+    }).catch(() => {});
     return { publicationId, publicationName: pub.name, feedsFound: 0, feedsAdded: 0, feeds: [], error: err.message };
   }
 
@@ -147,6 +153,10 @@ export async function discoverAndSaveFeeds(publicationId: number): Promise<FeedD
       `UPDATE publications SET "rssStatusNote" = $1 WHERE id = $2`,
       [`Auto-discovery scanned the homepage but found no RSS feeds`, publicationId]
     );
+    // Fire-and-forget Claude diagnostic (non-blocking)
+    generateRssDiagnosticNote(publicationId, pub.name, pub.url, {
+      failureType: 'no_feeds_found',
+    }).catch(() => {});
   }
 
   console.log(`[FeedDiscovery] ${pub.name}: ${feeds.length} found, ${added} new`);
