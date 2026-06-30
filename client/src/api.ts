@@ -64,6 +64,7 @@ export const publications = {
   deleteFeed:    (id: number, feedId: number) => api.delete(`/publications/${id}/feeds/${feedId}`),
   checkAllFeeds: () => api.post('/publications/check-feeds'),
   discoverFeedsAll: () => api.post('/publications/discover-feeds-all'),
+  syncFeeds: () => api.post('/publications/sync-feeds'),
 };
 
 export const journalistSuggestions = {

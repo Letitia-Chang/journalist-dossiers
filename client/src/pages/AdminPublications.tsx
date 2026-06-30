@@ -148,10 +148,9 @@ export default function AdminPublications() {
   const [opmlResult, setOpmlResult] = useState<{ added: number; total: number; skippedDuplicate: number; preview: string[]; message: string; error?: string } | null>(null);
   const opmlInputRef = useRef<HTMLInputElement>(null);
   const [healthWarnings, setHealthWarnings] = useState<{ unreachable: any[]; stale: any[]; inactiveFeeds: any[] }>({ unreachable: [], stale: [], inactiveFeeds: [] });
-  const [checkingFeeds, setCheckingFeeds] = useState(false);
-  const [checkFeedsMsg, setCheckFeedsMsg] = useState('');
+  const [syncingFeeds, setSyncingFeeds] = useState(false);
+  const [syncFeedsMsg, setSyncFeedsMsg] = useState('');
   const [discoveringFeedsPubIds, setDiscoveringFeedsPubIds] = useState<Set<number>>(new Set());
-  const [discoveringFeedsAll, setDiscoveringFeedsAll] = useState(false);
 
   // Blog discovery
   const [showDiscover, setShowDiscover]     = useState(false);
@@ -366,30 +365,17 @@ const handleDiscoverFeeds = async (p: Publication) => {
     setTimeout(async () => { await loadSuggestions(); setRunningJob(false); }, 4000);
   };
 
-  const handleDiscoverFeedsAll = async () => {
-    setDiscoveringFeedsAll(true);
-    setCheckFeedsMsg('');
+  const handleSyncFeeds = async () => {
+    setSyncingFeeds(true);
+    setSyncFeedsMsg('');
     try {
-      const res = await pubApi.discoverFeedsAll();
-      setCheckFeedsMsg(res.data.message);
-      setTimeout(async () => { await loadPubs(); setDiscoveringFeedsAll(false); }, 120_000);
+      const res = await pubApi.syncFeeds();
+      setSyncFeedsMsg(res.data.message);
+      // Reload after ~5 min to show updated statuses (discovery + verification takes time)
+      setTimeout(async () => { await loadPubs(); setSyncingFeeds(false); }, 300_000);
     } catch {
-      setCheckFeedsMsg('Feed discovery failed. Check server logs.');
-      setDiscoveringFeedsAll(false);
-    }
-  };
-
-  const handleCheckAllFeeds = async () => {
-    setCheckingFeeds(true);
-    setCheckFeedsMsg('');
-    try {
-      await pubApi.checkAllFeeds();
-      setCheckFeedsMsg('Feed check running — statuses will update in 1–2 minutes.');
-      // Reload after 90s to show updated statuses
-      setTimeout(async () => { await loadPubs(); setCheckingFeeds(false); }, 90_000);
-    } catch {
-      setCheckFeedsMsg('Feed check failed. Check server logs.');
-      setCheckingFeeds(false);
+      setSyncFeedsMsg('Feed sync failed. Check server logs.');
+      setSyncingFeeds(false);
     }
   };
 
@@ -447,30 +433,28 @@ const handleDiscoverFeeds = async (p: Publication) => {
               className="hidden"
               onChange={handleOpmlFile}
             />
-            {/* Icon-only utility buttons */}
-            <button onClick={handleDiscoverFeedsAll} disabled={discoveringFeedsAll}
-              title="Discover feeds for all publications — finds RSS feeds for every publication that doesn't have them yet"
-              className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 transition-all">
-              <Layers className={`w-4 h-4 ${discoveringFeedsAll ? 'animate-pulse text-violet-500' : ''}`} />
-            </button>
-            <button onClick={handleCheckAllFeeds} disabled={checkingFeeds}
-              title="Check all feeds — verifies every RSS feed URL and updates statuses"
-              className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all">
-              <RefreshCw className={`w-4 h-4 ${checkingFeeds ? 'animate-spin text-emerald-500' : ''}`} />
-            </button>
+            {/* Sparkles — AI suggests new publications autonomously */}
             <button onClick={handleRunNow} disabled={runningJob}
-              title="Suggest with AI — runs weekly discovery and adds suggestions for review"
+              title="AI Suggest — Claude autonomously picks new publications relevant to AI/startups and adds them to suggestions"
               className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all">
               <Sparkles className={`w-4 h-4 ${runningJob ? 'animate-pulse text-indigo-500' : ''}`} />
             </button>
+            {/* Sync Feeds — discover + verify in one step */}
+            <button onClick={handleSyncFeeds} disabled={syncingFeeds}
+              title="Sync Feeds — discovers RSS feeds for all publications, then verifies every feed URL. May take several minutes."
+              className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all">
+              <RefreshCw className={`w-4 h-4 ${syncingFeeds ? 'animate-spin text-emerald-500' : ''}`} />
+            </button>
+            {/* Import OPML */}
             <button onClick={() => opmlInputRef.current?.click()} disabled={opmlImporting}
-              title="Import publications from an OPML file (Feedly, Feedspot, etc.)"
+              title="Import OPML — upload an export file from Feedly, Feedspot, or any RSS reader. Each feed becomes a publication. Expected format: .opml or .xml"
               className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all">
               <Upload className={`w-4 h-4 ${opmlImporting ? 'animate-bounce text-indigo-500' : ''}`} />
             </button>
-            {/* Discover blogs — labelled since it's a primary discovery action */}
+            {/* Discover — keyword search across Feedly, Substack, Medium */}
             <button
               onClick={() => { setShowDiscover(v => !v); setDiscoverResults([]); setDiscoverError(''); }}
+              title="Search for publications by keyword across Feedly, Substack, and Medium"
               className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
                 showDiscover
                   ? 'bg-northstar-50 border-northstar-300 text-northstar-700'
@@ -638,11 +622,12 @@ const handleDiscoverFeeds = async (p: Publication) => {
           </div>
         )}
 
-        {/* ── Feed check status message ── */}
-        {checkFeedsMsg && (
+        {/* ── Feed sync status message ── */}
+        {syncFeedsMsg && (
           <div className="mb-4 px-4 py-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-            <RefreshCw className={`w-4 h-4 shrink-0 ${checkingFeeds ? 'animate-spin' : ''}`} />
-            {checkFeedsMsg}
+            <RefreshCw className={`w-4 h-4 shrink-0 ${syncingFeeds ? 'animate-spin' : ''}`} />
+            {syncFeedsMsg}
+            <button onClick={() => setSyncFeedsMsg('')} className="ml-auto text-emerald-500 hover:text-emerald-700"><X className="w-3.5 h-3.5" /></button>
           </div>
         )}
 
