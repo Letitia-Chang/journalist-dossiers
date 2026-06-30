@@ -114,11 +114,20 @@ export async function discoverAndSaveFeeds(publicationId: number): Promise<FeedD
   try {
     feeds = await discoverCategoryFeeds(pub.url);
   } catch (err: any) {
-    await pool.query(
-      `UPDATE publications SET "rssStatus" = 'none', "rssStatusNote" = $1, "rssLastChecked" = NOW()::TEXT WHERE id = $2`,
-      [`Discovery failed: ${err.message}`, publicationId]
-    );
-    // Fire-and-forget Claude diagnostic (non-blocking)
+    // Only set 'none' if there are truly no saved feeds — if broken feeds exist, leave status for scan to determine
+    const existingCount = (await pool.query(
+      'SELECT COUNT(*) as c FROM publication_feeds WHERE "publicationId" = $1', [publicationId]
+    )).rows[0].c;
+    if (Number(existingCount) === 0) {
+      await pool.query(
+        `UPDATE publications SET "rssStatus" = 'none', "rssStatusNote" = $1, "rssLastChecked" = NOW()::TEXT WHERE id = $2`,
+        [`Discovery failed: ${err.message}`, publicationId]
+      );
+    } else {
+      await pool.query(
+        `UPDATE publications SET "rssLastChecked" = NOW()::TEXT WHERE id = $1`, [publicationId]
+      );
+    }
     generateRssDiagnosticNote(publicationId, pub.name, pub.url, {
       failureType: 'fetch_error',
       errorMessage: err.message,
@@ -126,10 +135,11 @@ export async function discoverAndSaveFeeds(publicationId: number): Promise<FeedD
     return { publicationId, publicationName: pub.name, feedsFound: 0, feedsAdded: 0, feeds: [], error: err.message };
   }
 
-  const existingUrls = new Set(
-    (await pool.query('SELECT "feedUrl" FROM publication_feeds WHERE "publicationId" = $1', [publicationId])).rows
-      .map((r: any) => r.feedUrl.toLowerCase())
-  );
+  const existingFeeds = (await pool.query(
+    'SELECT "feedUrl", "rssStatus" FROM publication_feeds WHERE "publicationId" = $1', [publicationId]
+  )).rows;
+  const existingUrls = new Set(existingFeeds.map((r: any) => r.feedUrl.toLowerCase()));
+  const hasExistingFeeds = existingFeeds.length > 0;
 
   let added = 0;
   for (const feed of feeds) {
@@ -148,12 +158,19 @@ export async function discoverAndSaveFeeds(publicationId: number): Promise<FeedD
       `UPDATE publications SET "rssStatus" = 'active', "rssStatusNote" = $1, "rssLastChecked" = NOW()::TEXT WHERE id = $2`,
       [`${feeds.length} feed${feeds.length !== 1 ? 's' : ''} discovered automatically`, publicationId]
     );
+  } else if (hasExistingFeeds) {
+    // Feeds exist but discovery found nothing new — leave rssStatus for scanAllRssFeeds to determine
+    // (it will set 'inactive' based on whether existing feeds actually respond)
+    await pool.query(
+      `UPDATE publications SET "rssLastChecked" = NOW()::TEXT WHERE id = $1`,
+      [publicationId]
+    );
   } else {
+    // Truly no feeds anywhere — mark as none and generate diagnostic
     await pool.query(
       `UPDATE publications SET "rssStatus" = 'none', "rssStatusNote" = $1, "rssLastChecked" = NOW()::TEXT WHERE id = $2`,
       [`Auto-discovery scanned the homepage but found no RSS feeds`, publicationId]
     );
-    // Fire-and-forget Claude diagnostic (non-blocking)
     generateRssDiagnosticNote(publicationId, pub.name, pub.url, {
       failureType: 'no_feeds_found',
     }).catch(() => {});
