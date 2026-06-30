@@ -33,7 +33,7 @@ export async function generateRssDiagnosticNote(
 
     const response = await client.messages.create({
       model: 'claude-opus-4-8',
-      max_tokens: 200,
+      max_tokens: 300,
       thinking: { type: 'adaptive' },
       messages: [{
         role: 'user',
@@ -43,12 +43,25 @@ Publication: ${publicationName}
 URL: ${publicationUrl}
 What happened: ${situationDesc}
 
-In 1–2 plain-English sentences, explain the most likely reason why RSS discovery failed (e.g. paywalled, newsletter platform, Cloudflare, no public RSS, etc.) and give one specific practical action the team should take instead (e.g. add journalist manually, deactivate publication, try a specific alternative URL). Be concrete — name the platform if you recognise it. Do not use bullet points or headers. Do not start with "I".`,
+Respond with ONLY a JSON object in this exact format (no markdown, no explanation outside the JSON):
+{
+  "analysis": "1–2 sentences explaining the most likely reason RSS discovery failed. Name the platform if you recognise it (e.g. Beehiiv, Substack, Cloudflare, paywall).",
+  "action": "One specific actionable next step for the team. Be concrete — include a URL to try, or say exactly what to do (e.g. 'Add key journalists manually', 'Try https://...', 'Deactivate this publication')."
+}`,
       }],
     });
 
     const textBlock = response.content.find(b => b.type === 'text');
-    const note = textBlock?.text?.trim() ?? '';
+    const raw = textBlock?.text?.trim() ?? '';
+
+    // Validate it's parseable JSON before storing
+    let note = raw;
+    try {
+      JSON.parse(raw); // will throw if malformed
+    } catch {
+      // Fallback: wrap plain text in structured format
+      note = JSON.stringify({ analysis: raw, action: 'Add journalists from this publication manually.' });
+    }
 
     if (note) {
       await pool.query(
