@@ -16,20 +16,20 @@ function parseTags(raw: string | undefined): string[] {
 
 function RelevanceBadge({ score }: { score: number }) {
   if (score >= 6) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 whitespace-nowrap">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
       High · {score}/10
     </span>
   );
   if (score >= 3) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 ring-1 ring-amber-200">
-      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 ring-1 ring-amber-200 whitespace-nowrap">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shrink-0" />
       Mid · {score}/10
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-400 ring-1 ring-slate-200">
-      <span className="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block" />
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-400 ring-1 ring-slate-200 whitespace-nowrap">
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block shrink-0" />
       Low · {score}/10
     </span>
   );
@@ -277,7 +277,7 @@ export default function AdminJournalistSuggestions() {
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Name</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Relevance</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-36">Relevance</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Matched tags</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Best article</th>
                     <th className="px-5 py-3 w-36" />
