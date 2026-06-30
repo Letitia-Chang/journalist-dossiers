@@ -107,6 +107,7 @@ export interface JournalistSuggestion {
   relevanceScore: number;       // 0–10
   matchedTags: string;          // JSON string array
   articleCount: number;         // articles found for this author
+  allArticles: string;          // JSON string: { title, url, date }[]
   status: 'pending' | 'accepted' | 'rejected';
   createdAt: string;
 }
