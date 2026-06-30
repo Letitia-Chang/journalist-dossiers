@@ -163,7 +163,7 @@ app.post('/api/admin/fix-beats', async (_req, res) => {
       try {
         const articles: { title: string; categories?: string[] }[] =
           s.allArticles ? JSON.parse(s.allArticles) : [];
-        const titles = articles.length > 0 ? articles : [{ title: s.recentArticleTitle || '' }];
+        const titles: { title: string; categories?: string[] }[] = articles.length > 0 ? articles : [{ title: s.recentArticleTitle || '' }];
 
         const counts: Record<string, number> = {};
         for (const a of titles) {
