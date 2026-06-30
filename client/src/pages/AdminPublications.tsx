@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import {
   Plus, Pencil, Trash2, ExternalLink, Check, X,
   Sparkles, RefreshCw, History, ChevronUp, ChevronDown,
-  Globe, ChevronRight, Rss, AlertCircle, HelpCircle, ScanLine,
+  Globe, ChevronRight, Rss, AlertCircle, HelpCircle,
   BookOpen, Search, TriangleAlert, Upload, Layers, Zap, Users,
 } from 'lucide-react';
 import { publications as pubApi, suggestions as suggestApi, journalistSuggestions as jSuggestApi, healthCheck as healthApi } from '../api';
@@ -96,7 +96,6 @@ export default function AdminPublications() {
   const [history, setHistory]       = useState<PublicationSuggestion[]>([]);
   const [acceptingId, setAcceptingId]   = useState<number | null>(null);
   const [rejectingId, setRejectingId]   = useState<number | null>(null);
-  const [scanningId, setScanningId]             = useState<number | null>(null);
   const [staffScanningId, setStaffScanningId]   = useState<number | null>(null);
   const [discoveringFeedsId, setDiscoveringFeedsId] = useState<number | null>(null);
   const [feedsDiscoveryResult, setFeedsDiscoveryResult] = useState<{ pubName: string; added: number } | null>(null);
@@ -113,6 +112,8 @@ export default function AdminPublications() {
   const [healthWarnings, setHealthWarnings] = useState<{ unreachable: any[]; stale: any[]; inactiveFeeds: any[] }>({ unreachable: [], stale: [], inactiveFeeds: [] });
   const [checkingFeeds, setCheckingFeeds] = useState(false);
   const [checkFeedsMsg, setCheckFeedsMsg] = useState('');
+  const [discoveringFeedsPubIds, setDiscoveringFeedsPubIds] = useState<Set<number>>(new Set());
+  const [discoveringFeedsAll, setDiscoveringFeedsAll] = useState(false);
 
   // Blog discovery
   const [showDiscover, setShowDiscover]     = useState(false);
@@ -142,8 +143,22 @@ export default function AdminPublications() {
     if (!form.name.trim()) return alert('Name is required');
     setSaving(true);
     try {
-      if (editingId) { await pubApi.update(editingId, form); setEditingId(null); }
-      else           { await pubApi.create(form); setShowAdd(false); }
+      if (editingId) {
+        await pubApi.update(editingId, form);
+        setEditingId(null);
+      } else {
+        const res = await pubApi.create(form);
+        setShowAdd(false);
+        // Show feed discovery spinner on new publication
+        if (res.data.discoveringFeeds && res.data.id) {
+          const pubId = res.data.id;
+          setDiscoveringFeedsPubIds(prev => new Set(prev).add(pubId));
+          setTimeout(() => {
+            setDiscoveringFeedsPubIds(prev => { const s = new Set(prev); s.delete(pubId); return s; });
+            loadPubs();
+          }, 30_000);
+        }
+      }
       setForm({ ...empty });
       loadPubs();
     } finally { setSaving(false); }
@@ -162,9 +177,18 @@ export default function AdminPublications() {
 
   const handleAccept = async (s: PublicationSuggestion) => {
     setAcceptingId(s.id);
-    await suggestApi.accept(s.id);
+    const res = await suggestApi.accept(s.id);
     await Promise.all([loadPubs(), loadSuggestions()]);
     setAcceptingId(null);
+    // Show feed discovery spinner on the new publication row
+    if (res.data.discoveringFeeds && res.data.pubId) {
+      const pubId = res.data.pubId;
+      setDiscoveringFeedsPubIds(prev => new Set(prev).add(pubId));
+      setTimeout(() => {
+        setDiscoveringFeedsPubIds(prev => { const s = new Set(prev); s.delete(pubId); return s; });
+        loadPubs();
+      }, 30_000);
+    }
   };
 
   const handleReject = async (s: PublicationSuggestion) => {
@@ -174,17 +198,7 @@ export default function AdminPublications() {
     setRejectingId(null);
   };
 
-  const handleScanRss = async (p: Publication) => {
-    if (!p.rssUrl) return alert('No RSS URL set for this publication. Edit it to add one.');
-    setScanningId(p.id);
-    await jSuggestApi.scanPublication(p.id);
-    setTimeout(async () => {
-      await Promise.all([loadPubs(), loadJCount()]);
-      setScanningId(null);
-    }, 3000);
-  };
-
-  const handleStaffScan = async (p: Publication) => {
+const handleStaffScan = async (p: Publication) => {
     if (!p.url) return alert('No homepage URL set for this publication.');
     setStaffScanningId(p.id);
     setStaffScanResult(null);
@@ -304,6 +318,19 @@ const handleDiscoverFeeds = async (p: Publication) => {
     setTimeout(async () => { await loadSuggestions(); setRunningJob(false); }, 4000);
   };
 
+  const handleDiscoverFeedsAll = async () => {
+    setDiscoveringFeedsAll(true);
+    setCheckFeedsMsg('');
+    try {
+      const res = await pubApi.discoverFeedsAll();
+      setCheckFeedsMsg(res.data.message);
+      setTimeout(async () => { await loadPubs(); setDiscoveringFeedsAll(false); }, 120_000);
+    } catch {
+      setCheckFeedsMsg('Feed discovery failed. Check server logs.');
+      setDiscoveringFeedsAll(false);
+    }
+  };
+
   const handleCheckAllFeeds = async () => {
     setCheckingFeeds(true);
     setCheckFeedsMsg('');
@@ -373,6 +400,11 @@ const handleDiscoverFeeds = async (p: Publication) => {
               onChange={handleOpmlFile}
             />
             {/* Icon-only utility buttons */}
+            <button onClick={handleDiscoverFeedsAll} disabled={discoveringFeedsAll}
+              title="Discover feeds for all publications — finds RSS feeds for every publication that doesn't have them yet"
+              className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 transition-all">
+              <Layers className={`w-4 h-4 ${discoveringFeedsAll ? 'animate-pulse text-violet-500' : ''}`} />
+            </button>
             <button onClick={handleCheckAllFeeds} disabled={checkingFeeds}
               title="Check all feeds — verifies every RSS feed URL and updates statuses"
               className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all">
@@ -799,7 +831,13 @@ const handleDiscoverFeeds = async (p: Publication) => {
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
                       <RssStatusBadge status={p.rssStatus || 'unknown'} />
-                      {p.isVirtual !== 1 && (
+                      {discoveringFeedsPubIds.has(p.id) && (
+                        <span className="inline-flex items-center gap-1 text-xs text-violet-600 animate-pulse">
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                          Discovering…
+                        </span>
+                      )}
+                      {!discoveringFeedsPubIds.has(p.id) && p.isVirtual !== 1 && (
                         <button onClick={() => toggleFeedsPanel(p.id)}
                           className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 transition-colors"
                           title="View / manage feeds">
@@ -819,11 +857,6 @@ const handleDiscoverFeeds = async (p: Publication) => {
                   </td>
                   <td className="px-3 py-3.5">
                     <div className="flex items-center gap-0.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleScanRss(p)} disabled={scanningId === p.id}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                        title="Scan feeds for journalist suggestions">
-                        {scanningId === p.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ScanLine className="w-3.5 h-3.5" />}
-                      </button>
                       <Link to={`/admin/publications/${p.id}`}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-northstar-600 hover:bg-northstar-50 transition-colors" title="View journalists">
                         <Users className="w-3.5 h-3.5" />

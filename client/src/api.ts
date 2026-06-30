@@ -63,6 +63,7 @@ export const publications = {
   addFeed:       (id: number, feedUrl: string, feedLabel: string) => api.post(`/publications/${id}/feeds`, { feedUrl, feedLabel }),
   deleteFeed:    (id: number, feedId: number) => api.delete(`/publications/${id}/feeds/${feedId}`),
   checkAllFeeds: () => api.post('/publications/check-feeds'),
+  discoverFeedsAll: () => api.post('/publications/discover-feeds-all'),
 };
 
 export const journalistSuggestions = {

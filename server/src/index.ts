@@ -12,6 +12,7 @@ import journalistSuggestionsRouter from './routes/journalistSuggestions';
 import { startSuggestionCron, runSuggestionJob } from './cron/suggestionJob';
 import { startRssCron } from './cron/rssJob';
 import { scanAllRssFeeds } from './services/rssService';
+import { discoverAndSaveFeeds } from './services/categoryFeedDiscovery';
 import { startHealthCheckCron, runHealthChecks } from './cron/healthCheckJob';
 import { refreshAllJournalistArticles } from './services/refreshJournalistArticles';
 import campaignsRouter from './routes/campaigns';
@@ -134,6 +135,21 @@ app.post('/api/publications/check-feeds', async (_req, res) => {
   scanAllRssFeeds().catch(console.error);
 });
 
+app.post('/api/publications/discover-feeds-all', async (_req, res) => {
+  const pubs = (await pool.query(
+    `SELECT id, name FROM publications WHERE active = 1 AND "isVirtual" = 0`
+  )).rows;
+  res.json({ message: `Discovering feeds for ${pubs.length} publications — this runs in the background.` });
+  (async () => {
+    for (const pub of pubs) {
+      await discoverAndSaveFeeds(pub.id).catch(err =>
+        console.error(`[FeedDiscovery] Failed for "${pub.name}":`, err.message)
+      );
+    }
+    console.log('[FeedDiscovery] Bulk discovery complete');
+  })();
+});
+
 app.post('/api/health-check/run-now', async (_req, res) => {
   res.json({ message: 'Health check started' });
   runHealthChecks().catch(console.error);
@@ -174,12 +190,12 @@ initDb()
       startRssCron();
       startHealthCheckCron();
 
-      // Fridays 7am ET — refresh articles for all tracked journalists
-      cron.schedule('0 7 * * 5', () => {
+      // Mondays 6am ET — refresh articles for all tracked journalists (same day as other jobs)
+      cron.schedule('0 6 * * 1', () => {
         console.log('[ArticleRefresh] Weekly journalist article refresh starting...');
         refreshAllJournalistArticles().catch(err => console.error('[ArticleRefresh] Error:', err));
       }, { timezone: 'America/New_York' });
-      console.log('[ArticleRefresh] Weekly article refresh cron scheduled — Fridays at 7am ET');
+      console.log('[ArticleRefresh] Weekly article refresh cron scheduled — Mondays at 6am ET');
     });
   })
   .catch(err => {

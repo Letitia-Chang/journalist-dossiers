@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
+import { discoverAndSaveFeeds } from '../services/categoryFeedDiscovery';
 
 const router = Router();
 
@@ -43,12 +44,18 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
       return res.json({ success: true, message: 'Already exists — marked as accepted' });
     }
 
-    await pool.query(
-      'INSERT INTO publications (name, url, tier, focus, notes, active) VALUES ($1,$2,$3,$4,$5,1)',
+    const inserted = await pool.query(
+      'INSERT INTO publications (name, url, tier, focus, notes, active) VALUES ($1,$2,$3,$4,$5,1) RETURNING id',
       [suggestion.name, suggestion.url || '', suggestion.tier || 'B', suggestion.focus || '', suggestion.reason || '']
     );
+    const newPubId = inserted.rows[0].id;
     await pool.query("UPDATE publication_suggestions SET status='accepted' WHERE id=$1", [req.params.id]);
-    res.json({ success: true });
+    res.json({ success: true, pubId: newPubId, discoveringFeeds: true });
+
+    // Auto-discover feeds in the background
+    discoverAndSaveFeeds(newPubId).catch(err =>
+      console.error(`[FeedDiscovery] Failed for suggestion "${suggestion.name}":`, err.message)
+    );
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

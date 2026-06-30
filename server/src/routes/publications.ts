@@ -46,22 +46,33 @@ router.post('/', async (req: Request, res: Response) => {
     `, [name, url, tier, focus, notes, active, rssUrl, rssStatus]);
 
     const created = (await pool.query('SELECT * FROM publications WHERE id = $1', [result.rows[0].id])).rows[0];
-    res.status(201).json(created);
+    res.status(201).json({ ...created, discoveringFeeds: true });
 
-    // Background: auto-discover RSS
-    if (!rssUrl && url) {
-      discoverRssUrl(url).then(async discovered => {
-        if (discovered) {
-          await pool.query(
-            'UPDATE publications SET "rssUrl"=$1, "rssStatus"=\'active\', "updatedAt"=NOW() WHERE id=$2',
-            [discovered, created.id]
-          );
-          console.log(`[RssDiscovery] Auto-filled RSS for "${name}": ${discovered}`);
-        } else {
-          await pool.query("UPDATE publications SET \"rssStatus\"='none' WHERE id=$1", [created.id]);
+    // Background: auto-discover RSS URL then category feeds
+    (async () => {
+      let resolvedUrl = rssUrl;
+      if (!resolvedUrl && url) {
+        try {
+          const discovered = await discoverRssUrl(url);
+          if (discovered) {
+            resolvedUrl = discovered;
+            await pool.query(
+              'UPDATE publications SET "rssUrl"=$1, "rssStatus"=\'active\', "updatedAt"=NOW() WHERE id=$2',
+              [discovered, created.id]
+            );
+            console.log(`[RssDiscovery] Auto-filled RSS for "${name}": ${discovered}`);
+          } else {
+            await pool.query("UPDATE publications SET \"rssStatus\"='none' WHERE id=$1", [created.id]);
+          }
+        } catch (err: any) {
+          console.error(`[RssDiscovery] Failed for "${name}":`, err.message);
         }
-      }).catch(err => console.error(`[RssDiscovery] Failed for "${name}":`, err.message));
-    }
+      }
+      // Discover category feeds regardless
+      discoverAndSaveFeeds(created.id).catch(err =>
+        console.error(`[FeedDiscovery] Failed for "${name}":`, err.message)
+      );
+    })();
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
