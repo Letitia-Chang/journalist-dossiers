@@ -884,14 +884,6 @@ const handleDiscoverFeeds = async (p: Publication) => {
                             {p.feedCount}
                             <ChevronRight className={`w-3 h-3 transition-transform ${expandedFeedsPubId === p.id ? 'rotate-90' : ''}`} />
                           </button>
-                          {p.rssStatus === 'inactive' && (
-                            <button
-                              onClick={() => { setExpandedFeedsPubId(p.id); loadFeeds(p.id); handleDiscoverFeeds(p); }}
-                              className="text-[10px] text-red-400 hover:text-red-600 hover:underline transition-colors leading-none"
-                            >
-                              Try auto-discover →
-                            </button>
-                          )}
                         </div>
                       )}
                     </div>
