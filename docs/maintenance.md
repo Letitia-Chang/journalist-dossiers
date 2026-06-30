@@ -41,9 +41,9 @@ Each publication in the Publications admin shows one of four feed statuses:
 
 **Step 1 — Hover the Failed badge.** A tooltip will appear with an AI-generated explanation of why it failed and a specific next step (e.g. a URL to try, or a recommendation to add journalists manually).
 
-**Step 2 — Click "Try auto-discover →"** (the small link below the feed count). This opens the feeds panel and immediately re-runs discovery, scanning the publication's homepage for any new working RSS URLs.
+**Step 2 — Run Sync Feeds.** Click the "Sync Feeds" button in the Publications toolbar. This re-runs discovery on all publications and automatically removes broken feeds that have no working replacement. If new feed URLs are found, they'll be saved and verified.
 
-**Step 3 — Manually fix the feed URL** (if auto-discover doesn't help). Click the feed count to expand the feeds panel, delete the broken feed (✕ button), then paste a new URL in the "Add feed" field. To find the right URL:
+**Step 3 — Manually fix the feed URL** (if Sync Feeds doesn't help). Click the feed count to expand the feeds panel, delete the broken feed (✕ button), then paste a new URL in the "Add feed" field. To find the right URL:
 - Visit the publication's website and look for an RSS icon
 - Try appending `/feed`, `/rss`, or `/feed.xml` to the section URL (e.g. `https://techcrunch.com/category/artificial-intelligence/feed/`)
 - Check the AI tooltip — it often suggests a specific URL to try

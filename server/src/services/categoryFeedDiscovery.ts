@@ -160,14 +160,21 @@ export async function discoverAndSaveFeeds(publicationId: number): Promise<FeedD
     );
   } else if (hasExistingFeeds) {
     // Feeds exist but discovery found nothing new.
-    // If ALL existing feeds are already inactive, mark the publication as inactive too
-    // so the UI shows "Failed" instead of the stale "No RSS".
+    // If ALL existing feeds are inactive (broken), delete them and reset to 'none' —
+    // keeping dead feed URLs is misleading; a clean "No RSS" state is more honest.
     const allInactive = existingFeeds.every((f: any) => f.rssStatus === 'inactive');
     if (allInactive) {
       await pool.query(
-        `UPDATE publications SET "rssStatus" = 'inactive', "rssLastChecked" = NOW()::TEXT WHERE id = $1`,
+        'DELETE FROM publication_feeds WHERE "publicationId" = $1',
         [publicationId]
       );
+      await pool.query(
+        `UPDATE publications SET "rssStatus" = 'none', "rssStatusNote" = $1, "rssLastChecked" = NOW()::TEXT WHERE id = $2`,
+        [`All previously saved feeds are broken. Auto-discovery found no replacements.`, publicationId]
+      );
+      generateRssDiagnosticNote(publicationId, pub.name, pub.url, {
+        failureType: 'no_feeds_found',
+      }).catch(() => {});
     } else {
       await pool.query(
         `UPDATE publications SET "rssLastChecked" = NOW()::TEXT WHERE id = $1`,
