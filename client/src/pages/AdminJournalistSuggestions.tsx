@@ -2,16 +2,60 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Rss, Check, X, ExternalLink, RefreshCw,
-  ChevronLeft, FileText, History, Info,
+  ChevronLeft, FileText, History, Info, AlertTriangle, ChevronDown,
 } from 'lucide-react';
 import { journalistSuggestions as api } from '../api';
 import type { JournalistSuggestion } from '../types';
 
-// ─── Relevance helpers ────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function parseTags(raw: string | undefined): string[] {
   if (!raw) return [];
   try { return JSON.parse(raw) as string[]; } catch { return []; }
+}
+
+interface ArticleItem { title: string; url: string; date: string }
+
+function parseArticles(raw: string | undefined): ArticleItem[] {
+  if (!raw) return [];
+  try { return JSON.parse(raw) as ArticleItem[]; } catch { return []; }
+}
+
+function ArticleCell({ suggestion }: { suggestion: import('../types').JournalistSuggestion }) {
+  const [expanded, setExpanded] = useState(false);
+  const articles = parseArticles(suggestion.allArticles);
+
+  if (articles.length === 0) {
+    // Fallback to recentArticleUrl
+    return suggestion.recentArticleUrl
+      ? <a href={suggestion.recentArticleUrl} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-start gap-1.5 text-xs text-slate-500 hover:text-indigo-600 transition-colors group/link">
+          <FileText className="w-3.5 h-3.5 shrink-0 mt-0.5 group-hover/link:text-indigo-500" />
+          <span className="line-clamp-2">{suggestion.recentArticleTitle || suggestion.recentArticleUrl}</span>
+        </a>
+      : <span className="text-slate-300 text-xs">—</span>;
+  }
+
+  const shown = expanded ? articles : articles.slice(0, 1);
+
+  return (
+    <div className="space-y-1.5">
+      {shown.map((a, i) => (
+        <a key={i} href={a.url} target="_blank" rel="noopener noreferrer"
+          className="flex items-start gap-1.5 text-xs text-slate-500 hover:text-indigo-600 transition-colors group/link">
+          <FileText className="w-3.5 h-3.5 shrink-0 mt-0.5 group-hover/link:text-indigo-500" />
+          <span className="line-clamp-2">{a.title || a.url}</span>
+        </a>
+      ))}
+      {articles.length > 1 && (
+        <button onClick={() => setExpanded(v => !v)}
+          className="flex items-center gap-0.5 text-[11px] text-indigo-400 hover:text-indigo-600 transition-colors mt-0.5">
+          <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          {expanded ? 'Show less' : `+${articles.length - 1} more article${articles.length - 1 !== 1 ? 's' : ''}`}
+        </button>
+      )}
+    </div>
+  );
 }
 
 function RelevanceBadge({ score }: { score: number }) {
@@ -164,6 +208,15 @@ export default function AdminJournalistSuggestions() {
           </div>
         )}
 
+        {/* Author attribution warning */}
+        <div className="mb-5 flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <span>
+            <span className="font-semibold">Always verify the author name</span> before accepting.
+            RSS feeds sometimes misattribute articles — click the article link to confirm the byline matches the name shown here.
+          </span>
+        </div>
+
         {/* Filter tabs + bulk skip */}
         {suggestions.length > 0 && (
           <div className="flex items-center gap-2 mb-5">
@@ -279,7 +332,7 @@ export default function AdminJournalistSuggestions() {
                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Name</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-36">Relevance</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Matched tags</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Best article</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Articles scanned</th>
                     <th className="px-5 py-3 w-36" />
                   </tr>
                 </thead>
@@ -317,13 +370,7 @@ export default function AdminJournalistSuggestions() {
                           }
                         </td>
                         <td className="px-5 py-3.5 max-w-xs">
-                          {s.recentArticleUrl
-                            ? <a href={s.recentArticleUrl} target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-start gap-1.5 text-xs text-slate-500 hover:text-indigo-600 transition-colors group/link">
-                                <FileText className="w-3.5 h-3.5 shrink-0 mt-0.5 group-hover/link:text-indigo-500" />
-                                <span className="line-clamp-2">{s.recentArticleTitle || s.recentArticleUrl}</span>
-                              </a>
-                            : <span className="text-slate-300 text-xs">—</span>}
+                          <ArticleCell suggestion={s} />
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-1.5 justify-end">
