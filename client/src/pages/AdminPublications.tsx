@@ -871,13 +871,23 @@ const handleDiscoverFeeds = async (p: Publication) => {
                         </span>
                       )}
                       {!discoveringFeedsPubIds.has(p.id) && p.isVirtual !== 1 && (
-                        <button onClick={() => toggleFeedsPanel(p.id)}
-                          className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 transition-colors"
-                          title="View / manage feeds">
-                          <Layers className="w-3 h-3" />
-                          {p.feedCount}
-                          <ChevronRight className={`w-3 h-3 transition-transform ${expandedFeedsPubId === p.id ? 'rotate-90' : ''}`} />
-                        </button>
+                        <div className="flex flex-col items-start gap-0.5">
+                          <button onClick={() => toggleFeedsPanel(p.id)}
+                            className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 transition-colors"
+                            title="View / manage feeds">
+                            <Layers className="w-3 h-3" />
+                            {p.feedCount}
+                            <ChevronRight className={`w-3 h-3 transition-transform ${expandedFeedsPubId === p.id ? 'rotate-90' : ''}`} />
+                          </button>
+                          {p.rssStatus === 'inactive' && (
+                            <button
+                              onClick={() => { setExpandedFeedsPubId(p.id); loadFeeds(p.id); handleDiscoverFeeds(p); }}
+                              className="text-[10px] text-red-400 hover:text-red-600 hover:underline transition-colors leading-none"
+                            >
+                              Try auto-discover →
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </td>
