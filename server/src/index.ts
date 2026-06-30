@@ -150,6 +150,27 @@ app.post('/api/publications/discover-feeds-all', async (_req, res) => {
   })();
 });
 
+// Sync feeds: discover new feed URLs for all pubs, then verify all feeds — runs sequentially in background
+app.post('/api/publications/sync-feeds', async (_req, res) => {
+  const pubs = (await pool.query(
+    `SELECT id, name FROM publications WHERE active = 1 AND "isVirtual" = 0`
+  )).rows;
+  res.json({ message: `Syncing feeds for ${pubs.length} publications — discovery then verification. This may take several minutes.` });
+  (async () => {
+    console.log(`[SyncFeeds] Step 1/2: Discovering feeds for ${pubs.length} publications...`);
+    for (const pub of pubs) {
+      await discoverAndSaveFeeds(pub.id).catch(err =>
+        console.error(`[SyncFeeds] Discovery failed for "${pub.name}":`, err.message)
+      );
+    }
+    console.log('[SyncFeeds] Step 2/2: Verifying all feeds...');
+    await scanAllRssFeeds().catch(err =>
+      console.error('[SyncFeeds] Verification failed:', err.message)
+    );
+    console.log('[SyncFeeds] Complete.');
+  })();
+});
+
 app.post('/api/health-check/run-now', async (_req, res) => {
   res.json({ message: 'Health check started' });
   runHealthChecks().catch(console.error);
