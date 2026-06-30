@@ -135,7 +135,10 @@ export async function scanPublicationRss(publicationId: number): Promise<RssScan
   }
 
   if (feeds.length === 0) {
-    await pool.query("UPDATE publications SET \"rssStatus\"='none', \"rssLastChecked\"=NOW()::TEXT WHERE id=$1", [publicationId]);
+    await pool.query(
+      `UPDATE publications SET "rssStatus"='none', "rssStatusNote"='No feeds have been added — run auto-discovery or add a feed URL manually', "rssLastChecked"=NOW()::TEXT WHERE id=$1`,
+      [publicationId]
+    );
     return { publicationId, publicationName: pub.name, newSuggestions: 0, status: 'none' };
   }
 
@@ -150,7 +153,13 @@ export async function scanPublicationRss(publicationId: number): Promise<RssScan
   }
 
   const pubStatus = anyActive ? 'active' : 'inactive';
-  await pool.query("UPDATE publications SET \"rssStatus\"=$1, \"rssLastChecked\"=NOW()::TEXT WHERE id=$2", [pubStatus, publicationId]);
+  const pubNote = anyActive
+    ? `${feeds.length} feed${feeds.length !== 1 ? 's' : ''} active and returning articles`
+    : `All ${feeds.length} feed${feeds.length !== 1 ? 's' : ''} failed to parse — URLs may be outdated or blocked`;
+  await pool.query(
+    `UPDATE publications SET "rssStatus"=$1, "rssStatusNote"=$2, "rssLastChecked"=NOW()::TEXT WHERE id=$3`,
+    [pubStatus, pubNote, publicationId]
+  );
 
   if (!anyActive) return { publicationId, publicationName: pub.name, newSuggestions: 0, status: 'inactive' };
 

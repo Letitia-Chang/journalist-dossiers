@@ -72,6 +72,7 @@ export interface Publication {
   notes: string;
   rssUrl: string;
   rssStatus: 'unknown' | 'active' | 'inactive' | 'none';
+  rssStatusNote: string;
   rssLastChecked: string;
   healthStatus: 'unknown' | 'healthy' | 'unreachable';
   lastHealthCheck: string;

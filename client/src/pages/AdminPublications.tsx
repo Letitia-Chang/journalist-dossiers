@@ -66,11 +66,14 @@ const RSS_STATUS = {
   unknown:  { label: 'Unknown',  cls: 'bg-amber-50 text-amber-600 ring-amber-200',        icon: HelpCircle },
 };
 
-function RssStatusBadge({ status }: { status: string }) {
+function RssStatusBadge({ status, note }: { status: string; note?: string }) {
   const s = RSS_STATUS[status as keyof typeof RSS_STATUS] ?? RSS_STATUS.unknown;
   const Icon = s.icon;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ${s.cls}`}>
+    <span
+      title={note || undefined}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ${s.cls} ${note ? 'cursor-help' : ''}`}
+    >
       <Icon className="w-3 h-3" /> {s.label}
     </span>
   );
@@ -830,7 +833,7 @@ const handleDiscoverFeeds = async (p: Publication) => {
                   {/* Combined feeds + RSS status */}
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
-                      <RssStatusBadge status={p.rssStatus || 'unknown'} />
+                      <RssStatusBadge status={p.rssStatus || 'unknown'} note={p.rssStatusNote || undefined} />
                       {discoveringFeedsPubIds.has(p.id) && (
                         <span className="inline-flex items-center gap-1 text-xs text-violet-600 animate-pulse">
                           <RefreshCw className="w-3 h-3 animate-spin" />

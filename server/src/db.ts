@@ -27,6 +27,7 @@ export async function initDb(): Promise<void> {
         active           INTEGER DEFAULT 1,
         rssUrl           TEXT DEFAULT '',
         rssStatus        TEXT DEFAULT 'unknown',
+        rssStatusNote    TEXT DEFAULT '',
         rssLastChecked   TEXT DEFAULT '',
         healthStatus     TEXT DEFAULT 'unknown',
         lastHealthCheck  TEXT DEFAULT '',
@@ -191,6 +192,7 @@ export async function initDb(): Promise<void> {
     await client.query(`
       ALTER TABLE publications ADD COLUMN IF NOT EXISTS "rssUrl"           TEXT DEFAULT '';
       ALTER TABLE publications ADD COLUMN IF NOT EXISTS "rssStatus"        TEXT DEFAULT 'unknown';
+      ALTER TABLE publications ADD COLUMN IF NOT EXISTS "rssStatusNote"    TEXT DEFAULT '';
       ALTER TABLE publications ADD COLUMN IF NOT EXISTS "rssLastChecked"   TEXT DEFAULT '';
       ALTER TABLE publications ADD COLUMN IF NOT EXISTS "healthStatus"     TEXT DEFAULT 'unknown';
       ALTER TABLE publications ADD COLUMN IF NOT EXISTS "lastHealthCheck"  TEXT DEFAULT '';

@@ -113,6 +113,10 @@ export async function discoverAndSaveFeeds(publicationId: number): Promise<FeedD
   try {
     feeds = await discoverCategoryFeeds(pub.url);
   } catch (err: any) {
+    await pool.query(
+      `UPDATE publications SET "rssStatusNote" = $1 WHERE id = $2`,
+      [`Discovery failed: ${err.message}`, publicationId]
+    );
     return { publicationId, publicationName: pub.name, feedsFound: 0, feedsAdded: 0, feeds: [], error: err.message };
   }
 
@@ -132,11 +136,16 @@ export async function discoverAndSaveFeeds(publicationId: number): Promise<FeedD
     }
   }
 
-  // Update publication rssStatus based on whether feeds were found
+  // Update publication rssStatus and note based on whether feeds were found
   if (feeds.length > 0) {
     await pool.query(
-      `UPDATE publications SET "rssStatus" = 'active', "rssLastChecked" = NOW()::TEXT WHERE id = $1`,
-      [publicationId]
+      `UPDATE publications SET "rssStatus" = 'active', "rssStatusNote" = $1, "rssLastChecked" = NOW()::TEXT WHERE id = $2`,
+      [`${feeds.length} feed${feeds.length !== 1 ? 's' : ''} discovered automatically`, publicationId]
+    );
+  } else {
+    await pool.query(
+      `UPDATE publications SET "rssStatusNote" = $1 WHERE id = $2`,
+      [`Auto-discovery scanned the homepage but found no RSS feeds`, publicationId]
     );
   }
 
