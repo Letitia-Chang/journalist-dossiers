@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, ChevronRight, SortDesc, Sparkles, FileText, Star, Mail, LayoutList, Columns, CheckCircle2, Circle } from 'lucide-react';
+import { Search, ChevronRight, SortDesc, Sparkles, Star, Mail, LayoutList, Columns, CheckCircle2, Circle } from 'lucide-react';
 import { journalists as api, enrichment as enrichApi } from '../api';
 import type { Journalist } from '../types';
 import StatusBadge from '../components/StatusBadge';
@@ -117,8 +117,6 @@ export default function JournalistsList() {
   const [loading, setLoading] = useState(true);
   const [rescoring, setRescoring] = useState(false);
   const [rescoreMsg, setRescoreMsg] = useState('');
-  const [backfilling, setBackfilling] = useState(false);
-  const [backfillDone, setBackfillDone] = useState(() => localStorage.getItem('backfillDone') === '1');
   const [enriching, setEnriching] = useState(false);
   const [view, setView] = useState<'list' | 'pipeline'>('list');
   const dragJournalist = useRef<Journalist | null>(null);
@@ -164,19 +162,6 @@ export default function JournalistsList() {
     }
   };
 
-  const handleBackfillArticles = async () => {
-    setBackfilling(true);
-    try {
-      const res = await api.backfillArticles();
-      setRescoreMsg(res.data.message);
-      setBackfillDone(true);
-      localStorage.setItem('backfillDone', '1');
-    } catch (err: any) {
-      setRescoreMsg('Backfill failed. Check server logs.');
-    } finally {
-      setBackfilling(false);
-    }
-  };
 
   const handleToggleFavorite = async (e: React.MouseEvent, j: Journalist) => {
     e.preventDefault();
@@ -261,17 +246,6 @@ export default function JournalistsList() {
             </button>
           </div>
 
-          {!backfillDone && (
-            <button
-              onClick={handleBackfillArticles}
-              disabled={backfilling}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title="Seed the Articles tab from discovery data for existing journalists"
-            >
-              <FileText className="w-4 h-4" />
-              {backfilling ? 'Seeding articles…' : 'Seed articles from discovery'}
-            </button>
-          )}
           {missingEmailCount > 0 && (
             <button
               onClick={handleBulkEnrich}
