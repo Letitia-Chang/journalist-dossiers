@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
 import pool from '../db';
+import { generateRssDiagnosticNote } from './rssDiagnostic';
 
 const parser = new Parser({
   timeout: 10000,
@@ -160,6 +161,15 @@ export async function scanPublicationRss(publicationId: number): Promise<RssScan
     `UPDATE publications SET "rssStatus"=$1, "rssStatusNote"=$2, "rssLastChecked"=NOW()::TEXT WHERE id=$3`,
     [pubStatus, pubNote, publicationId]
   );
+
+  // If all feeds failed, ask Claude to diagnose why and suggest an action
+  if (!anyActive) {
+    const failedUrls = feeds.map((f: any) => f.feedUrl);
+    generateRssDiagnosticNote(publicationId, pub.name, pub.url, {
+      failureType: 'feeds_failed',
+      feedUrls: failedUrls,
+    }).catch(() => {});
+  }
 
   if (!anyActive) return { publicationId, publicationName: pub.name, newSuggestions: 0, status: 'inactive' };
 

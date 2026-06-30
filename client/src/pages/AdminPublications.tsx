@@ -69,12 +69,21 @@ const RSS_STATUS = {
 function RssStatusBadge({ status, note }: { status: string; note?: string }) {
   const s = RSS_STATUS[status as keyof typeof RSS_STATUS] ?? RSS_STATUS.unknown;
   const Icon = s.icon;
-  return (
-    <span
-      title={note || undefined}
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ${s.cls} ${note ? 'cursor-help' : ''}`}
-    >
+  const badge = (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ${s.cls} ${note ? 'cursor-help' : ''}`}>
       <Icon className="w-3 h-3" /> {s.label}
+    </span>
+  );
+  if (!note) return badge;
+  return (
+    <span className="relative group/rss inline-flex">
+      {badge}
+      <span className="pointer-events-none absolute bottom-full left-0 mb-2 z-50 hidden group-hover/rss:flex w-72 flex-col">
+        <span className="rounded-lg bg-slate-800 px-3 py-2 text-xs text-slate-100 leading-relaxed shadow-lg">
+          {note}
+        </span>
+        <span className="ml-3 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800" />
+      </span>
     </span>
   );
 }
