@@ -28,6 +28,8 @@ export default function JournalistDetail() {
   const [editingOutreach, setEditingOutreach] = useState<OutreachLog | null>(null);
   const [enriching, setEnriching] = useState(false);
   const [enrichResult, setEnrichResult] = useState<{ email?: string; status?: string; error?: string } | null>(null);
+  const [findingProfiles, setFindingProfiles] = useState(false);
+  const [profileResult, setProfileResult] = useState<{ linkedinUrl?: string; muckrackUrl?: string; twitterUrl?: string; error?: string } | null>(null);
 
   const loadData = () => {
     if (!id) return;
@@ -60,6 +62,20 @@ export default function JournalistDetail() {
       setEnrichResult({ error: err.response?.data?.error || 'Apollo lookup failed.' });
     } finally {
       setEnriching(false);
+    }
+  };
+
+  const handleFindProfiles = async () => {
+    setFindingProfiles(true);
+    setProfileResult(null);
+    try {
+      const r = await enrichApi.findProfiles(Number(id));
+      setProfileResult(r.data);
+      if (r.data.saved) loadData();
+    } catch (err: any) {
+      setProfileResult({ error: err.response?.data?.error || 'Profile search failed.' });
+    } finally {
+      setFindingProfiles(false);
     }
   };
 
@@ -149,6 +165,16 @@ export default function JournalistDetail() {
                   {enriching ? '…' : '↻ Apollo'}
                 </button>
               )}
+              {!journalist.linkedinUrl && !journalist.muckRackUrl && (
+                <button
+                  onClick={handleFindProfiles}
+                  disabled={findingProfiles}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-slate-300 text-slate-500 hover:border-teal-400 hover:text-teal-600 hover:bg-teal-50 transition-colors disabled:opacity-50"
+                >
+                  <Link2 className="w-3 h-3" />
+                  {findingProfiles ? 'Searching…' : 'Find profiles via SerpAPI'}
+                </button>
+              )}
               {journalist.twitterUrl && (
                 <a href={journalist.twitterUrl} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
                   <AtSign className="w-3 h-3" /> Twitter/X
@@ -192,6 +218,25 @@ export default function JournalistDetail() {
                       <span className="ml-1 text-xs opacity-70">({enrichResult.status})</span>
                     )}
                     {journalist.email ? ' — already saved to profile.' : ' — saved to profile.'}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* SerpAPI profile result */}
+            {profileResult && (
+              <div className={`mt-3 px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${
+                profileResult.error
+                  ? 'bg-rose-50 border border-rose-200 text-rose-700'
+                  : 'bg-teal-50 border border-teal-200 text-teal-800'
+              }`}>
+                {profileResult.error ? (
+                  <><XCircle className="w-3.5 h-3.5 shrink-0" /> {profileResult.error}</>
+                ) : (
+                  <><CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    {profileResult.saved
+                      ? `Found and saved: ${[profileResult.linkedinUrl && 'LinkedIn', profileResult.muckrackUrl && 'MuckRack', profileResult.twitterUrl && 'Twitter'].filter(Boolean).join(', ')}`
+                      : 'No new profiles found via Google search.'}
                   </>
                 )}
               </div>

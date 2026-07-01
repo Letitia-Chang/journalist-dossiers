@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, ChevronRight, SortDesc, Sparkles, Star, Mail, LayoutList, Columns, CheckCircle2, Circle } from 'lucide-react';
+import { Search, ChevronRight, SortDesc, Sparkles, Star, Mail, LayoutList, Columns, CheckCircle2, Circle, Link2 } from 'lucide-react';
 import { journalists as api, enrichment as enrichApi } from '../api';
 import type { Journalist } from '../types';
 import StatusBadge from '../components/StatusBadge';
@@ -109,6 +109,7 @@ export default function JournalistsList() {
   const [rescoring, setRescoring] = useState(false);
   const [rescoreMsg, setRescoreMsg] = useState('');
   const [enriching, setEnriching] = useState(false);
+  const [findingProfiles, setFindingProfiles] = useState(false);
   const [apolloCredits, setApolloCredits] = useState<{ credits_used: number; credits_limit: number; credits_remaining: number } | null>(null);
   const [view, setView] = useState<'list' | 'pipeline'>('list');
   const dragJournalist = useRef<Journalist | null>(null);
@@ -120,6 +121,7 @@ export default function JournalistsList() {
 
   const unscoredCount = list.filter(j => j.totalScore === 0).length;
   const missingEmailCount = list.filter(j => !j.email).length;
+  const missingProfileCount = list.filter(j => !j.linkedinUrl && !j.muckRackUrl).length;
 
   const handleBulkEnrich = async () => {
     setEnriching(true);
@@ -138,6 +140,20 @@ export default function JournalistsList() {
   const reload = () =>
     api.list({ search, outreachStatus, sortBy })
       .then(r => setList(r.data));
+
+  const handleBulkProfiles = async () => {
+    setFindingProfiles(true);
+    setRescoreMsg('');
+    try {
+      const res = await enrichApi.bulkProfiles();
+      setRescoreMsg(res.data.message);
+      setTimeout(reload, 60_000);
+    } catch (err: any) {
+      setRescoreMsg(err.response?.data?.error || 'Profile search failed.');
+    } finally {
+      setFindingProfiles(false);
+    }
+  };
 
   const handleBulkRescore = async () => {
     setRescoring(true);
@@ -267,6 +283,17 @@ export default function JournalistsList() {
                 </span>
               )}
             </div>
+          )}
+          {missingProfileCount > 0 && (
+            <button
+              onClick={handleBulkProfiles}
+              disabled={findingProfiles}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200 text-teal-700 text-sm font-medium hover:bg-teal-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Find LinkedIn, MuckRack, and Twitter profiles via SerpAPI"
+            >
+              <Link2 className="w-4 h-4" />
+              {findingProfiles ? 'Finding profiles…' : `Find profiles via SerpAPI (${missingProfileCount})`}
+            </button>
           )}
           {unscoredCount > 0 && (
             <button
