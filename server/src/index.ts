@@ -19,6 +19,8 @@ import campaignsRouter from './routes/campaigns';
 import enrichmentRouter from './routes/enrichment';
 import campaignStylesRouter from './routes/campaignStyles';
 import coverageRouter from './routes/coverage';
+import usersRouter from './routes/users';
+import authRouter from './routes/auth';
 import cron from 'node-cron';
 
 const app = express();
@@ -42,7 +44,7 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/journalists', journalistsRouter);
@@ -56,6 +58,8 @@ app.use('/api/campaigns', campaignsRouter);
 app.use('/api/enrichment', enrichmentRouter);
 app.use('/api/campaign-styles', campaignStylesRouter);
 app.use('/api/coverage', coverageRouter);
+app.use('/api/users', usersRouter);
+app.use('/auth', authRouter);
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 app.get('/api/dashboard', async (_req, res) => {
@@ -63,7 +67,7 @@ app.get('/api/dashboard', async (_req, res) => {
     const [
       totalRes, tiersRes, avgRes, followUpsRes, recentOutreachRes,
       staleRes, unreachableRes, activeCampaignsRes, draftsReadyRes,
-      sentRes, recentCampaignsRes,
+      sentRes, recentCampaignsRes, overdueFollowUpsRes, needsReSearchRes,
     ] = await Promise.all([
       pool.query('SELECT COUNT(*)::int as c FROM journalists'),
       pool.query('SELECT "priorityTier", COUNT(*)::int as count FROM journalists GROUP BY "priorityTier"'),
@@ -82,6 +86,17 @@ app.get('/api/dashboard', async (_req, res) => {
       `),
       pool.query('SELECT COUNT(*)::int as c FROM journalists WHERE "staleFlag" = 1'),
       pool.query("SELECT COUNT(*)::int as c FROM publications WHERE \"healthStatus\" = 'unreachable'"),
+      pool.query(`
+        SELECT COUNT(*)::int as c FROM journalists
+        WHERE "outreachStatus" IN ('Pitched','Responded')
+          AND "nextFollowUpDate" IS NOT NULL AND "nextFollowUpDate" != ''
+          AND "nextFollowUpDate"::DATE < CURRENT_DATE
+      `),
+      pool.query(`
+        SELECT COUNT(*)::int as c FROM journalists
+        WHERE "serpSearchedAt" IS NOT NULL
+          AND "serpSearchedAt" < NOW() - INTERVAL '90 days'
+      `),
       pool.query("SELECT COUNT(*)::int as c FROM campaigns WHERE status != 'completed'"),
       pool.query("SELECT COUNT(*)::int as c FROM campaign_journalists WHERE \"draftStatus\" IN ('ready','approved')"),
       pool.query(`
@@ -108,6 +123,8 @@ app.get('/api/dashboard', async (_req, res) => {
       recentOutreach: recentOutreachRes.rows,
       staleJournalists: staleRes.rows[0].c,
       unreachablePubs: unreachableRes.rows[0].c,
+      overdueFollowUps: overdueFollowUpsRes.rows[0].c,
+      needsReSearch: needsReSearchRes.rows[0].c,
       activeCampaigns: activeCampaignsRes.rows[0].c,
       draftsReady: draftsReadyRes.rows[0].c,
       sentThisWeek: sentRes.rows[0].c,

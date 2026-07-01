@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { dashboard } from '../api';
 import type { DashboardData, CampaignType } from '../types';
+import { daysAgo } from '../utils';
 import StatusBadge from '../components/StatusBadge';
 
 const CAMPAIGN_TYPE_LABELS: Record<CampaignType | string, string> = {
@@ -27,7 +28,7 @@ export default function Dashboard() {
 
   if (!data) return <div className="p-8 text-slate-500">Loading...</div>;
 
-  const hasAlerts = data.staleJournalists > 0 || data.unreachablePubs > 0;
+  const hasAlerts = data.staleJournalists > 0 || data.unreachablePubs > 0 || data.overdueFollowUps > 0 || data.needsReSearch > 0;
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -129,15 +130,23 @@ export default function Dashboard() {
             <p className="text-slate-400 text-sm">No follow-ups scheduled.</p>
           ) : (
             <div className="space-y-1">
-              {data.followUps.map(j => (
-                <Link key={j.id} to={`/journalists/${j.id}`} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50">
-                  <div>
-                    <div className="font-medium text-sm text-slate-900">{j.name}</div>
-                    <div className="text-xs text-slate-500">{j.publication}</div>
-                  </div>
-                  <div className="text-xs text-amber-600 font-medium">{j.nextFollowUpDate}</div>
-                </Link>
-              ))}
+              {data.followUps.map(j => {
+                const overdue = j.nextFollowUpDate && new Date(j.nextFollowUpDate) < new Date();
+                return (
+                  <Link key={j.id} to={`/journalists/${j.id}`} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50">
+                    <div>
+                      <div className="font-medium text-sm text-slate-900">{j.name}</div>
+                      <div className="text-xs text-slate-500">{j.publication}</div>
+                      {j.lastArticleDate && (
+                        <div className="text-xs text-slate-400">last published {daysAgo(j.lastArticleDate)}</div>
+                      )}
+                    </div>
+                    <div className={`text-xs font-medium ${overdue ? 'text-rose-600' : 'text-amber-600'}`}>
+                      {overdue ? '⚠ Overdue' : j.nextFollowUpDate}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
@@ -171,19 +180,27 @@ export default function Dashboard() {
             <AlertTriangle className="w-4 h-4 text-amber-500" /> System Alerts
           </h2>
           <div className="space-y-2">
+            {data.overdueFollowUps > 0 && (
+              <Link to="/journalists" className="flex items-center gap-2 text-sm text-amber-800 hover:underline">
+                <AlertBadge count={data.overdueFollowUps} />
+                follow-up{data.overdueFollowUps !== 1 ? 's' : ''} overdue — pitched or responded but no action logged
+              </Link>
+            )}
             {data.staleJournalists > 0 && (
-              <Link to="/journalists?stale=1" className="flex items-center gap-2 text-sm text-amber-800 hover:underline">
-                <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-xs font-bold flex items-center justify-center shrink-0">
-                  {data.staleJournalists}
-                </span>
-                journalist{data.staleJournalists !== 1 ? 's' : ''} flagged as stale — no articles in 30+ days
+              <Link to="/journalists" className="flex items-center gap-2 text-sm text-amber-800 hover:underline">
+                <AlertBadge count={data.staleJournalists} />
+                journalist{data.staleJournalists !== 1 ? 's' : ''} flagged as stale — no articles in 30+ days. Check if they've moved or gone quiet.
+              </Link>
+            )}
+            {data.needsReSearch > 0 && (
+              <Link to="/journalists" className="flex items-center gap-2 text-sm text-amber-800 hover:underline">
+                <AlertBadge count={data.needsReSearch} />
+                journalist{data.needsReSearch !== 1 ? 's' : ''} not re-searched in 90+ days — run "Find profiles" to refresh social data
               </Link>
             )}
             {data.unreachablePubs > 0 && (
               <Link to="/admin/publications" className="flex items-center gap-2 text-sm text-amber-800 hover:underline">
-                <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-xs font-bold flex items-center justify-center shrink-0">
-                  {data.unreachablePubs}
-                </span>
+                <AlertBadge count={data.unreachablePubs} />
                 publication{data.unreachablePubs !== 1 ? 's' : ''} unreachable — check RSS feeds
               </Link>
             )}
@@ -267,6 +284,14 @@ function OnboardingChecklist() {
         This checklist disappears once you have journalists in the system.
       </p>
     </div>
+  );
+}
+
+function AlertBadge({ count }: { count: number }) {
+  return (
+    <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-xs font-bold flex items-center justify-center shrink-0">
+      {count}
+    </span>
   );
 }
 

@@ -1,19 +1,42 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, Info, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ExternalLink } from 'lucide-react';
 import { journalists as api, publications as pubApi } from '../api';
 import type { Publication } from '../types';
 
 const STATUSES = ['Not Started', 'Researching', 'Ready to Pitch', 'Pitched', 'Responded', 'In Conversation', 'Covered', 'Not a Fit', 'On Hold'];
+
+const STATUS_DESCRIPTIONS: Record<string, string> = {
+  'Not Started':     'Added to the list — no outreach decision made yet.',
+  'Researching':     'Actively reading their work to decide if they\'re worth pitching.',
+  'Ready to Pitch':  'Research done, decided to reach out — draft ready to send.',
+  'Pitched':         'First outreach email sent, awaiting reply.',
+  'Responded':       'They replied — positive, neutral, or asking for more info.',
+  'In Conversation': 'Ongoing back-and-forth; relationship actively developing.',
+  'Covered':         'They published an article about North Star AI Labs.',
+  'Not a Fit':       'Decided not to pitch, or they declined.',
+  'On Hold':         'Paused — waiting on timing, news cycle, or internal decision.',
+};
 const PUB_TYPES = ['National', 'Regional', 'Trade', 'Blog', 'Newsletter', 'Podcast', 'Wire', 'Other'];
+
+const CONTACT_METHODS = [
+  { value: 'email',        label: 'Email' },
+  { value: 'twitter_dm',  label: 'Twitter/X DM' },
+  { value: 'linkedin_dm', label: 'LinkedIn DM' },
+  { value: 'contact_form',label: 'Contact Form' },
+  { value: 'newsletter',  label: 'Newsletter Reply' },
+  { value: 'other',       label: 'Other' },
+];
 
 const empty = {
   name: '', publication: '', roleTitle: '', beat: '', location: '', publicationType: '',
   aiRelevanceScore: 0, startupRelevanceScore: 0, northStarFitScore: 0,
   publicationAuthorityScore: 0, audienceReachScore: 0, contactabilityScore: 0,
   email: '', contactUrl: '', linkedinUrl: '', twitterUrl: '', personalWebsite: '', muckRackUrl: '',
-  bestPitchAngle: '', notes: '', outreachStatus: 'Not Started',
+  bestPitchAngle: '', notes: '', adminNotes: '', outreachStatus: 'Not Started',
   lastContactedDate: '', nextFollowUpDate: '',
+  socialFollowing: '', preferredContact: '[]', topicsToAvoid: '', bestTimeToReach: '',
+  coveredCompetitor: 0,
 };
 
 function calcTotal(form: typeof empty) {
@@ -35,6 +58,7 @@ export default function JournalistForm() {
   const isEdit = Boolean(id);
   const [form, setForm] = useState<any>({ ...empty });
   const [saving, setSaving] = useState(false);
+  const [loadedSocialFollowing, setLoadedSocialFollowing] = useState('');
   const [pubList, setPubList] = useState<Publication[]>([]);
   const [pubSearch, setPubSearch] = useState('');
   const [showPubDropdown, setShowPubDropdown] = useState(false);
@@ -47,12 +71,15 @@ export default function JournalistForm() {
     if (isEdit && id) {
       api.get(Number(id)).then(r => {
         setForm(r.data);
+        setLoadedSocialFollowing(r.data.socialFollowing || '');
         setPubSearch(r.data.publication || '');
       });
     }
   }, [id, isEdit]);
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const isAutoDetectedFollowing = loadedSocialFollowing.includes('(from search snippets)');
 
   const total = calcTotal(form);
   const tier = calcTier(total);
@@ -81,10 +108,10 @@ export default function JournalistForm() {
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-slate-900">{isEdit ? 'Edit Journalist' : 'Add Journalist'}</h1>
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-slate-500">Calculated score:</div>
+        <div className="flex items-center gap-2">
+          <div className="text-sm text-slate-500">Score:</div>
           <div className="text-2xl font-bold text-northstar-600">{total}</div>
-          <div className="text-sm text-slate-400">/ 100 · Tier {tier}</div>
+          <div className="text-sm text-slate-400">/ 100</div>
         </div>
       </div>
 
@@ -170,34 +197,6 @@ export default function JournalistForm() {
           </div>
         </Section>
 
-        {/* Scoring */}
-        <Section title="Relevance Scoring">
-          <div className="mb-3 flex items-start gap-2 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
-            <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            Score each dimension to calculate the journalist's total priority score.
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <ScoreField label="AI Relevance" max={25} value={form.aiRelevanceScore}
-              hint="Coverage of AI/ML/LLM topics"
-              onChange={v => set('aiRelevanceScore', v)} />
-            <ScoreField label="Startup Relevance" max={20} value={form.startupRelevanceScore}
-              hint="Covers startup ecosystem"
-              onChange={v => set('startupRelevanceScore', v)} />
-            <ScoreField label="North Star Fit" max={20} value={form.northStarFitScore}
-              hint="Alignment with NS AI Labs mission"
-              onChange={v => set('northStarFitScore', v)} />
-            <ScoreField label="Publication Authority" max={15} value={form.publicationAuthorityScore}
-              hint="Reach and credibility of publication"
-              onChange={v => set('publicationAuthorityScore', v)} />
-            <ScoreField label="Audience Reach" max={10} value={form.audienceReachScore}
-              hint="Readership / social following"
-              onChange={v => set('audienceReachScore', v)} />
-            <ScoreField label="Contactability" max={10} value={form.contactabilityScore}
-              hint="How easy to reach and responsive"
-              onChange={v => set('contactabilityScore', v)} />
-          </div>
-        </Section>
-
         {/* Contact */}
         <Section title="Contact Information">
           <p className="text-xs text-slate-500 mb-3">Only add publicly available professional contact info.</p>
@@ -229,6 +228,75 @@ export default function JournalistForm() {
           </div>
         </Section>
 
+        {/* Outreach Context — moved above Outreach & Notes */}
+        <Section title="Outreach Context">
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="form-label mb-0">Social Following</label>
+                {isAutoDetectedFollowing && (
+                  <span className="text-xs text-teal-600 font-medium">auto-detected via SerpAPI</span>
+                )}
+              </div>
+              <input
+                className="form-input"
+                value={form.socialFollowing}
+                onChange={e => set('socialFollowing', e.target.value)}
+                placeholder="e.g. ~25K Twitter, 3K LinkedIn, 50K newsletter"
+              />
+              <p className="text-xs text-slate-400 mt-1">Used to calibrate the Audience Reach score when re-scoring with Claude.</p>
+            </div>
+
+            <div>
+              <label className="form-label mb-2 block">Preferred Contact Method</label>
+              <div className="flex flex-wrap gap-2">
+                {CONTACT_METHODS.map(m => {
+                  const selected: string[] = (() => { try { return JSON.parse(form.preferredContact); } catch { return []; } })();
+                  const isOn = selected.includes(m.value);
+                  return (
+                    <button
+                      key={m.value}
+                      type="button"
+                      onClick={() => {
+                        const next = isOn ? selected.filter(v => v !== m.value) : [...selected, m.value];
+                        set('preferredContact', JSON.stringify(next));
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                        isOn
+                          ? 'bg-northstar-600 text-white border-northstar-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-northstar-400'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className="form-label">Topics to Avoid</label>
+              <input
+                className="form-input"
+                value={form.topicsToAvoid}
+                onChange={e => set('topicsToAvoid', e.target.value)}
+                placeholder="e.g. doesn't cover enterprise B2B, avoids funding announcements"
+              />
+            </div>
+
+            <div>
+              <label className="form-label">Best Time to Reach</label>
+              <input
+                className="form-input"
+                value={form.bestTimeToReach}
+                onChange={e => set('bestTimeToReach', e.target.value)}
+                placeholder="e.g. Tuesday mornings, avoids Fridays"
+              />
+            </div>
+
+          </div>
+        </Section>
+
         {/* Outreach */}
         <Section title="Outreach & Notes">
           <div className="grid grid-cols-2 gap-4">
@@ -237,6 +305,9 @@ export default function JournalistForm() {
               <select className="form-select" value={form.outreachStatus} onChange={e => set('outreachStatus', e.target.value)}>
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
+              {STATUS_DESCRIPTIONS[form.outreachStatus] && (
+                <p className="text-xs text-slate-400 mt-1">{STATUS_DESCRIPTIONS[form.outreachStatus]}</p>
+              )}
             </div>
             <div>
               <label className="form-label">Last Contacted Date</label>
@@ -252,10 +323,21 @@ export default function JournalistForm() {
             <textarea className="form-textarea" rows={3} value={form.bestPitchAngle} onChange={e => set('bestPitchAngle', e.target.value)}
               placeholder="What story would resonate with this journalist? Why does North Star AI Labs fit their beat?" />
           </div>
+          {form.notes && (
+            <div className="mt-3">
+              <label className="form-label flex items-center gap-2">
+                System Notes
+                <span className="text-xs font-normal text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">auto-generated · read only</span>
+              </label>
+              <div className="form-input bg-slate-50 text-slate-500 text-sm whitespace-pre-wrap cursor-default select-text min-h-[60px]">
+                {form.notes}
+              </div>
+            </div>
+          )}
           <div className="mt-3">
-            <label className="form-label">Internal Notes</label>
-            <textarea className="form-textarea" rows={3} value={form.notes} onChange={e => set('notes', e.target.value)}
-              placeholder="Any notes about this journalist, their preferences, past interactions, etc." />
+            <label className="form-label">Admin Notes</label>
+            <textarea className="form-textarea" rows={3} value={form.adminNotes} onChange={e => set('adminNotes', e.target.value)}
+              placeholder="Your own notes about this journalist — context, preferences, past conversations, etc." />
           </div>
         </Section>
       </div>
@@ -265,7 +347,7 @@ export default function JournalistForm() {
           {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Journalist'}
         </button>
         <Link to={isEdit ? `/journalists/${id}` : '/journalists'} className="btn-secondary">Cancel</Link>
-        <div className="ml-auto text-sm text-slate-500">Score: <strong className="text-northstar-600">{total}/100</strong> · Tier {tier}</div>
+        <div className="ml-auto text-sm text-slate-500">Score: <strong className="text-northstar-600">{total}/100</strong></div>
       </div>
     </div>
   );
@@ -280,28 +362,3 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ScoreField({ label, max, value, hint, onChange }: {
-  label: string; max: number; value: number; hint: string; onChange: (v: number) => void;
-}) {
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <label className="form-label mb-0">{label}</label>
-        <span className="text-xs text-slate-400">max {max}</span>
-      </div>
-      <div className="text-xs text-slate-400 mb-1">{hint}</div>
-      <div className="flex items-center gap-2">
-        <input
-          type="range" min={0} max={max} value={value}
-          className="flex-1 accent-northstar-600"
-          onChange={e => onChange(Number(e.target.value))}
-        />
-        <input
-          type="number" min={0} max={max} value={value}
-          className="form-input w-16 text-center"
-          onChange={e => onChange(Math.min(max, Math.max(0, Number(e.target.value))))}
-        />
-      </div>
-    </div>
-  );
-}

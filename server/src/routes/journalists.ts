@@ -62,7 +62,7 @@ const defaults = {
   aiRelevanceScore: 0, startupRelevanceScore: 0, northStarFitScore: 0,
   publicationAuthorityScore: 0, audienceReachScore: 0, contactabilityScore: 0,
   email: '', contactUrl: '', linkedinUrl: '', twitterUrl: '',
-  personalWebsite: '', muckRackUrl: '', bestPitchAngle: '', notes: '',
+  personalWebsite: '', muckRackUrl: '', bestPitchAngle: '', notes: '', adminNotes: '',
   outreachStatus: 'Not Started', lastContactedDate: '', nextFollowUpDate: '',
 };
 
@@ -77,21 +77,60 @@ router.post('/', async (req: Request, res: Response) => {
         "aiRelevanceScore", "startupRelevanceScore", "northStarFitScore",
         "publicationAuthorityScore", "audienceReachScore", "contactabilityScore",
         "totalScore", "priorityTier", email, "contactUrl", "linkedinUrl", "twitterUrl",
-        "personalWebsite", "muckRackUrl", "bestPitchAngle", notes, "outreachStatus",
+        "personalWebsite", "muckRackUrl", "bestPitchAngle", notes, "adminNotes", "outreachStatus",
         "lastContactedDate", "nextFollowUpDate"
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26
       ) RETURNING id
     `, [
       b.name, b.publication, b.roleTitle, b.beat, b.location, b.publicationType,
       b.aiRelevanceScore, b.startupRelevanceScore, b.northStarFitScore,
       b.publicationAuthorityScore, b.audienceReachScore, b.contactabilityScore,
       total, tier, b.email, b.contactUrl, b.linkedinUrl, b.twitterUrl,
-      b.personalWebsite, b.muckRackUrl, b.bestPitchAngle, b.notes, b.outreachStatus,
+      b.personalWebsite, b.muckRackUrl, b.bestPitchAngle, b.notes, b.adminNotes, b.outreachStatus,
       b.lastContactedDate, b.nextFollowUpDate,
     ]);
-    const created = (await pool.query('SELECT * FROM journalists WHERE id = $1', [result.rows[0].id])).rows[0];
+    const newId = result.rows[0].id;
+    const created = (await pool.query('SELECT * FROM journalists WHERE id = $1', [newId])).rows[0];
     res.status(201).json(created);
+
+    // Auto-score with Claude in the background (only if no manual scores entered)
+    if (!b.aiRelevanceScore && !b.startupRelevanceScore) {
+      setTimeout(async () => {
+        try {
+          const pub = (await pool.query('SELECT * FROM publications WHERE LOWER(name) = LOWER($1)', [b.publication])).rows[0];
+          const analysis = await analyzeJournalist({
+            name: b.name, publication: b.publication || '',
+            publicationTier: pub?.tier || 'B', suggestedBeat: b.beat || '',
+            recentArticleTitle: '', recentArticleUrl: '',
+            socialFollowing: b.socialFollowing,
+          });
+          if (!analysis) return;
+          const total = analysis.scores.aiRelevanceScore + analysis.scores.startupRelevanceScore +
+            analysis.scores.northStarFitScore + analysis.scores.publicationAuthorityScore +
+            analysis.scores.audienceReachScore + analysis.scores.contactabilityScore;
+          const tier = total >= 80 ? 1 : total >= 60 ? 2 : total >= 40 ? 3 : 4;
+          await pool.query(`
+            UPDATE journalists SET
+              beat = CASE WHEN beat = '' OR beat IS NULL THEN $1 ELSE beat END,
+              "bestPitchAngle"=$2, notes=$3,
+              "aiRelevanceScore"=$4, "startupRelevanceScore"=$5, "northStarFitScore"=$6,
+              "publicationAuthorityScore"=$7, "audienceReachScore"=$8, "contactabilityScore"=$9,
+              "totalScore"=$10, "priorityTier"=$11, "updatedAt"=NOW()
+            WHERE id=$12
+          `, [
+            analysis.beat, analysis.bestPitchAngle, analysis.reasoning,
+            analysis.scores.aiRelevanceScore, analysis.scores.startupRelevanceScore,
+            analysis.scores.northStarFitScore, analysis.scores.publicationAuthorityScore,
+            analysis.scores.audienceReachScore, analysis.scores.contactabilityScore,
+            total, tier, newId,
+          ]);
+          console.log(`[AutoScore] ✓ ${b.name} → score ${total}, tier ${tier}`);
+        } catch (err: any) {
+          console.error(`[AutoScore] ✗ ${b.name}:`, err.message);
+        }
+      }, 1000);
+    }
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -109,15 +148,15 @@ router.put('/:id', async (req: Request, res: Response) => {
         "publicationAuthorityScore"=$10, "audienceReachScore"=$11, "contactabilityScore"=$12,
         "totalScore"=$13, "priorityTier"=$14, email=$15, "contactUrl"=$16,
         "linkedinUrl"=$17, "twitterUrl"=$18, "personalWebsite"=$19, "muckRackUrl"=$20,
-        "bestPitchAngle"=$21, notes=$22, "outreachStatus"=$23,
-        "lastContactedDate"=$24, "nextFollowUpDate"=$25, "updatedAt"=NOW()
-      WHERE id=$26
+        "bestPitchAngle"=$21, notes=$22, "adminNotes"=$23, "outreachStatus"=$24,
+        "lastContactedDate"=$25, "nextFollowUpDate"=$26, "updatedAt"=NOW()
+      WHERE id=$27
     `, [
       b.name, b.publication, b.roleTitle, b.beat, b.location, b.publicationType,
       b.aiRelevanceScore, b.startupRelevanceScore, b.northStarFitScore,
       b.publicationAuthorityScore, b.audienceReachScore, b.contactabilityScore,
       total, tier, b.email, b.contactUrl, b.linkedinUrl, b.twitterUrl,
-      b.personalWebsite, b.muckRackUrl, b.bestPitchAngle, b.notes, b.outreachStatus,
+      b.personalWebsite, b.muckRackUrl, b.bestPitchAngle, b.notes, b.adminNotes, b.outreachStatus,
       b.lastContactedDate, b.nextFollowUpDate, req.params.id,
     ]);
     const updated = (await pool.query('SELECT * FROM journalists WHERE id = $1', [req.params.id])).rows[0];
@@ -234,6 +273,86 @@ router.post('/bulk-rescore', async (_req: Request, res: Response) => {
       }
       console.log(`[BulkRescore] Done — processed ${unscored.length} journalists.`);
     })();
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/journalists/:id/rescore — re-run Claude analysis for a single journalist
+router.post('/:id/rescore', async (req: Request, res: Response) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(400).json({ error: 'ANTHROPIC_API_KEY is not set on the server' });
+  }
+  try {
+    const j = (await pool.query('SELECT * FROM journalists WHERE id = $1', [req.params.id])).rows[0];
+    if (!j) return res.status(404).json({ error: 'Not found' });
+
+    res.json({ message: `Re-scoring ${j.name} with Claude in the background…` });
+
+    (async () => {
+      const pub = (await pool.query('SELECT * FROM publications WHERE LOWER(name) = LOWER($1)', [j.publication])).rows[0];
+      const pubTier = pub?.tier || 'B';
+      const articleRows = (await pool.query(
+        'SELECT title, url FROM articles WHERE "journalistId" = $1 ORDER BY "publishDate" DESC LIMIT 10', [j.id]
+      )).rows;
+
+      let articleTitle = '';
+      let articleUrl = '';
+      const noteMatch = (j.notes || '').match(/Recent article: (.+?) — (https?:\/\/\S+)/);
+      if (noteMatch) { articleTitle = noteMatch[1]; articleUrl = noteMatch[2]; }
+      if (articleRows.length > 0) { articleTitle = articleRows[0].title; articleUrl = articleRows[0].url; }
+
+      const analysis = await analyzeJournalist({
+        name: j.name, publication: j.publication || '', publicationTier: pubTier,
+        recentArticleTitle: articleTitle, recentArticleUrl: articleUrl, suggestedBeat: j.beat || '',
+        allArticleTitles: articleRows.map((a: any) => a.title),
+        socialFollowing: j.socialFollowing || '',
+        followerCount: j.followerCount,
+      });
+      if (!analysis) { console.error(`[Rescore] Claude returned null for ${j.name}`); return; }
+
+      const total = analysis.scores.aiRelevanceScore + analysis.scores.startupRelevanceScore +
+        analysis.scores.northStarFitScore + analysis.scores.publicationAuthorityScore +
+        analysis.scores.audienceReachScore + analysis.scores.contactabilityScore;
+      const tier = total >= 80 ? 1 : total >= 60 ? 2 : total >= 40 ? 3 : 4;
+
+      await pool.query(`
+        UPDATE journalists SET
+          "bestPitchAngle"=$1, "aiRelevanceScore"=$2, "startupRelevanceScore"=$3,
+          "northStarFitScore"=$4, "publicationAuthorityScore"=$5,
+          "audienceReachScore"=$6, "contactabilityScore"=$7,
+          "totalScore"=$8, "priorityTier"=$9, "updatedAt"=NOW()
+        WHERE id=$10
+      `, [
+        analysis.bestPitchAngle,
+        analysis.scores.aiRelevanceScore, analysis.scores.startupRelevanceScore,
+        analysis.scores.northStarFitScore, analysis.scores.publicationAuthorityScore,
+        analysis.scores.audienceReachScore, analysis.scores.contactabilityScore,
+        total, tier, j.id,
+      ]);
+      console.log(`[Rescore] ✓ ${j.name} → score ${total}, tier ${tier}`);
+    })().catch(err => console.error(`[Rescore] ✗ ${j.name}:`, err.message));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/journalists/:id/photo — upload a profile photo (base64 data URL)
+router.post('/:id/photo', async (req: Request, res: Response) => {
+  const { photoUrl } = req.body;
+  if (!photoUrl || typeof photoUrl !== 'string') {
+    return res.status(400).json({ error: 'photoUrl (base64 data URL) is required' });
+  }
+  // Accept data URLs or https URLs
+  if (!photoUrl.startsWith('data:image/') && !photoUrl.startsWith('https://')) {
+    return res.status(400).json({ error: 'Must be a data URL or https URL' });
+  }
+  try {
+    await pool.query(
+      'UPDATE journalists SET "photoUrl" = $1, "updatedAt" = NOW() WHERE id = $2',
+      [photoUrl, req.params.id]
+    );
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
