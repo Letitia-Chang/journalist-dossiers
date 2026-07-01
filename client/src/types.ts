@@ -1,3 +1,10 @@
+export interface User {
+  id: number;
+  name: string;
+  title: string;
+  email: string;
+}
+
 export interface Journalist {
   id: number;
   name: string;
@@ -28,6 +35,15 @@ export interface Journalist {
   outreachStatus: string;
   lastContactedDate: string;
   nextFollowUpDate: string;
+  photoUrl: string;
+  socialFollowing: string;
+  preferredContact: string; // JSON array e.g. '["email","twitter_dm"]'
+  topicsToAvoid: string;
+  bestTimeToReach: string;
+  coveredCompetitor: number;
+  adminNotes: string;
+  followerCount?: number;
+  serpSearchedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -133,6 +149,10 @@ export interface Campaign {
   type: CampaignType;
   brief: string;
   status: CampaignStatus;
+  pressKitUrl: string;
+  photoFolderUrl: string;
+  demoUrl: string;
+  boilerplate: string;
   journalistCount: number;
   approvedCount: number;
   sentCount: number;
@@ -180,6 +200,7 @@ export interface CoverageItem {
   sentiment: CoverageSentiment;
   summary: string;
   notes: string;
+  campaignId: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -192,6 +213,8 @@ export interface DashboardData {
   recentOutreach: (OutreachLog & { journalistName: string; publication: string })[];
   staleJournalists: number;
   unreachablePubs: number;
+  overdueFollowUps: number;
+  needsReSearch: number;
   activeCampaigns: number;
   draftsReady: number;
   sentThisWeek: number;

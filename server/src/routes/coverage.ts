@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import Anthropic from '@anthropic-ai/sdk';
 import pool from '../db';
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const router = Router();
 
@@ -31,6 +34,41 @@ router.post('/fetch-meta', async (req, res) => {
     return res.json({ title, publication: siteName, publishDate, description });
   } catch (err: any) {
     return res.status(422).json({ error: `Could not fetch that URL: ${err.message}`, title: '', publication: '', publishDate: '', description: '' });
+  }
+});
+
+// POST /parse-text — extract article metadata from pasted text using Claude
+router.post('/parse-text', async (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'text required' });
+
+  try {
+    const msg = await anthropic.messages.create({
+      model: 'claude-opus-4-8',
+      max_tokens: 512,
+      thinking: { type: 'adaptive' },
+      messages: [{
+        role: 'user',
+        content: `Extract article metadata from the text below. Return ONLY a JSON object with these fields:
+- title: the article headline (string)
+- publication: the name of the publication or website (string)
+- publishDate: publish date in YYYY-MM-DD format if found, else ""
+- description: a 1–2 sentence summary of what the article says (string)
+
+Text:
+${text.slice(0, 4000)}
+
+Return only valid JSON, no explanation.`,
+      }],
+    });
+
+    const raw = (msg.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined)?.text || '';
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(422).json({ error: 'Could not parse response from Claude.' });
+    const parsed = JSON.parse(jsonMatch[0]);
+    return res.json(parsed);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -87,14 +125,15 @@ router.post('/', async (req, res) => {
       title, url = '', publication = '', publishDate = '',
       journalistId = null, journalistName = '',
       coverageType = 'mention', sentiment = 'neutral', summary = '', notes = '',
+      campaignId = null,
     } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'title required' });
 
     const result = await pool.query(`
       INSERT INTO coverage (title, url, publication, "publishDate", "journalistId", "journalistName",
-        "coverageType", sentiment, summary, notes)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
-    `, [title.trim(), url, publication, publishDate, journalistId || null, journalistName, coverageType, sentiment, summary, notes]);
+        "coverageType", sentiment, summary, notes, "campaignId")
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id
+    `, [title.trim(), url, publication, publishDate, journalistId || null, journalistName, coverageType, sentiment, summary, notes, campaignId || null]);
 
     const created = (await pool.query('SELECT * FROM coverage WHERE id = $1', [result.rows[0].id])).rows[0];
     res.status(201).json(created);
@@ -109,14 +148,14 @@ router.put('/:id', async (req, res) => {
     const existing = (await pool.query('SELECT id FROM coverage WHERE id = $1', [req.params.id])).rows[0];
     if (!existing) return res.status(404).json({ error: 'Not found' });
 
-    const { title, url, publication, publishDate, journalistId, journalistName, coverageType, sentiment, summary, notes } = req.body;
+    const { title, url, publication, publishDate, journalistId, journalistName, coverageType, sentiment, summary, notes, campaignId } = req.body;
     await pool.query(`
       UPDATE coverage SET title=$1, url=$2, publication=$3, "publishDate"=$4,
         "journalistId"=$5, "journalistName"=$6, "coverageType"=$7, sentiment=$8,
-        summary=$9, notes=$10, "updatedAt"=NOW()
-      WHERE id=$11
+        summary=$9, notes=$10, "campaignId"=$11, "updatedAt"=NOW()
+      WHERE id=$12
     `, [title, url, publication, publishDate, journalistId || null, journalistName || '',
-        coverageType, sentiment, summary, notes, req.params.id]);
+        coverageType, sentiment, summary, notes, campaignId || null, req.params.id]);
 
     res.json((await pool.query('SELECT * FROM coverage WHERE id = $1', [req.params.id])).rows[0]);
   } catch (err: any) {

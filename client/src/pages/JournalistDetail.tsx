@@ -3,9 +3,11 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Edit2, Trash2, ExternalLink, Mail, AtSign, Link2, Globe, FileText,
   MessageSquare, ChevronLeft, Plus, Target, TrendingUp,
-  Clock, Send, CheckCircle2, XCircle, AlertCircle,
+  Clock, Send, CheckCircle2, XCircle, AlertCircle, Camera, Copy, Check,
 } from 'lucide-react';
 import { journalists as jApi, articles as aApi, outreach as oApi, enrichment as enrichApi } from '../api';
+import { daysAgo } from '../utils';
+import { useRef } from 'react';
 import type { Journalist, Article, OutreachLog } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import ArticleForm from '../components/ArticleForm';
@@ -18,7 +20,7 @@ export default function JournalistDetail() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [outreach, setOutreach] = useState<OutreachLog[]>([]);
   const [tab, setTab] = useState<'overview' | 'articles' | 'outreach' | 'notes'>('overview');
-  const [notesText, setNotesText] = useState('');
+  const [adminNotesText, setAdminNotesText] = useState('');
   const [pitchAngleText, setPitchAngleText] = useState('');
   const [notesSaving, setNotesSaving] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
@@ -27,13 +29,34 @@ export default function JournalistDetail() {
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
   const [editingOutreach, setEditingOutreach] = useState<OutreachLog | null>(null);
   const [findingProfiles, setFindingProfiles] = useState(false);
-  const [profileResult, setProfileResult] = useState<{ linkedinUrl?: string; muckrackUrl?: string; twitterUrl?: string; error?: string } | null>(null);
+  const [profileResult, setProfileResult] = useState<{ linkedinUrl?: string; muckrackUrl?: string; twitterUrl?: string; contactUrl?: string; error?: string } | null>(null);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      const dataUrl = ev.target?.result as string;
+      try {
+        await jApi.uploadPhoto(Number(id), dataUrl);
+        loadData();
+      } catch { /* ignore */ } finally {
+        setUploadingPhoto(false);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   const loadData = () => {
     if (!id) return;
     jApi.get(Number(id)).then(r => {
       setJournalist(r.data);
-      setNotesText(r.data.notes || '');
+      setAdminNotesText(r.data.adminNotes || '');
       setPitchAngleText(r.data.bestPitchAngle || '');
     });
     aApi.byJournalist(Number(id)).then(r => setArticles(r.data));
@@ -62,10 +85,18 @@ export default function JournalistDetail() {
     }
   };
 
+  const handleCopyEmail = () => {
+    if (!journalist?.email) return;
+    navigator.clipboard.writeText(journalist.email).then(() => {
+      setCopiedEmail(true);
+      setTimeout(() => setCopiedEmail(false), 2000);
+    });
+  };
+
   const handleSaveNotes = async () => {
     if (!journalist) return;
     setNotesSaving(true);
-    await jApi.update(journalist.id, { notes: notesText, bestPitchAngle: pitchAngleText });
+    await jApi.update(journalist.id, { adminNotes: adminNotesText, bestPitchAngle: pitchAngleText });
     setNotesSaving(false);
     setNotesSaved(true);
     setTimeout(() => setNotesSaved(false), 2000);
@@ -111,133 +142,190 @@ export default function JournalistDetail() {
 
       {/* Header */}
       <div className="card p-6 mb-5">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
+        {/* Top row: avatar + name block + actions */}
+        <div className="flex items-start gap-4">
+          {/* Avatar with upload overlay */}
+          <div className="relative shrink-0 group">
+            {journalist.photoUrl ? (
+              <img
+                src={journalist.photoUrl}
+                alt={journalist.name}
+                className="w-16 h-16 rounded-full object-cover border border-slate-200 shadow-sm"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-northstar-100 flex items-center justify-center text-northstar-600 text-xl font-bold border border-slate-200">
+                {journalist.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+              </div>
+            )}
+            <button
+              onClick={() => photoInputRef.current?.click()}
+              disabled={uploadingPhoto}
+              className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+              title="Upload photo"
+            >
+              <Camera className="w-5 h-5 text-white" />
+            </button>
+            <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+          </div>
+
+          {/* Name + meta */}
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold text-slate-900">{journalist.name}</h1>
               <StatusBadge status={journalist.outreachStatus} />
+              <span className="ml-auto text-lg font-bold text-northstar-600 shrink-0">{journalist.totalScore} <span className="text-xs font-normal text-slate-400">/ 100</span></span>
             </div>
-            <div className="text-slate-600 mt-1">{journalist.roleTitle && `${journalist.roleTitle} · `}{journalist.publication}</div>
+            <div className="text-slate-600 mt-0.5 text-sm">
+              {journalist.roleTitle && <span>{journalist.roleTitle} · </span>}
+              <span>{journalist.publication}</span>
+            </div>
             {journalist.beat && <div className="text-sm text-slate-500 mt-0.5">Beat: {journalist.beat}</div>}
-            {journalist.location && <div className="text-xs text-slate-400 mt-0.5">{journalist.location}</div>}
-
-            {/* Contact links */}
-            <div className="flex flex-wrap gap-2 mt-4">
-              {journalist.email && (
-                <a href={`mailto:${journalist.email}`} className="btn-secondary text-xs">
-                  <Mail className="w-3 h-3" /> {journalist.email}
-                </a>
-              )}
-              {!journalist.linkedinUrl && !journalist.muckRackUrl && (
-                <button
-                  onClick={handleFindProfiles}
-                  disabled={findingProfiles}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-dashed border-slate-300 text-slate-500 hover:border-teal-400 hover:text-teal-600 hover:bg-teal-50 transition-colors disabled:opacity-50"
-                >
-                  <Link2 className="w-3 h-3" />
-                  {findingProfiles ? 'Searching…' : 'Find profiles via SerpAPI'}
-                </button>
-              )}
-              {journalist.twitterUrl && (
-                <a href={journalist.twitterUrl} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
-                  <AtSign className="w-3 h-3" /> Twitter/X
-                </a>
-              )}
-              {journalist.linkedinUrl && (
-                <a href={journalist.linkedinUrl} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
-                  <Link2 className="w-3 h-3" /> LinkedIn
-                </a>
-              )}
-              {journalist.personalWebsite && (
-                <a href={journalist.personalWebsite} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
-                  <Globe className="w-3 h-3" /> Website
-                </a>
-              )}
-              {journalist.muckRackUrl && (
-                <a href={journalist.muckRackUrl} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
-                  <ExternalLink className="w-3 h-3" /> MuckRack
-                </a>
-              )}
-              {journalist.contactUrl && (
-                <a href={journalist.contactUrl} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
-                  <ExternalLink className="w-3 h-3" /> Contact Page
-                </a>
-              )}
+            <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+              {journalist.location && <span>{journalist.location}</span>}
+              {journalist.lastArticleDate && (() => {
+                const days = Math.floor((Date.now() - new Date(journalist.lastArticleDate).getTime()) / 86_400_000);
+                const color = days > 90 ? 'text-rose-500' : days > 30 ? 'text-amber-500' : 'text-slate-400';
+                return (
+                  <span className={color} title={days > 90 ? 'No articles in 90+ days — may have left or changed beats' : days > 30 ? 'No articles in 30+ days' : ''}>
+                    {journalist.location ? '· ' : ''}last published {daysAgo(journalist.lastArticleDate)}
+                  </span>
+                );
+              })()}
             </div>
-
-            {/* SerpAPI profile result */}
-            {profileResult && (
-              <div className={`mt-3 px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${
-                profileResult.error
-                  ? 'bg-rose-50 border border-rose-200 text-rose-700'
-                  : 'bg-teal-50 border border-teal-200 text-teal-800'
-              }`}>
-                {profileResult.error ? (
-                  <><XCircle className="w-3.5 h-3.5 shrink-0" /> {profileResult.error}</>
-                ) : (
-                  <><CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                    {profileResult.saved
-                      ? `Found and saved: ${[profileResult.linkedinUrl && 'LinkedIn', profileResult.muckrackUrl && 'MuckRack', profileResult.twitterUrl && 'Twitter'].filter(Boolean).join(', ')}`
-                      : 'No new profiles found via Google search.'}
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Relationship summary strip — inside flex-1 */}
-            {outreach.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 pt-4 border-t border-slate-100 text-sm">
-                {pitchesSent > 0 && (
-                  <span className="flex items-center gap-1 text-slate-600">
-                    <Send className="w-3.5 h-3.5 text-slate-400" />
-                    <strong>{pitchesSent}</strong> pitch{pitchesSent !== 1 ? 'es' : ''} sent
-                  </span>
-                )}
-                {daysSinceContact !== null && (
-                  <span className="flex items-center gap-1 text-slate-600">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    last contact{' '}
-                    <strong>{daysSinceContact === 0 ? 'today' : `${daysSinceContact}d ago`}</strong>
-                  </span>
-                )}
-                {hasCovered && (
-                  <span className="flex items-center gap-1 text-emerald-600 font-medium">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> has covered us
-                  </span>
-                )}
-                {!hasCovered && hasResponded && (
-                  <span className="flex items-center gap-1 text-blue-600 font-medium">
-                    <TrendingUp className="w-3.5 h-3.5" /> has responded
-                  </span>
-                )}
-                {hasDeclined && (
-                  <span className="flex items-center gap-1 text-rose-500 font-medium">
-                    <XCircle className="w-3.5 h-3.5" /> declined
-                  </span>
-                )}
-                {!hasResponded && !hasDeclined && pitchesSent > 0 && (
-                  <span className="flex items-center gap-1 text-amber-600">
-                    <AlertCircle className="w-3.5 h-3.5" /> no reply yet
-                  </span>
-                )}
-                {lastLog && (
-                  <span className="text-slate-400 text-xs">
-                    · last: {lastLog.status}{lastLog.channel ? ` via ${lastLog.channel}` : ''}
-                  </span>
-                )}
-              </div>
-            )}
           </div>
 
-          <div className="flex items-center gap-2 ml-4">
-            <div className="text-center mr-4">
-              <div className="text-3xl font-bold text-northstar-600">{journalist.totalScore}</div>
-              <div className="text-xs text-slate-400">/ 100</div>
-            </div>
+          {/* Edit / Delete */}
+          <div className="flex gap-2 shrink-0">
             <Link to={`/journalists/${id}/edit`} className="btn-secondary"><Edit2 className="w-4 h-4" /> Edit</Link>
             <button onClick={handleDelete} className="btn-danger"><Trash2 className="w-4 h-4" /></button>
           </div>
         </div>
+
+        {/* Contact links */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          {journalist.email && (
+            <button onClick={handleCopyEmail} className="btn-secondary text-xs" title="Click to copy email address">
+              {copiedEmail ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+              {copiedEmail ? 'Copied!' : journalist.email}
+            </button>
+          )}
+          {journalist.twitterUrl && (
+            <a href={journalist.twitterUrl} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
+              <AtSign className="w-3 h-3" /> Twitter/X
+            </a>
+          )}
+          {journalist.linkedinUrl && (
+            <a href={journalist.linkedinUrl} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
+              <Link2 className="w-3 h-3" /> LinkedIn
+            </a>
+          )}
+          {journalist.muckRackUrl && (
+            <a href={journalist.muckRackUrl} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
+              <ExternalLink className="w-3 h-3" /> MuckRack
+            </a>
+          )}
+          {journalist.personalWebsite && (
+            <a href={journalist.personalWebsite} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
+              <Globe className="w-3 h-3" /> Website
+            </a>
+          )}
+          {journalist.contactUrl && (
+            <a href={journalist.contactUrl} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
+              <ExternalLink className="w-3 h-3" /> Contact Page
+            </a>
+          )}
+          <button
+            onClick={handleFindProfiles}
+            disabled={findingProfiles}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+              journalist.serpSearchedAt && !journalist.linkedinUrl && !journalist.muckRackUrl
+                ? 'border-amber-200 text-amber-600 bg-amber-50 hover:bg-amber-100'
+                : 'border-dashed border-slate-300 text-slate-500 hover:border-teal-400 hover:text-teal-600 hover:bg-teal-50'
+            }`}
+            title={journalist.serpSearchedAt ? `Last searched ${new Date(journalist.serpSearchedAt).toLocaleDateString()}` : 'Search Google for LinkedIn, MuckRack, Twitter profiles'}
+          >
+            <Link2 className="w-3 h-3" />
+            {findingProfiles ? 'Searching…' : journalist.serpSearchedAt && !journalist.linkedinUrl && !journalist.muckRackUrl ? 'No profiles found — try again' : journalist.serpSearchedAt ? 'Refresh profiles' : 'Find profiles via SerpAPI'}
+          </button>
+        </div>
+
+        {/* Data freshness strip */}
+        {journalist.serpSearchedAt && (
+          <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+            <span>Last searched {new Date(journalist.serpSearchedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+            {journalist.linkedinUrl   && <span className="text-teal-600">✓ LinkedIn</span>}
+            {journalist.muckRackUrl   && <span className="text-teal-600">✓ MuckRack</span>}
+            {journalist.twitterUrl    && <span className="text-teal-600">✓ Twitter/X</span>}
+            {journalist.email         && <span className="text-teal-600">✓ Email</span>}
+            {journalist.followerCount && <span className="text-teal-600">✓ Follower count</span>}
+            {!journalist.email        && <span className="text-amber-500">⚠ Email — add manually</span>}
+            {!journalist.linkedinUrl  && !journalist.muckRackUrl && <span className="text-amber-500">⚠ No profiles found</span>}
+            {journalist.socialFollowing && !journalist.followerCount && <span className="text-slate-400">· Social following: manual</span>}
+          </div>
+        )}
+
+        {/* SerpAPI result feedback */}
+        {profileResult && (
+          <div className={`mt-3 px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${
+            profileResult.error
+              ? 'bg-rose-50 border border-rose-200 text-rose-700'
+              : 'bg-teal-50 border border-teal-200 text-teal-800'
+          }`}>
+            {profileResult.error ? (
+              <><XCircle className="w-3.5 h-3.5 shrink-0" /> {profileResult.error}</>
+            ) : (
+              <><CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                {profileResult.saved
+                  ? `Found and saved: ${[profileResult.linkedinUrl && 'LinkedIn', profileResult.muckrackUrl && 'MuckRack', profileResult.twitterUrl && 'Twitter', profileResult.contactUrl && 'Contact page'].filter(Boolean).join(', ')}`
+                  : 'No new profiles found via Google search.'}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Relationship summary strip */}
+        {outreach.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 pt-4 border-t border-slate-100 text-sm">
+            {pitchesSent > 0 && (
+              <span className="flex items-center gap-1 text-slate-600">
+                <Send className="w-3.5 h-3.5 text-slate-400" />
+                <strong>{pitchesSent}</strong> pitch{pitchesSent !== 1 ? 'es' : ''} sent
+              </span>
+            )}
+            {daysSinceContact !== null && (
+              <span className="flex items-center gap-1 text-slate-600">
+                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                last contact <strong>{daysSinceContact === 0 ? 'today' : `${daysSinceContact}d ago`}</strong>
+              </span>
+            )}
+            {hasCovered && (
+              <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                <CheckCircle2 className="w-3.5 h-3.5" /> has covered us
+              </span>
+            )}
+            {!hasCovered && hasResponded && (
+              <span className="flex items-center gap-1 text-blue-600 font-medium">
+                <TrendingUp className="w-3.5 h-3.5" /> has responded
+              </span>
+            )}
+            {hasDeclined && (
+              <span className="flex items-center gap-1 text-rose-500 font-medium">
+                <XCircle className="w-3.5 h-3.5" /> declined
+              </span>
+            )}
+            {!hasResponded && !hasDeclined && pitchesSent > 0 && (
+              <span className="flex items-center gap-1 text-amber-600">
+                <AlertCircle className="w-3.5 h-3.5" /> no reply yet
+              </span>
+            )}
+            {lastLog && (
+              <span className="text-slate-400 text-xs">
+                · last: {lastLog.status}{lastLog.channel ? ` via ${lastLog.channel}` : ''}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -292,10 +380,10 @@ export default function JournalistDetail() {
                 <p className="text-sm text-slate-600">{journalist.bestPitchAngle}</p>
               </div>
             )}
-            {journalist.notes && (
+            {journalist.adminNotes && (
               <div className="card p-5">
-                <h3 className="font-semibold text-slate-900 mb-2">Notes</h3>
-                <p className="text-sm text-slate-600 whitespace-pre-wrap">{journalist.notes}</p>
+                <h3 className="font-semibold text-slate-900 mb-2">Admin Notes</h3>
+                <p className="text-sm text-slate-600 whitespace-pre-wrap">{journalist.adminNotes}</p>
               </div>
             )}
             <div className="card p-5">
@@ -349,6 +437,55 @@ export default function JournalistDetail() {
                 </div>
               )}
             </div>
+
+            {/* Outreach context card — only shown when at least one field is filled */}
+            {(journalist.socialFollowing || journalist.followerCount || journalist.topicsToAvoid || journalist.bestTimeToReach ||
+              ((() => { try { return JSON.parse(journalist.preferredContact || '[]'); } catch { return []; } })().length > 0)) && (
+              <div className="card p-5">
+                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-northstar-500" /> Outreach Context
+                </h3>
+                <div className="space-y-2 text-sm">
+                  {(journalist.socialFollowing || journalist.followerCount) && (
+                    <div className="flex justify-between items-start gap-4">
+                      <span className="text-slate-500 shrink-0">Social following</span>
+                      <span className="text-slate-700 text-right">
+                        {journalist.socialFollowing || `~${journalist.followerCount! >= 1_000_000 ? `${(journalist.followerCount! / 1_000_000).toFixed(1)}M` : journalist.followerCount! >= 1_000 ? `${(journalist.followerCount! / 1_000).toFixed(1)}K` : journalist.followerCount} detected`}
+                      </span>
+                    </div>
+                  )}
+                  {(() => {
+                    try {
+                      const methods: string[] = JSON.parse(journalist.preferredContact || '[]');
+                      const labels: Record<string, string> = { email: 'Email', twitter_dm: 'Twitter/X DM', linkedin_dm: 'LinkedIn DM', contact_form: 'Contact Form', newsletter: 'Newsletter Reply', other: 'Other' };
+                      if (methods.length === 0) return null;
+                      return (
+                        <div className="flex justify-between items-start gap-4">
+                          <span className="text-slate-500 shrink-0">Preferred contact</span>
+                          <div className="flex flex-wrap gap-1 justify-end">
+                            {methods.map(m => (
+                              <span key={m} className="text-xs bg-northstar-50 text-northstar-700 px-2 py-0.5 rounded-full font-medium">{labels[m] || m}</span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    } catch { return null; }
+                  })()}
+                  {journalist.topicsToAvoid && (
+                    <div className="flex justify-between items-start gap-4">
+                      <span className="text-slate-500 shrink-0">Topics to avoid</span>
+                      <span className="text-slate-700 text-right">{journalist.topicsToAvoid}</span>
+                    </div>
+                  )}
+                  {journalist.bestTimeToReach && (
+                    <div className="flex justify-between items-start gap-4">
+                      <span className="text-slate-500 shrink-0">Best time to reach</span>
+                      <span className="text-slate-700 text-right">{journalist.bestTimeToReach}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -490,7 +627,7 @@ export default function JournalistDetail() {
         <div className="space-y-5 max-w-2xl">
           <div className="card p-5">
             <h3 className="font-semibold text-slate-900 mb-1">Best Pitch Angle</h3>
-            <p className="text-xs text-slate-400 mb-3">The hook or angle most likely to resonate with this journalist. Auto-filled by Claude when accepted from RSS — edit freely.</p>
+            <p className="text-xs text-slate-400 mb-3">Auto-filled by Claude when accepted from RSS — edit freely.</p>
             <textarea
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-northstar-300 resize-none"
               rows={3}
@@ -499,23 +636,28 @@ export default function JournalistDetail() {
               placeholder="e.g. Angle around AI infrastructure for mid-market — she covers cost/efficiency stories heavily"
             />
           </div>
+          {journalist.notes && (
+            <div className="card p-5 bg-slate-50">
+              <h3 className="font-semibold text-slate-700 mb-1 flex items-center gap-2">
+                System Notes
+                <span className="text-xs font-normal text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded">auto-generated · read only</span>
+              </h3>
+              <p className="text-sm text-slate-500 whitespace-pre-wrap select-text">{journalist.notes}</p>
+            </div>
+          )}
           <div className="card p-5">
-            <h3 className="font-semibold text-slate-900 mb-1">Notes</h3>
-            <p className="text-xs text-slate-400 mb-3">Internal notes about this journalist — background, preferences, past conversations, anything useful for outreach.</p>
+            <h3 className="font-semibold text-slate-900 mb-1">Admin Notes</h3>
+            <p className="text-xs text-slate-400 mb-3">Your own notes — context, preferences, past conversations, anything useful for outreach.</p>
             <textarea
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-northstar-300 resize-none"
-              rows={10}
-              value={notesText}
-              onChange={e => setNotesText(e.target.value)}
-              placeholder="Add internal notes here..."
+              rows={8}
+              value={adminNotesText}
+              onChange={e => setAdminNotesText(e.target.value)}
+              placeholder="Add your own notes here..."
             />
           </div>
           <div className="flex items-center gap-3">
-            <button
-              className="btn-primary"
-              onClick={handleSaveNotes}
-              disabled={notesSaving}
-            >
+            <button className="btn-primary" onClick={handleSaveNotes} disabled={notesSaving}>
               {notesSaving ? 'Saving…' : 'Save Notes'}
             </button>
             {notesSaved && <span className="text-sm text-emerald-600 font-medium">Saved ✓</span>}

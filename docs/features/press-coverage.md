@@ -13,6 +13,10 @@ Track every article written about North Star AI Labs — mentions, features, int
 
 Filter coverage by search text, type, or sentiment to see e.g. all positive features, or all mentions in a given publication.
 
+## Linking coverage to campaigns
+
+Once an article is added here, you can associate it with a specific campaign from the campaign's **Coverage tab**. This lets you track how many articles each campaign generated and which journalists responded with coverage.
+
 ## Why it matters
 
-Linking coverage to journalists builds a record of who has already covered North Star — useful context when deciding who to pitch next and what angle worked.
+Linking coverage to journalists builds a record of who has already covered North Star — useful context when deciding who to pitch next and what angle worked. Journalists with prior coverage are ranked highest when the AI suggests journalists for a new campaign.

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Newspaper, Plus, ExternalLink, Search, X, Edit2, Trash2,
-  Loader2, Link2, ChevronDown,
+  Loader2, Link2, ChevronDown, ClipboardPaste, Bell,
 } from 'lucide-react';
 import { coverage as covApi, journalists as jApi } from '../api';
 import type { CoverageItem, CoverageType, CoverageSentiment, Journalist } from '../types';
@@ -58,6 +58,9 @@ export default function CoveragePage() {
   const [saving, setSaving] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState('');
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [parsing, setParsing] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -100,6 +103,8 @@ export default function CoveragePage() {
     setForm({ ...BLANK });
     setJSearch('');
     setFetchError('');
+    setShowPaste(false);
+    setPasteText('');
     setShowForm(true);
   };
 
@@ -114,28 +119,54 @@ export default function CoveragePage() {
     });
     setJSearch(item.linkedJournalistName || item.journalistName || '');
     setFetchError('');
+    setShowPaste(false);
+    setPasteText('');
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const applyMeta = (title: string, publication: string, publishDate: string, description: string) => {
+    setForm(f => ({
+      ...f,
+      title:       !f.title       ? (title       || '') : f.title,
+      publication: !f.publication ? (publication || '') : f.publication,
+      publishDate: !f.publishDate ? (publishDate || '') : f.publishDate,
+      summary:     !f.summary     ? (description || '') : f.summary,
+    }));
   };
 
   const handleFetchMeta = async () => {
     if (!form.url.trim()) return;
     setFetching(true);
     setFetchError('');
+    setShowPaste(false);
     try {
       const r = await covApi.fetchMeta(form.url.trim());
       const { title, publication, publishDate, description } = r.data;
-      setForm(f => ({
-        ...f,
-        title:       title       || f.title,
-        publication: publication || f.publication,
-        publishDate: publishDate || f.publishDate,
-        summary:     description || f.summary,
-      }));
+      applyMeta(title, publication, publishDate, description);
     } catch (err: any) {
-      setFetchError(err.response?.data?.error || 'Could not fetch that URL.');
+      const msg = err.response?.data?.error || 'Could not fetch that URL.';
+      setFetchError(msg);
+      setShowPaste(true);
     } finally {
       setFetching(false);
+    }
+  };
+
+  const handleParseText = async () => {
+    if (!pasteText.trim()) return;
+    setParsing(true);
+    try {
+      const r = await covApi.parseText(pasteText);
+      const { title, publication, publishDate, description } = r.data;
+      applyMeta(title, publication, publishDate, description);
+      setShowPaste(false);
+      setPasteText('');
+      setFetchError('');
+    } catch (err: any) {
+      setFetchError('Claude could not extract metadata from the pasted text.');
+    } finally {
+      setParsing(false);
     }
   };
 
@@ -204,6 +235,14 @@ export default function CoveragePage() {
         </button>
       </div>
 
+      {/* Google Alerts tip */}
+      <div className="flex items-start gap-3 mb-5 px-4 py-3 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
+        <Bell className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
+        <span>
+          Set up <a href="https://www.google.com/alerts" target="_blank" rel="noopener noreferrer" className="font-medium underline hover:text-blue-900">"North Star AI Labs"</a> in Google Alerts to get email notifications when new articles are published — then add them here manually.
+        </span>
+      </div>
+
       {/* Stats */}
       {items.length > 0 && (
         <div className="flex items-center gap-6 mb-5 text-sm">
@@ -243,8 +282,41 @@ export default function CoveragePage() {
                 }
               </button>
             </div>
-            {fetchError && <p className="text-xs text-rose-600 mt-1">{fetchError}</p>}
-            <p className="text-xs text-slate-400 mt-1">Paste a URL and click Auto-fill to extract title, publication and date automatically.</p>
+            {fetchError && !showPaste && <p className="text-xs text-rose-600 mt-1">{fetchError}</p>}
+            {!showPaste && <p className="text-xs text-slate-400 mt-1">Paste a URL and click Auto-fill to extract title, publication and date automatically.</p>}
+
+            {showPaste && (
+              <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                <p className="text-xs text-amber-800 font-medium mb-1">
+                  Auto-fill couldn't access that URL (site blocked the request).
+                </p>
+                <p className="text-xs text-amber-700 mb-2">
+                  Open the article, select all text (Cmd+A), copy it (Cmd+C), then paste it below — Claude will extract the title, publication, and date.
+                </p>
+                <textarea
+                  className="form-textarea text-xs"
+                  rows={4}
+                  placeholder="Paste article text here…"
+                  value={pasteText}
+                  onChange={e => setPasteText(e.target.value)}
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={handleParseText}
+                    disabled={parsing || !pasteText.trim()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                  >
+                    {parsing ? <><Loader2 className="w-3 h-3 animate-spin" /> Extracting…</> : <><ClipboardPaste className="w-3 h-3" /> Extract with Claude</>}
+                  </button>
+                  <button
+                    onClick={() => { setShowPaste(false); setPasteText(''); setFetchError(''); }}
+                    className="px-3 py-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-4">

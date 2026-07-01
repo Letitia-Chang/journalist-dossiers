@@ -2,15 +2,13 @@
 
 ## What's automated
 
-All background jobs run on **Mondays at 6am ET** so the team starts each week with fresh data:
+| Job | Schedule | What it does |
+|---|---|---|
+| RSS article refresh | Fridays 7am | Fetches new articles from all active publication feeds; updates "last published" dates |
+| Publication health check | Weekly | Checks RSS feed reachability, flags unreachable ones |
+| AI publication suggestions | Weekly | Claude suggests new publications to consider tracking |
 
-| Job | What it does |
-|---|---|
-| RSS article refresh | Fetches new articles from all active publication feeds |
-| Publication health check | Checks RSS feed reachability, flags unreachable ones |
-| AI publication suggestions | Claude suggests new publications to consider tracking |
-
-Alerts for stale journalists and unreachable publications appear on the Dashboard automatically.
+Dashboard alerts appear automatically for stale journalists, overdue follow-ups, and unreachable publications — no manual checks needed to surface these.
 
 ## What needs manual attention
 
@@ -20,9 +18,22 @@ Alerts for stale journalists and unreachable publications appear on the Dashboar
 | Review publication suggestions | Weekly | Publications (Admin) — amber banner |
 | Log outreach after every contact | After each pitch | Journalist profile → Outreach tab |
 | Add press coverage | When articles appear | Press Coverage page |
-| Enrich emails via Apollo | When new journalists added | Journalists list → "Find emails via Apollo" |
+| Find emails via Apollo | When new journalists added | Journalists list → "Find emails via Apollo" |
+| Run "Find Profiles" for new journalists | Shortly after accepting | Journalist profile or Journalists list (bulk) |
+| Re-run "Find Profiles" for stale profiles | Every 90 days | Dashboard alert flags when due |
 | Update journalist notes / beat | When they change roles | Journalist profile → Edit |
 | Update House Style | When tone/approach changes | House Style (Admin) |
+
+## Periodic maintenance (dashboard alerts)
+
+The dashboard **System Alerts** section flags four conditions automatically:
+
+| Alert | Meaning | Action |
+|---|---|---|
+| **Overdue follow-ups** | Journalists with status "Pitched" or "Responded" whose follow-up date has passed | Log your next step or update the status |
+| **Stale journalists** | No new articles in 30+ days | Check if they've changed beats or left the publication |
+| **Needs re-search** | "Find Profiles" hasn't been run in 90+ days | Run "Find Profiles" to refresh social data and check for updated follower counts |
+| **Unreachable publications** | RSS feeds returning errors | Click "Sync Feeds" or fix the feed URL manually |
 
 ## Understanding RSS feed statuses
 
@@ -37,8 +48,6 @@ Each publication in the Publications admin shows one of four feed statuses:
 
 ### What to do when a feed shows Failed
 
-**Failed** means a feed URL was saved at some point but is now broken. This happens when a site changes its RSS structure or moves behind a paywall.
-
 **Step 1 — Hover the Failed badge.** A tooltip will appear with an AI-generated explanation of why it failed and a specific next step (e.g. a URL to try, or a recommendation to add journalists manually).
 
 **Step 2 — Run Sync Feeds.** Click the "Sync Feeds" button in the Publications toolbar. This re-runs discovery on all publications and automatically removes broken feeds that have no working replacement. If new feed URLs are found, they'll be saved and verified.
@@ -50,11 +59,11 @@ Each publication in the Publications admin shows one of four feed statuses:
 
 **Step 4 — Deactivate if no public RSS exists.** Some publications (Bloomberg, WSJ, Boston Globe, Beehiiv newsletters) don't offer public RSS feeds. Toggle the publication off (Active switch) and add journalists from that outlet manually instead.
 
-## Keeping the system healthy
+## Keeping scores fresh
 
-- **Stale journalists** — if a journalist hasn't had new articles in 30+ days, they'll be flagged on the dashboard. Check if they've changed beats or left the publication.
-- **Failed feeds** — click "Sync Feeds" in the Publications toolbar to re-run discovery and verification across all publications at once. Do this whenever you notice several Failed statuses.
-- **Score freshness** — scores are generated once when a journalist is accepted. If their beat changes significantly, use "Re-score with Claude" on the Journalists list.
+Scores are generated when a journalist is first accepted. They're also re-generated automatically when a follower count is detected during "Find Profiles." No manual re-scoring button exists — the system handles it.
+
+If a journalist's beat changes significantly (new role, different publication), update their profile in Edit form and run "Find Profiles" to trigger a fresh score.
 
 ## Pushing updates to GitHub
 
@@ -68,4 +77,4 @@ git push
 
 GitBook will automatically update the public docs site when changes are pushed to the `main` branch.
 
-Railway (backend) and Netlify (frontend) also auto-deploy on every push to `main`.
+Railway (backend) and Vercel (frontend) also auto-deploy on every push to `main`.

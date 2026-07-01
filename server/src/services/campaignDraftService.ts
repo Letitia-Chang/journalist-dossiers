@@ -43,6 +43,10 @@ export async function generateDraft(
   journalistId: number,
   campaignType: CampaignType,
   campaignBrief: string,
+  signerName = '',
+  signerTitle = '',
+  additionalInstructions = '',
+  assets?: { pressKitUrl?: string; photoFolderUrl?: string; demoUrl?: string; boilerplate?: string },
 ): Promise<DraftResult | null> {
   if (!process.env.ANTHROPIC_API_KEY) return null;
 
@@ -71,11 +75,17 @@ export async function generateDraft(
   )).rows[0];
   const houseStyle = styleRow?.instructions?.trim() || '';
 
+  const assetLines: string[] = [];
+  if (assets?.boilerplate) assetLines.push(`Company boilerplate: ${assets.boilerplate}`);
+  if (assets?.pressKitUrl) assetLines.push(`Press kit: ${assets.pressKitUrl}`);
+  if (assets?.photoFolderUrl) assetLines.push(`Photos/media: ${assets.photoFolderUrl}`);
+  if (assets?.demoUrl) assetLines.push(`Demo / product link: ${assets.demoUrl}`);
+
   const prompt = `You are a communications specialist at North Star AI Labs writing a pitch email to a journalist.
 
 ABOUT NORTH STAR AI LABS:
 North Star AI Labs is an AI startup accelerator and applied research lab based in Atlanta, Georgia. We support early-stage AI founders, run community hackathons, publish applied AI research, and connect the Southeast US tech ecosystem.
-
+${assetLines.length > 0 ? `\nCAMPAIGN ASSETS (include relevant links naturally in the email where appropriate):\n${assetLines.join('\n')}` : ''}
 ${typeInstructions}
 
 JOURNALIST PROFILE:
@@ -92,14 +102,14 @@ RELATIONSHIP HISTORY:
 ${relationshipContext}
 
 WRITING GUIDELINES:
-- Reference something specific from their actual recent work — not generic flattery
-- Body must be under 150 words — journalists delete long emails
-- Subject line under 10 words, no clickbait
+- Reference something specific from their actual recent work using ONLY article titles listed above — do not invent, paraphrase, or guess at articles not listed. If no articles are on record, reference their beat or publication instead.
+- Keep the email to 3–4 short paragraphs, under 200 words total
+- Subject line under 8 words, no clickbait
 - No "I hope this email finds you well", no "I'm reaching out because"
 - End with one clear, low-pressure ask
-- Sign off as: [Your name], North Star AI Labs
+- Sign off as: ${signerName ? `${signerName}${signerTitle ? `, ${signerTitle}` : ''}, North Star AI Labs` : '[Your name], North Star AI Labs'}
 ${houseStyle ? `\nHOUSE STYLE — ALWAYS FOLLOW THESE ADDITIONAL INSTRUCTIONS:\n${houseStyle}` : ''}
-
+${additionalInstructions ? `\nREGENERATION INSTRUCTIONS — apply these specific changes to the draft:\n${additionalInstructions}` : ''}
 Return ONLY valid JSON: {"subject": "...", "body": "..."}`;
 
   try {

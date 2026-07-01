@@ -1,11 +1,25 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, ChevronRight, SortDesc, Sparkles, Star, LayoutList, Columns, CheckCircle2, Circle, Link2, Info } from 'lucide-react';
+import { Search, ChevronRight, SortDesc, Sparkles, Star, LayoutList, Columns, CheckCircle2, Circle, Link2, Info, Copy, Check } from 'lucide-react';
+
 import { journalists as api, enrichment as enrichApi } from '../api';
+import { daysAgo } from '../utils';
 import type { Journalist } from '../types';
 import StatusBadge from '../components/StatusBadge';
 
 const STATUSES = ['Not Started', 'Researching', 'Ready to Pitch', 'Pitched', 'Responded', 'In Conversation', 'Covered', 'Not a Fit', 'On Hold'];
+
+const STATUS_DESCRIPTIONS: Record<string, string> = {
+  'Not Started':     'Added to the list — no outreach decision made yet.',
+  'Researching':     'Actively reading their work to decide if they\'re worth pitching.',
+  'Ready to Pitch':  'Research done, decided to reach out — draft ready to send.',
+  'Pitched':         'First outreach email sent, awaiting reply.',
+  'Responded':       'They replied — positive, neutral, or asking for more info.',
+  'In Conversation': 'Ongoing back-and-forth; relationship actively developing.',
+  'Covered':         'They published an article about North Star AI Labs.',
+  'Not a Fit':       'Decided not to pitch, or they declined.',
+  'On Hold':         'Paused — waiting on timing, news cycle, or internal decision.',
+};
 
 // Pipeline columns — subset of statuses that form the main funnel
 const PIPELINE_COLS: { key: string; label: string; color: string; dot: string }[] = [
@@ -110,6 +124,7 @@ export default function JournalistsList() {
   const [rescoreMsg, setRescoreMsg] = useState('');
   const [findingProfiles, setFindingProfiles] = useState(false);
   const [serpCredits, setSerpCredits] = useState<{ searches_left: number; searches_limit: number } | null>(null);
+  const [copiedEmail, setCopiedEmail] = useState<number | null>(null);
   const [view, setView] = useState<'list' | 'pipeline'>('list');
   const dragJournalist = useRef<Journalist | null>(null);
 
@@ -120,6 +135,15 @@ export default function JournalistsList() {
 
   const unscoredCount = list.filter(j => j.totalScore === 0).length;
   const missingProfileCount = list.filter(j => !j.linkedinUrl && !j.muckRackUrl).length;
+
+  const copyEmail = (e: React.MouseEvent, j: Journalist) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(j.email).then(() => {
+      setCopiedEmail(j.id);
+      setTimeout(() => setCopiedEmail(null), 2000);
+    });
+  };
 
   const reload = () =>
     api.list({ search, outreachStatus, sortBy })
@@ -241,34 +265,23 @@ export default function JournalistsList() {
             </button>
           </div>
 
-          {missingProfileCount > 0 && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleBulkProfiles}
-                disabled={findingProfiles}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200 text-teal-700 text-sm font-medium hover:bg-teal-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                title="Find LinkedIn, MuckRack, and Twitter profiles via SerpAPI"
-              >
-                <Link2 className="w-4 h-4" />
-                {findingProfiles ? 'Finding profiles…' : `Find profiles via SerpAPI (${missingProfileCount})`}
-              </button>
-              {serpCredits && (
-                <div className="relative group">
-                  <Info className={`w-4 h-4 cursor-default ${
-                    serpCredits.searches_left < 20 ? 'text-rose-400' :
-                    serpCredits.searches_left < 100 ? 'text-amber-400' : 'text-slate-400'
-                  }`} />
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 whitespace-nowrap">
-                    <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg">
-                      <div className="font-semibold mb-0.5">SerpAPI credits</div>
-                      <div>{serpCredits.searches_left} / {serpCredits.searches_limit} searches remaining this month</div>
-                    </div>
-                    <div className="w-2 h-2 bg-slate-800 rotate-45 mx-auto -mt-1" />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          <button
+            onClick={handleBulkProfiles}
+            disabled={findingProfiles}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200 text-teal-700 text-sm font-medium hover:bg-teal-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title={missingProfileCount > 0 ? `${missingProfileCount} journalist${missingProfileCount !== 1 ? 's' : ''} missing LinkedIn/MuckRack` : 'All profiles enriched — re-run to refresh'}
+          >
+            <Link2 className="w-4 h-4" />
+            {findingProfiles ? 'Finding profiles…' : missingProfileCount > 0 ? `Find profiles (${missingProfileCount} missing)` : 'Find profiles'}
+            {serpCredits && (
+              <span className={`text-xs font-normal border-l border-teal-200 pl-2 ml-1 ${
+                serpCredits.searches_left < 20 ? 'text-rose-500' :
+                serpCredits.searches_left < 100 ? 'text-amber-500' : 'text-teal-500/70'
+              }`}>
+                {serpCredits.searches_left} left
+              </span>
+            )}
+          </button>
           {unscoredCount > 0 && (
             <button
               onClick={handleBulkRescore}
@@ -352,7 +365,25 @@ export default function JournalistsList() {
                     <SortDesc className="w-3 h-3" /> Score
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Email</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Status</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600">
+                    <div className="flex items-center gap-1.5">
+                      Status
+                      <div className="relative group">
+                        <Info className="w-3.5 h-3.5 text-slate-400 cursor-default hover:text-slate-600" />
+                        <div className="absolute top-full right-0 mt-2 hidden group-hover:block z-20 w-80">
+                          <div className="bg-slate-800 text-white text-xs rounded-xl px-4 py-3 shadow-xl space-y-2">
+                            <div className="font-semibold text-slate-200 mb-1">Outreach status guide</div>
+                            {STATUSES.map(s => (
+                              <div key={s} className="flex gap-2">
+                                <span className="text-slate-300 font-medium shrink-0 w-32">{s}</span>
+                                <span className="text-slate-400">{STATUS_DESCRIPTIONS[s]}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -382,28 +413,46 @@ export default function JournalistsList() {
                     <td className="px-4 py-3 text-slate-600">{j.publication}</td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{j.beat}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
                           <div className="w-16 bg-slate-100 rounded-full h-1.5">
                             <div className="bg-northstar-500 h-1.5 rounded-full" style={{ width: `${j.totalScore}%` }} />
                           </div>
                           <span className="font-mono text-xs font-medium text-slate-700">{j.totalScore}</span>
                         </div>
+                        {j.followerCount && (
+                          <span className="text-xs text-slate-400" title="Detected follower count">
+                            {j.followerCount >= 1_000_000
+                              ? `${(j.followerCount / 1_000_000).toFixed(1)}M followers`
+                              : j.followerCount >= 1_000
+                              ? `${(j.followerCount / 1_000).toFixed(1)}K followers`
+                              : `${j.followerCount} followers`}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {j.email
-                        ? <span className="inline-flex items-center gap-1 text-xs text-emerald-700" title={j.email}>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                            <span className="truncate max-w-[160px]">{j.email}</span>
+                      {j.email ? (
+                        <button
+                          onClick={e => copyEmail(e, j)}
+                          className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 group"
+                          title="Click to copy email"
+                        >
+                          {copiedEmail === j.id
+                            ? <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            : <Copy className="w-3.5 h-3.5 text-emerald-500 shrink-0 group-hover:text-emerald-700" />}
+                          <span className="truncate max-w-[160px]">
+                            {copiedEmail === j.id ? 'Copied!' : j.email}
                           </span>
-                        : <span className="inline-flex items-center gap-1 text-xs text-slate-300">
-                            <Circle className="w-3.5 h-3.5 shrink-0" />
-                            No email
-                          </span>
-                      }
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-slate-300">
+                          <Circle className="w-3.5 h-3.5 shrink-0" />
+                          No email
+                        </span>
+                      )}
                     </td>
-                    <td className="px-4 py-3"><StatusBadge status={j.outreachStatus} /></td>
+                    <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={j.outreachStatus} /></td>
                     <td className="px-4 py-3">
                       <Link to={`/journalists/${j.id}`} className="text-northstar-600 hover:text-northstar-800 flex items-center">
                         <ChevronRight className="w-4 h-4" />

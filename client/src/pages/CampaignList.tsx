@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Megaphone, Plus, Trash2, Calendar, Users } from 'lucide-react';
+import { Megaphone, Plus, Trash2, Calendar, Users, Archive, ArchiveRestore } from 'lucide-react';
 import { campaigns as api } from '../api';
 import type { Campaign, CampaignType } from '../types';
 
@@ -22,6 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
   draft:     'bg-slate-100 text-slate-600',
   active:    'bg-emerald-50 text-emerald-700',
   completed: 'bg-indigo-50 text-indigo-700',
+  archived:  'bg-slate-100 text-slate-400',
 };
 
 export default function CampaignList() {
@@ -30,6 +31,7 @@ export default function CampaignList() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', type: 'cold_intro' as CampaignType, brief: '' });
   const [saving, setSaving] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const load = () => api.list().then(r => setList(r.data)).finally(() => setLoading(false));
 
@@ -51,6 +53,20 @@ export default function CampaignList() {
     load();
   };
 
+  const handleArchive = async (id: number) => {
+    await api.update(id, { status: 'archived' });
+    load();
+  };
+
+  const handleUnarchive = async (id: number) => {
+    await api.update(id, { status: 'completed' });
+    load();
+  };
+
+  const active = list.filter(c => c.status !== 'archived');
+  const archived = list.filter(c => c.status === 'archived');
+  const displayed = showArchived ? archived : active;
+
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -60,12 +76,25 @@ export default function CampaignList() {
             Outreach Campaigns
           </h1>
           <p className="text-slate-500 mt-1">
-            {list.length} campaign{list.length !== 1 ? 's' : ''}
+            {active.length} active{archived.length > 0 ? ` · ${archived.length} archived` : ''}
           </p>
         </div>
-        <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm(v => !v)}>
-          <Plus className="w-4 h-4" /> New Campaign
-        </button>
+        <div className="flex items-center gap-2">
+          {archived.length > 0 && (
+            <button
+              className="flex items-center gap-1.5 btn-secondary text-sm"
+              onClick={() => setShowArchived(v => !v)}
+            >
+              {showArchived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+              {showArchived ? 'Show active' : `Archived (${archived.length})`}
+            </button>
+          )}
+          {!showArchived && (
+            <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm(v => !v)}>
+              <Plus className="w-4 h-4" /> New Campaign
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Create form */}
@@ -134,19 +163,25 @@ export default function CampaignList() {
       {/* Campaign list */}
       {loading ? (
         <div className="card p-8 text-center text-slate-400">Loading…</div>
-      ) : list.length === 0 ? (
+      ) : displayed.length === 0 ? (
         <div className="card p-12 text-center">
           <Megaphone className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-          <div className="text-slate-500 font-medium">No campaigns yet</div>
-          <div className="text-slate-400 text-sm mt-1">Create one to start drafting personalised outreach with Claude.</div>
+          {showArchived ? (
+            <div className="text-slate-500 font-medium">No archived campaigns</div>
+          ) : (
+            <>
+              <div className="text-slate-500 font-medium">No campaigns yet</div>
+              <div className="text-slate-400 text-sm mt-1">Create one to start drafting personalised outreach with Claude.</div>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
-          {list.map(c => (
+          {displayed.map(c => (
             <Link
               key={c.id}
               to={`/campaigns/${c.id}`}
-              className="card p-5 flex items-center gap-5 hover:border-northstar-300 hover:shadow-sm transition-all group"
+              className={`card p-5 flex items-center gap-5 hover:border-northstar-300 hover:shadow-sm transition-all group ${c.status === 'archived' ? 'opacity-60' : ''}`}
             >
               {/* Type + name */}
               <div className="flex-1 min-w-0">
@@ -154,7 +189,7 @@ export default function CampaignList() {
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLORS[c.type]}`}>
                     {TYPE_LABELS[c.type]}
                   </span>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[c.status]}`}>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[c.status] ?? 'bg-slate-100 text-slate-500'}`}>
                     {c.status}
                   </span>
                 </div>
@@ -185,13 +220,33 @@ export default function CampaignList() {
                 </div>
               </div>
 
-              {/* Delete */}
-              <button
-                className="opacity-0 group-hover:opacity-100 btn-danger text-xs px-2 py-1 transition-opacity"
-                onClick={e => { e.preventDefault(); handleDelete(c.id); }}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+              {/* Actions */}
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {c.status !== 'archived' ? (
+                  <button
+                    className="p-1.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                    title="Archive campaign"
+                    onClick={e => { e.preventDefault(); handleArchive(c.id); }}
+                  >
+                    <Archive className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    className="p-1.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                    title="Unarchive campaign"
+                    onClick={e => { e.preventDefault(); handleUnarchive(c.id); }}
+                  >
+                    <ArchiveRestore className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  className="p-1.5 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                  title="Delete campaign"
+                  onClick={e => { e.preventDefault(); handleDelete(c.id); }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </Link>
           ))}
         </div>

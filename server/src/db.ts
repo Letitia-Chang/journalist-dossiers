@@ -186,6 +186,14 @@ export async function initDb(): Promise<void> {
         instructions TEXT NOT NULL DEFAULT '',
         "updatedAt"  TIMESTAMPTZ DEFAULT NOW()
       );
+
+      CREATE TABLE IF NOT EXISTS users (
+        id          SERIAL PRIMARY KEY,
+        name        TEXT NOT NULL,
+        title       TEXT NOT NULL DEFAULT '',
+        email       TEXT NOT NULL DEFAULT '',
+        "createdAt" TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
 
     // ── Column migrations (safe to run repeatedly) ───────────────────────────
@@ -229,7 +237,35 @@ export async function initDb(): Promise<void> {
       ALTER TABLE journalists ADD COLUMN IF NOT EXISTS "createdAt"                TIMESTAMPTZ DEFAULT NOW();
       ALTER TABLE journalists ADD COLUMN IF NOT EXISTS "updatedAt"                TIMESTAMPTZ DEFAULT NOW();
 
-      ALTER TABLE campaign_journalists ADD COLUMN IF NOT EXISTS "sentAt"   TEXT DEFAULT '';
+      ALTER TABLE campaign_journalists ADD COLUMN IF NOT EXISTS "sentAt"           TEXT DEFAULT '';
+      ALTER TABLE journalists        ADD COLUMN IF NOT EXISTS "serpSearchedAt"   TIMESTAMPTZ;
+      ALTER TABLE journalists        ADD COLUMN IF NOT EXISTS "photoUrl"         TEXT DEFAULT '';
+      ALTER TABLE journalists        ADD COLUMN IF NOT EXISTS "socialFollowing"  TEXT DEFAULT '';
+      ALTER TABLE journalists        ADD COLUMN IF NOT EXISTS "preferredContact" TEXT DEFAULT '[]';
+      ALTER TABLE journalists        ADD COLUMN IF NOT EXISTS "topicsToAvoid"    TEXT DEFAULT '';
+      ALTER TABLE journalists        ADD COLUMN IF NOT EXISTS "bestTimeToReach"  TEXT DEFAULT '';
+      ALTER TABLE journalists        ADD COLUMN IF NOT EXISTS "coveredCompetitor"  INTEGER DEFAULT 0;
+      ALTER TABLE journalists        ADD COLUMN IF NOT EXISTS "mutualConnections"  TEXT DEFAULT '';
+      ALTER TABLE journalists        ADD COLUMN IF NOT EXISTS "followerCount"      INTEGER;
+      ALTER TABLE journalists        ADD COLUMN IF NOT EXISTS "adminNotes"         TEXT DEFAULT '';
+      ALTER TABLE outreach_logs      ADD COLUMN IF NOT EXISTS "sentByName"         TEXT DEFAULT '';
+      ALTER TABLE campaigns          ADD COLUMN IF NOT EXISTS "pressKitUrl"        TEXT DEFAULT '';
+      ALTER TABLE campaigns          ADD COLUMN IF NOT EXISTS "photoFolderUrl"     TEXT DEFAULT '';
+      ALTER TABLE campaigns          ADD COLUMN IF NOT EXISTS "demoUrl"            TEXT DEFAULT '';
+      ALTER TABLE campaigns          ADD COLUMN IF NOT EXISTS "boilerplate"        TEXT DEFAULT '';
+      ALTER TABLE coverage           ADD COLUMN IF NOT EXISTS "campaignId"         INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL DEFAULT ''
+      );
+    `);
+
+    await client.query(`
+      ALTER TABLE users DROP CONSTRAINT IF EXISTS users_name_unique;
+      ALTER TABLE users ADD CONSTRAINT users_name_unique UNIQUE (name);
     `);
 
     // ── One-time data migrations ──────────────────────────────────────────────
@@ -263,6 +299,23 @@ export async function initDb(): Promise<void> {
       END
       WHERE topic = 'AI / Machine Learning'
         AND title !~* '\\m(ai|artificial intelligence|machine learning|llm|llms|gpt|generative ai|openai|anthropic|claude|chatgpt|neural|language model)\\M'
+    `);
+
+    // 2026-07-01: Set outreachStatus to 'Researching' for journalists that have
+    // been SerpAPI-searched but are still sitting at 'Not Started'.
+    await client.query(`
+      UPDATE journalists SET "outreachStatus" = 'Researching'
+      WHERE "outreachStatus" = 'Not Started'
+        AND "serpSearchedAt" IS NOT NULL
+    `);
+
+    // Seed users
+    await client.query(`
+      INSERT INTO users (name, title, email) VALUES
+        ('Ting-Ya Chang',  'Head of Communications',       'tchang328@gatech.edu'),
+        ('James Harris',   'Entrepreneur-in-Residence',    'james@northstarai.com'),
+        ('Anushka',        'Head of Communications',        '')
+      ON CONFLICT (name) DO NOTHING;
     `);
 
     // Seed campaign type styles

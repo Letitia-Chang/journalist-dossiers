@@ -11,7 +11,7 @@ export default function StatusBadge({ status }: { status: string }) {
     'On Hold': 'bg-slate-100 text-slate-500',
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] || styles['Not Started']}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${styles[status] || styles['Not Started']}`}>
       {status || 'Not Started'}
     </span>
   );

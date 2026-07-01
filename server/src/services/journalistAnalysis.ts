@@ -32,11 +32,13 @@ export async function analyzeJournalist(params: {
   recentArticleTitle: string;
   recentArticleUrl: string;
   suggestedBeat: string;
-  allArticleTitles?: string[]; // All scanned article titles for beat accuracy
+  allArticleTitles?: string[];
+  socialFollowing?: string; // e.g. "~25K Twitter, 3K LinkedIn"
+  followerCount?: number;   // numeric, e.g. 3000
 }): Promise<JournalistAnalysis | null> {
   if (!process.env.ANTHROPIC_API_KEY) return null;
 
-  const { name, publication, publicationTier, recentArticleTitle, recentArticleUrl, suggestedBeat, allArticleTitles } = params;
+  const { name, publication, publicationTier, recentArticleTitle, recentArticleUrl, suggestedBeat, allArticleTitles, socialFollowing, followerCount } = params;
 
   const tierContext: Record<string, string> = {
     A: 'Major national tech/AI publication (large audience, high industry authority)',
@@ -54,6 +56,8 @@ ${allArticleTitles && allArticleTitles.length > 1
   : `- Recent article: "${recentArticleTitle}"`}
 ${recentArticleUrl ? `- Top article URL: ${recentArticleUrl}` : ''}
 ${suggestedBeat ? `- Keyword-inferred beat: ${suggestedBeat} (use the article list above to verify or correct this)` : ''}
+${followerCount ? `- Detected follower count: ${followerCount.toLocaleString()} (from Google search snippets)` : ''}
+${socialFollowing ? `- Known social following (freetext): ${socialFollowing}` : ''}
 
 North Star AI Labs builds AI tools for enterprise. They want coverage in tech, AI, and startup media — especially Southeast US outlets.
 
@@ -65,7 +69,7 @@ Based on what you know about this journalist and publication, provide:
    - startupRelevanceScore: 0–20 (do they cover startups, funding, founders?)
    - northStarFitScore: 0–20 (would they likely cover an AI enterprise startup?)
    - publicationAuthorityScore: 0–15 (reach and credibility of ${publication})
-   - audienceReachScore: 0–10 (estimated readership and social following)
+   - audienceReachScore: 0–10 (estimated readership, article shares, and social following — use known social following data if provided)
    - contactabilityScore: 0–5 (default mid-range — we have no contact info yet)
 3. A best pitch angle (max 100 characters — what hook would resonate with this journalist?)
 4. One sentence of reasoning explaining your scores

@@ -4,6 +4,8 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
 });
 
+export default api;
+
 export const journalists = {
   list: (params?: any) => api.get('/journalists', { params }),
   get: (id: number) => api.get(`/journalists/${id}`),
@@ -13,6 +15,8 @@ export const journalists = {
   bulkRescore: () => api.post('/journalists/bulk-rescore'),
   backfillArticles: () => api.post('/journalists/backfill-articles'),
   toggleFavorite: (id: number) => api.patch(`/journalists/${id}/favorite`),
+  uploadPhoto: (id: number, photoUrl: string) => api.post(`/journalists/${id}/photo`, { photoUrl }),
+  rescore: (id: number) => api.post(`/journalists/${id}/rescore`),
   refreshArticles: () => api.post('/journalist-articles/refresh-now'),
 };
 
@@ -45,8 +49,21 @@ export const campaigns = {
   addJournalists: (id: number, journalistIds: number[]) => api.post(`/campaigns/${id}/journalists`, { journalistIds }),
   removeJournalist: (id: number, journalistId: number) => api.delete(`/campaigns/${id}/journalists/${journalistId}`),
   generateDrafts: (id: number) => api.post(`/campaigns/${id}/generate-drafts`),
+  suggestJournalists: (id: number) => api.post(`/campaigns/${id}/suggest-journalists`),
+  regenerateDraft: (id: number, journalistId: number, instructions: string) =>
+    api.post(`/campaigns/${id}/journalists/${journalistId}/regenerate`, { instructions }),
   updateDraft: (id: number, journalistId: number, data: any) => api.put(`/campaigns/${id}/journalists/${journalistId}/draft`, data),
   markSent: (id: number, journalistId: number, campaignType: string) => api.post(`/campaigns/${id}/journalists/${journalistId}/send`, { campaignType }),
+  getCoverage: (id: number) => api.get(`/campaigns/${id}/coverage`),
+  linkCoverage: (id: number, coverageId: number) => api.post(`/campaigns/${id}/coverage/link`, { coverageId }),
+  unlinkCoverage: (id: number, coverageId: number) => api.delete(`/campaigns/${id}/coverage/${coverageId}/unlink`),
+  createGmailDrafts: (id: number) => api.post(`/campaigns/${id}/create-gmail-drafts`),
+};
+
+export const auth = {
+  gmailStatus: () => api.get('/auth/gmail/status', { baseURL: 'http://localhost:3001' }),
+  connectGmail: () => { window.open('http://localhost:3001/auth/google', '_blank', 'width=500,height=600'); },
+  disconnectGmail: () => api.delete('/auth/gmail', { baseURL: 'http://localhost:3001' }),
 };
 
 export const publications = {
@@ -98,7 +115,12 @@ export const coverage = {
   create:    (data: any)    => api.post('/coverage', data),
   update:    (id: number, data: any) => api.put(`/coverage/${id}`, data),
   delete:    (id: number)   => api.delete(`/coverage/${id}`),
-  fetchMeta: (url: string)  => api.post('/coverage/fetch-meta', { url }),
+  fetchMeta:  (url: string)  => api.post('/coverage/fetch-meta', { url }),
+  parseText:  (text: string) => api.post('/coverage/parse-text', { text }),
+};
+
+export const users = {
+  list: () => api.get('/users'),
 };
 
 export const campaignStyles = {

@@ -4,6 +4,7 @@ import { scanPublicationRss, scanAllRssFeeds } from '../services/rssService';
 import { scanStaffPage } from '../services/staffPageScanner';
 import { analyzeJournalist } from '../services/journalistAnalysis';
 import { inferArticleTopic } from '../services/rssService';
+import { findJournalistEmail } from '../services/emailFinder';
 
 const router = Router();
 
@@ -106,6 +107,29 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
     }
 
     res.status(201).json({ success: true, journalist: created });
+
+    // Background: email finder via publication website
+    const pubForEmail = (await pool.query(
+      'SELECT url FROM publications WHERE LOWER(name)=LOWER($1)', [suggestion.publicationName]
+    )).rows[0];
+    if (pubForEmail?.url) {
+      findJournalistEmail(suggestion.name, pubForEmail.url).then(async result => {
+        if (!result) return;
+        const updates: string[] = [];
+        const values: any[] = [];
+        let i = 1;
+        if (result.email)      { updates.push(`email = $${i++}`);         values.push(result.email); }
+        if (result.contactUrl) { updates.push(`"contactUrl" = $${i++}`);  values.push(result.contactUrl); }
+        if (updates.length > 0) {
+          values.push(created.id);
+          await pool.query(
+            `UPDATE journalists SET ${updates.join(', ')}, "updatedAt" = NOW() WHERE id = $${i}`,
+            values
+          );
+          console.log(`[EmailFinder] ${suggestion.name} → email:${result.email || 'none'} contactUrl:${result.contactUrl || 'none'}`);
+        }
+      }).catch(err => console.error('[EmailFinder] Error:', err.message));
+    }
 
     // Background: Claude analysis
     const pub = (await pool.query('SELECT * FROM publications WHERE LOWER(name)=LOWER($1)', [suggestion.publicationName])).rows[0];
