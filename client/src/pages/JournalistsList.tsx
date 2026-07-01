@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, ChevronRight, SortDesc, Sparkles, Star, LayoutList, Columns, CheckCircle2, Circle, Link2 } from 'lucide-react';
+import { Search, ChevronRight, SortDesc, Sparkles, Star, LayoutList, Columns, CheckCircle2, Circle, Link2, Info } from 'lucide-react';
 import { journalists as api, enrichment as enrichApi } from '../api';
 import type { Journalist } from '../types';
 import StatusBadge from '../components/StatusBadge';
@@ -253,18 +253,19 @@ export default function JournalistsList() {
                 {findingProfiles ? 'Finding profiles…' : `Find profiles via SerpAPI (${missingProfileCount})`}
               </button>
               {serpCredits && (
-                <span
-                  className={`text-xs px-2 py-1 rounded-md border font-medium ${
-                    serpCredits.searches_left < 20
-                      ? 'bg-rose-50 border-rose-200 text-rose-600'
-                      : serpCredits.searches_left < 100
-                      ? 'bg-amber-50 border-amber-200 text-amber-600'
-                      : 'bg-slate-50 border-slate-200 text-slate-500'
-                  }`}
-                  title={`${serpCredits.searches_left} of ${serpCredits.searches_limit} searches remaining this month`}
-                >
-                  {serpCredits.searches_left} searches left
-                </span>
+                <div className="relative group">
+                  <Info className={`w-4 h-4 cursor-default ${
+                    serpCredits.searches_left < 20 ? 'text-rose-400' :
+                    serpCredits.searches_left < 100 ? 'text-amber-400' : 'text-slate-400'
+                  }`} />
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 whitespace-nowrap">
+                    <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg">
+                      <div className="font-semibold mb-0.5">SerpAPI credits</div>
+                      <div>{serpCredits.searches_left} / {serpCredits.searches_limit} searches remaining this month</div>
+                    </div>
+                    <div className="w-2 h-2 bg-slate-800 rotate-45 mx-auto -mt-1" />
+                  </div>
+                </div>
               )}
             </div>
           )}
