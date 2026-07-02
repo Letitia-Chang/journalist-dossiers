@@ -270,6 +270,27 @@ export default function CampaignDetail() {
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-northstar-100 text-northstar-700">
                 {TYPE_LABELS[campaign.type]}
               </span>
+              <button
+                onClick={async () => {
+                  const next = campaign.status === 'draft' ? 'active' : campaign.status === 'active' ? 'completed' : 'active';
+                  await cApi.update(Number(id), { ...campaign, status: next });
+                  await loadCampaign();
+                }}
+                className={`text-xs font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+                  campaign.status === 'active'    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' :
+                  campaign.status === 'completed' ? 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200' :
+                  campaign.status === 'archived'  ? 'bg-slate-100 text-slate-400 border-slate-200' :
+                  'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                }`}
+                title={
+                  campaign.status === 'draft'     ? 'Click to mark Active' :
+                  campaign.status === 'active'    ? 'Click to mark Completed' :
+                  campaign.status === 'completed' ? 'Click to reactivate' : ''
+                }
+                disabled={campaign.status === 'archived'}
+              >
+                {campaign.status === 'draft' ? 'Draft' : campaign.status === 'active' ? 'Active' : campaign.status === 'completed' ? 'Completed' : 'Archived'}
+              </button>
             </div>
             <h1 className="text-2xl font-bold text-slate-900">{campaign.name}</h1>
             {campaign.brief && (

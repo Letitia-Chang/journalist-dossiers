@@ -65,13 +65,12 @@ app.use('/auth', authRouter);
 app.get('/api/dashboard', async (_req, res) => {
   try {
     const [
-      totalRes, tiersRes, avgRes, followUpsRes, recentOutreachRes,
+      totalRes, avgRes, followUpsRes, recentOutreachRes,
       staleRes, unreachableRes, activeCampaignsRes, draftsReadyRes,
       sentRes, sentLastWeekRes, recentCampaignsRes, overdueFollowUpsRes,
       needsReSearchRes, approvedWaitingRes, warmContactsRes, recentCoverageRes,
     ] = await Promise.all([
       pool.query('SELECT COUNT(*)::int as c FROM journalists'),
-      pool.query('SELECT "priorityTier", COUNT(*)::int as count FROM journalists GROUP BY "priorityTier" ORDER BY "priorityTier"'),
       pool.query('SELECT AVG("totalScore")::numeric(6,1) as avg FROM journalists'),
       pool.query(`
         SELECT * FROM journalists
@@ -146,7 +145,6 @@ app.get('/api/dashboard', async (_req, res) => {
 
     res.json({
       total: totalRes.rows[0].c,
-      tiers: tiersRes.rows,
       avgScore: avgRes.rows[0].avg ? Math.round(Number(avgRes.rows[0].avg)) : 0,
       followUps: followUpsRes.rows,
       recentOutreach: recentOutreachRes.rows,

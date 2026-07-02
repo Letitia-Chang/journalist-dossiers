@@ -42,13 +42,6 @@ export default function Dashboard() {
 
   const hasAlerts = data.staleJournalists > 0 || data.unreachablePubs > 0 || data.overdueFollowUps > 0 || data.needsReSearch > 0;
 
-  // Tier breakdown
-  const tierMap: Record<number, number> = {};
-  data.tiers.forEach(t => { tierMap[t.priorityTier] = t.count; });
-  const tierTotal = data.total || 1;
-  const tierColors = ['bg-northstar-500', 'bg-northstar-300', 'bg-northstar-200', 'bg-slate-200'];
-  const tierLabels = ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4'];
-
   // Velocity
   const velocityDelta = data.sentThisWeek - data.sentLastWeek;
 
@@ -61,34 +54,7 @@ export default function Dashboard() {
 
       {/* ── Top stats row ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {/* Journalists with tier bar */}
-        <Link to="/journalists" className="card p-5 hover:shadow-md transition-shadow">
-          <div className="w-9 h-9 rounded-lg bg-northstar-50 text-northstar-600 flex items-center justify-center mb-3">
-            <Users className="w-4 h-4" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{data.total}</div>
-          <div className="text-sm text-slate-500 mt-0.5 mb-3">Total Journalists</div>
-          {data.total > 0 && (
-            <div className="space-y-1">
-              <div className="flex h-2 rounded-full overflow-hidden gap-px">
-                {[1,2,3,4].map((tier, i) => {
-                  const pct = ((tierMap[tier] || 0) / tierTotal) * 100;
-                  return pct > 0 ? (
-                    <div key={tier} className={`${tierColors[i]} transition-all`} style={{ width: `${pct}%` }} title={`${tierLabels[i]}: ${tierMap[tier] || 0}`} />
-                  ) : null;
-                })}
-              </div>
-              <div className="flex gap-3 flex-wrap">
-                {[1,2,3,4].map((tier, i) => tierMap[tier] ? (
-                  <span key={tier} className="text-xs text-slate-500 flex items-center gap-1">
-                    <span className={`w-2 h-2 rounded-full ${tierColors[i]}`} />
-                    T{tier} {tierMap[tier]}
-                  </span>
-                ) : null)}
-              </div>
-            </div>
-          )}
-        </Link>
+        <StatCard icon={Users} label="Total Journalists" value={data.total} color="northstar" link="/journalists" />
 
         <StatCard icon={TrendingUp} label="Avg Score" value={data.avgScore} suffix="/100" color="green" />
 
