@@ -207,7 +207,6 @@ export interface CoverageItem {
 
 export interface DashboardData {
   total: number;
-  tiers: { priorityTier: number; count: number }[];
   avgScore: number;
   followUps: Journalist[];
   recentOutreach: (OutreachLog & { journalistName: string; publication: string })[];
