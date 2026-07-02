@@ -60,8 +60,6 @@ export default function CampaignDetail() {
   const [regenerating, setRegenerating] = useState<number | null>(null);
   const [regenInstructions, setRegenInstructions] = useState<Record<number, string>>({});
   const [showAssets, setShowAssets] = useState(false);
-  const [assetsDraft, setAssetsDraft] = useState({ pressKitUrl: '', photoFolderUrl: '', demoUrl: '', boilerplate: '' });
-  const [savingAssets, setSavingAssets] = useState(false);
   const [campaignCoverage, setCampaignCoverage] = useState<CoverageItem[]>([]);
   const [allCoverage, setAllCoverage] = useState<CoverageItem[]>([]);
   const [linkSearch, setLinkSearch] = useState('');
@@ -70,7 +68,7 @@ export default function CampaignDetail() {
   const [creatingGmailDrafts, setCreatingGmailDrafts] = useState(false);
   const [gmailDraftResults, setGmailDraftResults] = useState<{ name: string; email: string; success: boolean; error?: string }[] | null>(null);
   const [showEditPanel, setShowEditPanel] = useState(false);
-  const [editDraft, setEditDraft] = useState({ name: '', type: 'cold_intro' as CampaignType, status: 'draft', brief: '' });
+  const [editDraft, setEditDraft] = useState({ name: '', type: 'cold_intro' as CampaignType, status: 'draft', brief: '', pressKitUrl: '', photoFolderUrl: '', demoUrl: '', boilerplate: '' });
   const [savingEdit, setSavingEdit] = useState(false);
   const [briefChanged, setBriefChanged] = useState(false);
   const [regenAllPending, setRegenAllPending] = useState(false);
@@ -91,12 +89,6 @@ export default function CampaignDetail() {
     ]);
     setCampaign(c.data);
     setCampaignJournalists(cj.data);
-    setAssetsDraft({
-      pressKitUrl: c.data.pressKitUrl || '',
-      photoFolderUrl: c.data.photoFolderUrl || '',
-      demoUrl: c.data.demoUrl || '',
-      boilerplate: c.data.boilerplate || '',
-    });
   }, [id]);
 
   useEffect(() => {
@@ -142,6 +134,10 @@ export default function CampaignDetail() {
       type: campaign.type,
       status: campaign.status,
       brief: campaign.brief || '',
+      pressKitUrl: campaign.pressKitUrl || '',
+      photoFolderUrl: campaign.photoFolderUrl || '',
+      demoUrl: campaign.demoUrl || '',
+      boilerplate: campaign.boilerplate || '',
     });
     setBriefChanged(false);
     setShowEditPanel(true);
@@ -156,6 +152,10 @@ export default function CampaignDetail() {
       type: editDraft.type,
       status: editDraft.status,
       brief: editDraft.brief,
+      pressKitUrl: editDraft.pressKitUrl,
+      photoFolderUrl: editDraft.photoFolderUrl,
+      demoUrl: editDraft.demoUrl,
+      boilerplate: editDraft.boilerplate,
     });
     await loadCampaign();
     setSavingEdit(false);
@@ -365,37 +365,27 @@ export default function CampaignDetail() {
               </button>
               {showAssets && (
                 <div className="mt-3 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3 max-w-2xl">
-                  <p className="text-xs text-slate-500">Links and boilerplate injected into every draft for this campaign. Journalists won't see these unless Claude includes them naturally.</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <p className="text-xs text-slate-500">Edit these in the <button onClick={openEditPanel} className="underline text-northstar-600 hover:text-northstar-800">Edit Campaign panel</button>.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                     <div>
-                      <label className="form-label">Press kit URL</label>
-                      <input className="form-input text-sm" placeholder="https://drive.google.com/…" value={assetsDraft.pressKitUrl} onChange={e => setAssetsDraft(a => ({ ...a, pressKitUrl: e.target.value }))} />
+                      <div className="form-label">Press kit URL</div>
+                      {campaign.pressKitUrl ? <a href={campaign.pressKitUrl} target="_blank" rel="noopener noreferrer" className="text-northstar-600 hover:underline break-all">{campaign.pressKitUrl}</a> : <span className="text-slate-400">—</span>}
                     </div>
                     <div>
-                      <label className="form-label">Photo folder URL</label>
-                      <input className="form-input text-sm" placeholder="https://drive.google.com/…" value={assetsDraft.photoFolderUrl} onChange={e => setAssetsDraft(a => ({ ...a, photoFolderUrl: e.target.value }))} />
+                      <div className="form-label">Photo folder URL</div>
+                      {campaign.photoFolderUrl ? <a href={campaign.photoFolderUrl} target="_blank" rel="noopener noreferrer" className="text-northstar-600 hover:underline break-all">{campaign.photoFolderUrl}</a> : <span className="text-slate-400">—</span>}
                     </div>
                     <div>
-                      <label className="form-label">Demo / product URL</label>
-                      <input className="form-input text-sm" placeholder="https://…" value={assetsDraft.demoUrl} onChange={e => setAssetsDraft(a => ({ ...a, demoUrl: e.target.value }))} />
+                      <div className="form-label">Demo / product URL</div>
+                      {campaign.demoUrl ? <a href={campaign.demoUrl} target="_blank" rel="noopener noreferrer" className="text-northstar-600 hover:underline break-all">{campaign.demoUrl}</a> : <span className="text-slate-400">—</span>}
                     </div>
                   </div>
-                  <div>
-                    <label className="form-label">Company boilerplate <span className="text-slate-400 font-normal">(standard "About" paragraph)</span></label>
-                    <textarea className="form-textarea text-sm" rows={3} placeholder="North Star AI Labs is an AI startup lab inside ATDC in Atlanta, Georgia…" value={assetsDraft.boilerplate} onChange={e => setAssetsDraft(a => ({ ...a, boilerplate: e.target.value }))} />
-                  </div>
-                  <button
-                    onClick={async () => {
-                      setSavingAssets(true);
-                      await cApi.update(Number(id), assetsDraft);
-                      await loadCampaign();
-                      setSavingAssets(false);
-                    }}
-                    disabled={savingAssets}
-                    className="btn-primary text-sm"
-                  >
-                    {savingAssets ? 'Saving…' : 'Save assets'}
-                  </button>
+                  {campaign.boilerplate && (
+                    <div>
+                      <div className="form-label">Company boilerplate</div>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{campaign.boilerplate}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1260,6 +1250,30 @@ export default function CampaignDetail() {
                     <AlertCircle className="w-3 h-3" /> Saving this will flag existing pending drafts as outdated
                   </p>
                 )}
+              </div>
+
+              {/* Campaign Assets */}
+              <div className="border-t border-slate-200 pt-4 space-y-3">
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Campaign Assets</p>
+                <p className="text-xs text-slate-500">Links and boilerplate injected into every draft. Journalists won't see these unless Claude includes them naturally.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="form-label">Press kit URL</label>
+                    <input className="form-input text-sm" placeholder="https://drive.google.com/…" value={editDraft.pressKitUrl} onChange={e => setEditDraft(d => ({ ...d, pressKitUrl: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="form-label">Photo folder URL</label>
+                    <input className="form-input text-sm" placeholder="https://drive.google.com/…" value={editDraft.photoFolderUrl} onChange={e => setEditDraft(d => ({ ...d, photoFolderUrl: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="form-label">Demo / product URL</label>
+                    <input className="form-input text-sm" placeholder="https://…" value={editDraft.demoUrl} onChange={e => setEditDraft(d => ({ ...d, demoUrl: e.target.value }))} />
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label">Company boilerplate <span className="text-slate-400 font-normal">(standard "About" paragraph)</span></label>
+                  <textarea className="form-textarea text-sm" rows={3} placeholder="North Star AI Labs is an AI startup lab inside ATDC in Atlanta, Georgia…" value={editDraft.boilerplate} onChange={e => setEditDraft(d => ({ ...d, boilerplate: e.target.value }))} />
+                </div>
               </div>
 
               <p className="text-xs text-slate-400 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
