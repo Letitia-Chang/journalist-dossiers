@@ -66,9 +66,9 @@ app.get('/api/dashboard', async (_req, res) => {
   try {
     const [
       totalRes, avgRes, followUpsRes, recentOutreachRes,
-      staleRes, unreachableRes, activeCampaignsRes, draftsReadyRes,
-      sentRes, sentLastWeekRes, recentCampaignsRes, overdueFollowUpsRes,
-      needsReSearchRes, approvedWaitingRes, warmContactsRes, recentCoverageRes,
+      staleRes, unreachableRes, overdueFollowUpsRes, needsReSearchRes,
+      activeCampaignsRes, draftsReadyRes, sentRes, sentLastWeekRes,
+      recentCampaignsRes, approvedWaitingRes, warmContactsRes, recentCoverageRes,
     ] = await Promise.all([
       pool.query('SELECT COUNT(*)::int as c FROM journalists'),
       pool.query('SELECT AVG("totalScore")::numeric(6,1) as avg FROM journalists'),
