@@ -211,7 +211,106 @@
     </div>
   </div>
 
-  <!-- ─────────── SLIDE 3: Sidebar nav ─────────── -->
+  <!-- ─────────── SLIDE 3: Big picture — three phases ─────────── -->
+  <div class="slide" style="justify-content:center;">
+    <div class="label">The big picture</div>
+    <h2 style="margin-bottom:2rem;">Three things, in order</h2>
+    <div style="display:flex;gap:0;align-items:stretch;max-width:860px;width:100%;">
+
+      <div style="flex:1;background:#eef2ff;border:2px solid #c7d2fe;border-radius:16px 0 0 16px;padding:2rem 1.6rem;display:flex;flex-direction:column;gap:.8rem;">
+        <div style="font-size:2.2rem;">🗂</div>
+        <div style="font-size:1.05rem;font-weight:800;color:#312e81;">1. Build your roster</div>
+        <p style="font-size:.97rem;color:#475569;line-height:1.6;">Add publications, scan their RSS feeds, and review the journalists the system surfaces. Claude auto-scores each one. This is a one-time setup that grows over time.</p>
+        <div style="margin-top:auto;padding-top:.8rem;border-top:1px solid #c7d2fe;font-size:.82rem;color:#6366f1;font-weight:600;">Publications → RSS Suggestions → Journalists</div>
+      </div>
+
+      <div style="width:2px;background:linear-gradient(to bottom,#c7d2fe,#818cf8);flex-shrink:0;"></div>
+      <div style="display:flex;align-items:center;padding:0 .5rem;background:#f8fafc;z-index:1;">
+        <span style="font-size:1.4rem;color:#818cf8;">→</span>
+      </div>
+      <div style="width:2px;background:linear-gradient(to bottom,#818cf8,#6366f1);flex-shrink:0;"></div>
+
+      <div style="flex:1;background:#ede9fe;border:2px solid #c4b5fd;border-top:2px solid #c4b5fd;border-bottom:2px solid #c4b5fd;border-left:none;border-right:none;padding:2rem 1.6rem;display:flex;flex-direction:column;gap:.8rem;">
+        <div style="font-size:2.2rem;">✉️</div>
+        <div style="font-size:1.05rem;font-weight:800;color:#4c1d95;">2. Run a campaign</div>
+        <p style="font-size:.97rem;color:#475569;line-height:1.6;">Pick journalists, write a brief, let Claude draft personalised emails. Review each draft, approve the good ones, save to Gmail, and send. Mark as sent — it logs automatically.</p>
+        <div style="margin-top:auto;padding-top:.8rem;border-top:1px solid #c4b5fd;font-size:.82rem;color:#7c3aed;font-weight:600;">Campaigns → Review Drafts → Email Pack</div>
+      </div>
+
+      <div style="width:2px;background:linear-gradient(to bottom,#6366f1,#818cf8);flex-shrink:0;"></div>
+      <div style="display:flex;align-items:center;padding:0 .5rem;background:#f8fafc;z-index:1;">
+        <span style="font-size:1.4rem;color:#818cf8;">→</span>
+      </div>
+      <div style="width:2px;background:linear-gradient(to bottom,#818cf8,#c7d2fe);flex-shrink:0;"></div>
+
+      <div style="flex:1;background:#f0fdf4;border:2px solid #bbf7d0;border-radius:0 16px 16px 0;padding:2rem 1.6rem;display:flex;flex-direction:column;gap:.8rem;">
+        <div style="font-size:2.2rem;">📰</div>
+        <div style="font-size:1.05rem;font-weight:800;color:#14532d;">3. Track results</div>
+        <p style="font-size:.97rem;color:#475569;line-height:1.6;">When coverage comes in, log it in Press Coverage and link it back to the campaign. Journalists who cover us automatically rank highest next time you run a campaign.</p>
+        <div style="margin-top:auto;padding-top:.8rem;border-top:1px solid #bbf7d0;font-size:.82rem;color:#16a34a;font-weight:600;">Press Coverage → Campaign Coverage tab</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 4: Big picture — campaign flow ─────────── -->
+  <div class="slide" style="justify-content:center;background:#fff;">
+    <div class="label">The big picture — campaign in detail</div>
+    <h2 style="margin-bottom:2rem;">What a campaign looks like, step by step</h2>
+    <div style="display:flex;flex-direction:column;gap:1rem;max-width:700px;width:100%;">
+
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">1</div>
+        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.75rem 1.1rem;">
+          <strong style="color:#312e81;">Write a brief</strong>
+          <span style="color:#64748b;font-size:.95rem;"> — 2–4 sentences on what you're announcing and the angle you want journalists to take</span>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">2</div>
+        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.75rem 1.1rem;">
+          <strong style="color:#312e81;">Select journalists</strong>
+          <span style="color:#64748b;font-size:.95rem;"> — use "Suggest with AI" and Claude ranks your roster by fit, warmth, and beat match</span>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#7c3aed;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">3</div>
+        <div style="flex:1;background:#ede9fe;border:1.5px solid #c4b5fd;border-radius:12px;padding:.75rem 1.1rem;">
+          <strong style="color:#4c1d95;">Claude generates a personalised draft</strong>
+          <span style="color:#64748b;font-size:.95rem;"> — one email per journalist, using their beat, recent articles, and your brief</span>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">4</div>
+        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.75rem 1.1rem;">
+          <strong style="color:#312e81;">You review &amp; approve</strong>
+          <span style="color:#64748b;font-size:.95rem;"> — edit inline if needed, approve the ones you're happy with, skip the rest</span>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">5</div>
+        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.75rem 1.1rem;">
+          <strong style="color:#312e81;">Save to Gmail &amp; send</strong>
+          <span style="color:#64748b;font-size:.95rem;"> — one click creates Gmail drafts; you open Gmail, add attachments, hit Send yourself</span>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#16a34a;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">6</div>
+        <div style="flex:1;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:.75rem 1.1rem;">
+          <strong style="color:#14532d;">Mark as sent</strong>
+          <span style="color:#64748b;font-size:.95rem;"> — logs to Activity Feed, sets the journalist's status to Pitched. Done.</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 5 (was 3): Sidebar nav ─────────── -->
   <div class="slide">
     <div class="label">Navigation</div>
     <h2>Finding your way around</h2>
