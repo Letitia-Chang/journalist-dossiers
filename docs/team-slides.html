@@ -174,749 +174,294 @@
 
 <div id="deck">
 
-  <!-- ─────────── SLIDE 1: Cover ─────────── -->
+  <!-- ─────────── SLIDE 1: Cover + what it is ─────────── -->
   <div class="slide cover active">
     <div class="label" style="color:#a5b4fc">North Star AI Labs · Internal Tool</div>
     <h1>Media Dossiers</h1>
-    <p class="sub">Your journalist CRM — track reporters, run outreach campaigns,<br>and see how every pitch lands.</p>
-    <div>
+    <p class="sub" style="max-width:620px;">A shared workspace for managing journalist relationships and running AI-assisted outreach campaigns. Everyone on the team works from the same data in real time.</p>
+    <div style="display:flex;gap:1.2rem;margin-top:2rem;flex-wrap:wrap;">
+      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:1rem 1.4rem;min-width:190px;">
+        <div style="font-size:1.5rem;margin-bottom:.4rem;">🗂</div>
+        <div style="color:#e0e7ff;font-weight:700;font-size:.95rem;">Track journalists</div>
+        <div style="color:#a5b4fc;font-size:.85rem;margin-top:.25rem;line-height:1.5;">Profiles, scores, contact info, relationship history</div>
+      </div>
+      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:1rem 1.4rem;min-width:190px;">
+        <div style="font-size:1.5rem;margin-bottom:.4rem;">✉️</div>
+        <div style="color:#e0e7ff;font-weight:700;font-size:.95rem;">Run campaigns</div>
+        <div style="color:#a5b4fc;font-size:.85rem;margin-top:.25rem;line-height:1.5;">Claude drafts personalised emails — you review and send</div>
+      </div>
+      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:1rem 1.4rem;min-width:190px;">
+        <div style="font-size:1.5rem;margin-bottom:.4rem;">📰</div>
+        <div style="color:#e0e7ff;font-weight:700;font-size:.95rem;">Track coverage</div>
+        <div style="color:#a5b4fc;font-size:.85rem;margin-top:.25rem;line-height:1.5;">Log every article, link it to the campaign that generated it</div>
+      </div>
+    </div>
+    <div style="margin-top:2rem;">
       <span class="pill">Team Guide · July 2026</span>
     </div>
   </div>
 
-  <!-- ─────────── SLIDE 2: What is this? ─────────── -->
-  <div class="slide">
-    <div class="label">Overview</div>
-    <h2>What does Media Dossiers do?</h2>
-    <div class="cols cols-2 mt">
-      <div class="card purple">
-        <h3>🗂 Build a journalist roster</h3>
-        <p>Track every AI/tech reporter we want to pitch — their beat, recent articles, contact info, and relationship history.</p>
+  <!-- ─────────── SLIDE 2: The everyday workflow ─────────── -->
+  <div class="slide" style="justify-content:center;align-items:center;">
+    <div style="width:100%;max-width:820px;">
+      <div class="label" style="text-align:center;margin-bottom:1rem;">How it fits together</div>
+      <h2 style="text-align:center;margin-bottom:2.5rem;">Your media outreach, end to end</h2>
+
+      <div style="display:flex;align-items:stretch;gap:0;width:100%;">
+
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.8rem;text-align:center;">
+          <div style="width:56px;height:56px;border-radius:50%;background:#eef2ff;border:2px solid #c7d2fe;display:flex;align-items:center;justify-content:center;font-size:1.6rem;">🗂</div>
+          <div style="font-weight:800;color:#312e81;font-size:1rem;">Journalist roster</div>
+          <div style="font-size:.9rem;color:#64748b;line-height:1.55;">Profiles, scores, contact info, and relationship history for every reporter you track</div>
+        </div>
+
+        <div style="display:flex;align-items:center;padding:0 1rem;padding-bottom:3rem;">
+          <div style="font-size:1.5rem;color:#c7d2fe;">→</div>
+        </div>
+
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.8rem;text-align:center;">
+          <div style="width:56px;height:56px;border-radius:50%;background:#ede9fe;border:2px solid #c4b5fd;display:flex;align-items:center;justify-content:center;font-size:1.6rem;">✉️</div>
+          <div style="font-weight:800;color:#4c1d95;font-size:1rem;">Campaign</div>
+          <div style="font-size:.9rem;color:#64748b;line-height:1.55;">You pick journalists and write a brief. Claude drafts a personalised email for each one. You review, approve, and send from Gmail.</div>
+        </div>
+
+        <div style="display:flex;align-items:center;padding:0 1rem;padding-bottom:3rem;">
+          <div style="font-size:1.5rem;color:#c7d2fe;">→</div>
+        </div>
+
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.8rem;text-align:center;">
+          <div style="width:56px;height:56px;border-radius:50%;background:#f0fdf4;border:2px solid #bbf7d0;display:flex;align-items:center;justify-content:center;font-size:1.6rem;">📰</div>
+          <div style="font-weight:800;color:#14532d;font-size:1rem;">Coverage</div>
+          <div style="font-size:.9rem;color:#64748b;line-height:1.55;">When an article comes in, log it and link it to the campaign. That journalist moves to the top of the list next time.</div>
+        </div>
+
       </div>
-      <div class="card purple">
-        <h3>✉️ Run outreach campaigns</h3>
-        <p>Group journalists into campaigns. Claude drafts a personalised email for each one. You review, approve, and send.</p>
+
+      <div style="margin-top:2.5rem;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:14px;padding:1rem 1.4rem;display:flex;align-items:center;gap:.8rem;">
+        <span style="font-size:1.2rem;">💡</span>
+        <p style="font-size:.95rem;color:#475569;line-height:1.5;margin:0;"><strong style="color:#312e81;">One rule:</strong> The system never sends email on your behalf. Claude drafts, you send — always.</p>
       </div>
-      <div class="card purple">
-        <h3>📰 Track press coverage</h3>
-        <p>Log every article written about North Star. Link coverage back to the campaign that generated it.</p>
-      </div>
-      <div class="card purple">
-        <h3>📊 See everything in one place</h3>
-        <p>Activity feed, warm contacts panel, campaign pipeline — all the context you need before your next pitch.</p>
-      </div>
-    </div>
-    <div class="highlight mt2">
-      <strong>Important:</strong> The system never sends email on your behalf. All outreach is reviewed and sent by a human.
     </div>
   </div>
 
-  <!-- ─────────── SLIDE 3: Big picture — three phases ─────────── -->
+  <!-- ─────────── SLIDE 3: Running a campaign ─────────── -->
   <div class="slide" style="justify-content:center;">
-    <div class="label">The big picture</div>
-    <h2 style="margin-bottom:2rem;">Three things, in order</h2>
-    <div style="display:flex;gap:0;align-items:stretch;max-width:860px;width:100%;">
-
-      <div style="flex:1;background:#eef2ff;border:2px solid #c7d2fe;border-radius:16px 0 0 16px;padding:2rem 1.6rem;display:flex;flex-direction:column;gap:.8rem;">
-        <div style="font-size:2.2rem;">🗂</div>
-        <div style="font-size:1.05rem;font-weight:800;color:#312e81;">1. Build your roster</div>
-        <p style="font-size:.97rem;color:#475569;line-height:1.6;">Add publications, scan their RSS feeds, and review the journalists the system surfaces. Claude auto-scores each one. This is a one-time setup that grows over time.</p>
-        <div style="margin-top:auto;padding-top:.8rem;border-top:1px solid #c7d2fe;font-size:.82rem;color:#6366f1;font-weight:600;">Publications → RSS Suggestions → Journalists</div>
-      </div>
-
-      <div style="width:2px;background:linear-gradient(to bottom,#c7d2fe,#818cf8);flex-shrink:0;"></div>
-      <div style="display:flex;align-items:center;padding:0 .5rem;background:#f8fafc;z-index:1;">
-        <span style="font-size:1.4rem;color:#818cf8;">→</span>
-      </div>
-      <div style="width:2px;background:linear-gradient(to bottom,#818cf8,#6366f1);flex-shrink:0;"></div>
-
-      <div style="flex:1;background:#ede9fe;border:2px solid #c4b5fd;border-top:2px solid #c4b5fd;border-bottom:2px solid #c4b5fd;border-left:none;border-right:none;padding:2rem 1.6rem;display:flex;flex-direction:column;gap:.8rem;">
-        <div style="font-size:2.2rem;">✉️</div>
-        <div style="font-size:1.05rem;font-weight:800;color:#4c1d95;">2. Run a campaign</div>
-        <p style="font-size:.97rem;color:#475569;line-height:1.6;">Pick journalists, write a brief, let Claude draft personalised emails. Review each draft, approve the good ones, save to Gmail, and send. Mark as sent — it logs automatically.</p>
-        <div style="margin-top:auto;padding-top:.8rem;border-top:1px solid #c4b5fd;font-size:.82rem;color:#7c3aed;font-weight:600;">Campaigns → Review Drafts → Email Pack</div>
-      </div>
-
-      <div style="width:2px;background:linear-gradient(to bottom,#6366f1,#818cf8);flex-shrink:0;"></div>
-      <div style="display:flex;align-items:center;padding:0 .5rem;background:#f8fafc;z-index:1;">
-        <span style="font-size:1.4rem;color:#818cf8;">→</span>
-      </div>
-      <div style="width:2px;background:linear-gradient(to bottom,#818cf8,#c7d2fe);flex-shrink:0;"></div>
-
-      <div style="flex:1;background:#f0fdf4;border:2px solid #bbf7d0;border-radius:0 16px 16px 0;padding:2rem 1.6rem;display:flex;flex-direction:column;gap:.8rem;">
-        <div style="font-size:2.2rem;">📰</div>
-        <div style="font-size:1.05rem;font-weight:800;color:#14532d;">3. Track results</div>
-        <p style="font-size:.97rem;color:#475569;line-height:1.6;">When coverage comes in, log it in Press Coverage and link it back to the campaign. Journalists who cover us automatically rank highest next time you run a campaign.</p>
-        <div style="margin-top:auto;padding-top:.8rem;border-top:1px solid #bbf7d0;font-size:.82rem;color:#16a34a;font-weight:600;">Press Coverage → Campaign Coverage tab</div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ─────────── SLIDE 4: Big picture — campaign flow ─────────── -->
-  <div class="slide" style="justify-content:center;background:#fff;">
-    <div class="label">The big picture — campaign in detail</div>
-    <h2 style="margin-bottom:2rem;">What a campaign looks like, step by step</h2>
-    <div style="display:flex;flex-direction:column;gap:1rem;max-width:700px;width:100%;">
+    <div class="label">Campaigns</div>
+    <h2 style="margin-bottom:1.8rem;">Running a campaign — 6 steps</h2>
+    <div style="display:flex;flex-direction:column;gap:.75rem;max-width:680px;">
 
       <div style="display:flex;align-items:center;gap:1rem;">
-        <div style="width:36px;height:36px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">1</div>
-        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.75rem 1.1rem;">
+        <div style="width:34px;height:34px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">1</div>
+        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.7rem 1.1rem;">
           <strong style="color:#312e81;">Write a brief</strong>
-          <span style="color:#64748b;font-size:.95rem;"> — 2–4 sentences on what you're announcing and the angle you want journalists to take</span>
+          <span style="color:#64748b;font-size:.95rem;"> — 2–4 sentences on what you're announcing and what angle you want journalists to take</span>
         </div>
       </div>
 
       <div style="display:flex;align-items:center;gap:1rem;">
-        <div style="width:36px;height:36px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">2</div>
-        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.75rem 1.1rem;">
+        <div style="width:34px;height:34px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">2</div>
+        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.7rem 1.1rem;">
           <strong style="color:#312e81;">Select journalists</strong>
-          <span style="color:#64748b;font-size:.95rem;"> — use "Suggest with AI" and Claude ranks your roster by fit, warmth, and beat match</span>
+          <span style="color:#64748b;font-size:.95rem;"> — click <em>Suggest with AI</em> and Claude ranks your roster by fit, warmth, and beat match</span>
         </div>
       </div>
 
       <div style="display:flex;align-items:center;gap:1rem;">
-        <div style="width:36px;height:36px;border-radius:50%;background:#7c3aed;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">3</div>
-        <div style="flex:1;background:#ede9fe;border:1.5px solid #c4b5fd;border-radius:12px;padding:.75rem 1.1rem;">
-          <strong style="color:#4c1d95;">Claude generates a personalised draft</strong>
-          <span style="color:#64748b;font-size:.95rem;"> — one email per journalist, using their beat, recent articles, and your brief</span>
+        <div style="width:34px;height:34px;border-radius:50%;background:#7c3aed;color:#fff;font-weight:800;font-size:.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">3</div>
+        <div style="flex:1;background:#ede9fe;border:1.5px solid #c4b5fd;border-radius:12px;padding:.7rem 1.1rem;">
+          <strong style="color:#4c1d95;">Claude writes a draft for each journalist</strong>
+          <span style="color:#6d28d9;font-size:.95rem;"> — personalised to their beat, recent articles, and your brief</span>
         </div>
       </div>
 
       <div style="display:flex;align-items:center;gap:1rem;">
-        <div style="width:36px;height:36px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">4</div>
-        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.75rem 1.1rem;">
-          <strong style="color:#312e81;">You review &amp; approve</strong>
-          <span style="color:#64748b;font-size:.95rem;"> — edit inline if needed, approve the ones you're happy with, skip the rest</span>
+        <div style="width:34px;height:34px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">4</div>
+        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.7rem 1.1rem;">
+          <strong style="color:#312e81;">Review &amp; approve</strong>
+          <span style="color:#64748b;font-size:.95rem;"> — edit any draft inline, approve the ones you're happy with, skip the rest</span>
         </div>
       </div>
 
       <div style="display:flex;align-items:center;gap:1rem;">
-        <div style="width:36px;height:36px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">5</div>
-        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.75rem 1.1rem;">
+        <div style="width:34px;height:34px;border-radius:50%;background:#4f46e5;color:#fff;font-weight:800;font-size:.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">5</div>
+        <div style="flex:1;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:.7rem 1.1rem;">
           <strong style="color:#312e81;">Save to Gmail &amp; send</strong>
-          <span style="color:#64748b;font-size:.95rem;"> — one click creates Gmail drafts; you open Gmail, add attachments, hit Send yourself</span>
+          <span style="color:#64748b;font-size:.95rem;"> — one click creates a pre-addressed draft in Gmail; open it, add attachments, hit Send yourself</span>
         </div>
       </div>
 
       <div style="display:flex;align-items:center;gap:1rem;">
-        <div style="width:36px;height:36px;border-radius:50%;background:#16a34a;color:#fff;font-weight:800;font-size:.95rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">6</div>
-        <div style="flex:1;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:.75rem 1.1rem;">
+        <div style="width:34px;height:34px;border-radius:50%;background:#16a34a;color:#fff;font-weight:800;font-size:.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">6</div>
+        <div style="flex:1;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:.7rem 1.1rem;">
           <strong style="color:#14532d;">Mark as sent</strong>
-          <span style="color:#64748b;font-size:.95rem;"> — logs to Activity Feed, sets the journalist's status to Pitched. Done.</span>
+          <span style="color:#166534;font-size:.95rem;"> — logs to the Activity Feed, updates the journalist's status to Pitched. Done.</span>
         </div>
       </div>
 
     </div>
   </div>
 
-  <!-- ─────────── SLIDE 5 (was 3): Sidebar nav ─────────── -->
+  <!-- ─────────── SLIDE 4: Picking journalists ─────────── -->
   <div class="slide">
-    <div class="label">Navigation</div>
-    <h2>Finding your way around</h2>
+    <div class="label">Campaigns — step 2</div>
+    <h2>Picking the right journalists</h2>
     <div class="cols cols-2 mt">
-      <div>
-        <p class="mb"><strong>Main navigation</strong></p>
-        <ul>
-          <li><strong>Dashboard</strong> — health of your outreach programme at a glance</li>
-          <li><strong>Journalists</strong> — your full reporter roster, searchable and filterable</li>
-          <li><strong>Campaigns</strong> — all outreach campaigns</li>
-          <li><strong>Activity Feed</strong> — chronological log of every pitch ever sent</li>
-          <li><strong>Press Coverage</strong> — articles written about North Star</li>
-        </ul>
-        <hr class="mt" />
-        <p class="mb mt"><strong>Admin section</strong></p>
-        <ul>
-          <li><strong>Publications</strong> — outlets you track; manage RSS feeds</li>
-          <li><strong>RSS Suggestions</strong> — journalists surfaced by the RSS scanner</li>
-          <li><strong>House Style</strong> — standing instructions for Claude's drafts</li>
-          <li><strong>Export Data</strong> — download CSV of journalists / outreach</li>
-        </ul>
-      </div>
-      <div class="card slate" style="justify-content:center; display:flex; flex-direction:column; gap:1rem;">
-        <div>
-          <div class="label">User selector</div>
-          <p>Your name appears at the bottom of the sidebar. Always select yourself — drafts and outreach logs are attributed to the active user.</p>
-        </div>
-        <div>
-          <div class="label">Badge counts</div>
-          <p>Yellow number on Publications = pending AI suggestions. Green number on RSS Suggestions = journalists awaiting review.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─────────── SLIDE 4: Dashboard ─────────── -->
-  <div class="slide">
-    <div class="label">Feature: Dashboard</div>
-    <h2>Dashboard — your daily starting point</h2>
-    <div class="cols cols-2 mt">
-      <div>
-        <div class="label">Pipeline cards</div>
+      <div style="display:flex;flex-direction:column;gap:1.1rem;">
+        <p>Every journalist has a <strong>score out of 100</strong> — a quick read on how good a fit they are for North Star's stories.</p>
         <table>
-          <tr><th>Card</th><th>What it tells you</th></tr>
-          <tr><td><strong>Journalists</strong></td><td>Total profiles in the system</td></tr>
-          <tr><td><strong>Active campaigns</strong></td><td>Campaigns currently in progress</td></tr>
-          <tr><td><strong>Drafts to review</strong></td><td>Emails waiting for your approval</td></tr>
-          <tr><td><strong>Sent this week</strong></td><td>Pitches sent in the last 7 days (+ trend vs. prior week)</td></tr>
+          <tr><th>What's scored</th><th>Max</th></tr>
+          <tr><td>AI coverage depth</td><td>25 pts</td></tr>
+          <tr><td>Startup / founder coverage</td><td>20 pts</td></tr>
+          <tr><td>Fit for a company like ours</td><td>20 pts</td></tr>
+          <tr><td>Publication reach &amp; authority</td><td>15 pts</td></tr>
+          <tr><td>Audience size</td><td>10 pts</td></tr>
+          <tr><td>Has contact info</td><td>10 pts</td></tr>
         </table>
-        <div class="mt">
-          <div class="label">Warm contacts panel</div>
-          <p>Journalists who have <strong>Responded</strong>, are <strong>In Conversation</strong>, or have <strong>Covered</strong> us — your warmest relationships, ready to re-engage.</p>
+        <div class="highlight" style="font-size:.93rem;">
+          <strong>Score is a starting point — not the whole picture.</strong> A journalist who replied to a past pitch, or who has already covered us, is higher priority than a cold contact with a better score.
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:1rem;">
-        <div class="card amber">
-          <div class="label">System alerts — act on these</div>
-          <ul>
-            <li><strong>Overdue follow-ups</strong> — journalist waiting on a response from you</li>
-            <li><strong>Stale journalists</strong> — no articles in 30+ days</li>
-            <li><strong>Needs re-search</strong> — social profiles over 90 days old</li>
-            <li><strong>Unreachable publications</strong> — broken RSS feeds</li>
-          </ul>
-        </div>
-        <div class="card green">
-          <div class="label">Recent press coverage</div>
-          <p>The 4 latest articles added to Press Coverage — see at a glance who is writing about us.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─────────── SLIDE 5: Journalists list ─────────── -->
-  <div class="slide">
-    <div class="label">Feature: Journalists</div>
-    <h2>Journalists — building your roster</h2>
-    <div class="cols cols-2 mt">
-      <div>
-        <div class="label">How journalists get added</div>
-        <div class="steps">
-          <div class="step">
-            <div class="step-num">1</div>
-            <div class="step-body">
-              <h3>RSS Scanner finds them</h3>
-              <p>The scanner reads AI/tech RSS feeds weekly and surfaces journalist bylines. They appear in <strong>RSS Suggestions</strong> for you to review.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">2</div>
-            <div class="step-body">
-              <h3>You accept or reject</h3>
-              <p>Go to <strong>Admin → RSS Suggestions</strong>. For each journalist, Accept (adds to roster + auto-scores) or Reject (removes suggestion).</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">3</div>
-            <div class="step-body">
-              <h3>Claude auto-scores</h3>
-              <p>On accept, Claude reads their beat, articles, and publication and generates a relevance score. Runs in the background — usually under 30 seconds.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">4</div>
-            <div class="step-body">
-              <h3>You can also add manually</h3>
-              <p>Click <strong>+ Add Journalist</strong> from the Journalists page and fill in their details yourself.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:1rem;">
-        <div class="card">
-          <div class="label">Journalists list — filters</div>
-          <ul>
-            <li>Search by name, publication, or beat</li>
-            <li>Filter by outreach status</li>
-            <li>Sort by score, name, or last published date</li>
-          </ul>
-        </div>
-        <div class="card purple">
-          <div class="label">Find Profiles (SerpAPI)</div>
-          <p>Click <strong>Find Profiles</strong> on any journalist (or run in bulk from the list) to discover their LinkedIn, MuckRack, Twitter/X, and sometimes their email — all from a Google search in the background.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─────────── SLIDE 6: Journalist profile ─────────── -->
-  <div class="slide">
-    <div class="label">Feature: Journalist Profile</div>
-    <h2>The journalist profile — everything in one place</h2>
-    <div class="cols cols-2 mt">
-      <div style="display:flex;flex-direction:column;gap:1rem;">
-        <div class="card">
-          <h3>Overview tab</h3>
-          <ul>
-            <li>AI-generated <strong>score breakdown</strong> with descriptions</li>
-            <li><strong>Best pitch angle</strong> — Claude's suggested hook</li>
-            <li>Outreach context: preferred contact method, topics to avoid, social following</li>
-            <li>Relationship status and last contacted date</li>
-          </ul>
-        </div>
-        <div class="card">
-          <h3>Articles tab</h3>
-          <p>All articles by this journalist tracked in the system. Seeded automatically from RSS; add more manually.</p>
-        </div>
-        <div class="card">
-          <h3>Outreach tab</h3>
-          <p>Full log of every pitch, follow-up, and response — channel, subject, date, outcome.</p>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:1rem;">
-        <div class="card purple">
-          <div class="label">Outreach status — you control this</div>
-          <table style="font-size:.87rem;">
-            <tr><td><span class="badge badge-grey">Not Started</span></td><td>Default state</td></tr>
-            <tr><td><span class="badge badge-indigo">Researching</span></td><td>Actively evaluating</td></tr>
-            <tr><td><span class="badge badge-blue">Ready to Pitch</span></td><td>Decided they're a fit</td></tr>
-            <tr><td><span class="badge badge-amber">Pitched</span></td><td>Email sent, waiting</td></tr>
-            <tr><td><span class="badge badge-green">Responded</span></td><td>They replied</td></tr>
-            <tr><td><span class="badge badge-dkgreen">Covered</span></td><td>Wrote about North Star</td></tr>
-            <tr><td><span class="badge badge-grey">Declined</span></td><td>Confirmed won't cover us</td></tr>
-          </table>
-        </div>
-        <div class="card amber">
-          <div class="label">Admin notes tab</div>
-          <p>Write your own observations, follow-up reminders, or pitch strategy notes here. Claude's system notes (read-only) are also shown separately.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─────────── SLIDE 7: Scoring ─────────── -->
-  <div class="slide">
-    <div class="label">Feature: Journalist Scoring</div>
-    <h2>How journalists are scored (out of 100)</h2>
-    <div class="mt">
-      <table>
-        <tr>
-          <th>Dimension</th>
-          <th>Max pts</th>
-          <th>What it measures</th>
-        </tr>
-        <tr><td><strong>AI Relevance</strong></td><td>25</td><td>How often they cover AI/ML/LLM topics</td></tr>
-        <tr><td><strong>Startup Relevance</strong></td><td>20</td><td>Coverage of startups, funding rounds, founders</td></tr>
-        <tr><td><strong>North Star Fit</strong></td><td>20</td><td>Likelihood they'd cover an AI enterprise startup like ours</td></tr>
-        <tr><td><strong>Publication Authority</strong></td><td>15</td><td>Reach and prestige of their outlet</td></tr>
-        <tr><td><strong>Audience Reach</strong></td><td>10</td><td>Estimated readership and social following</td></tr>
-        <tr><td><strong>Contactability</strong></td><td>10</td><td>Whether verified contact info is available</td></tr>
-      </table>
-    </div>
-    <div class="cols cols-2 mt2">
-      <div class="card green">
-        <div class="label">When scores update</div>
-        <ul>
-          <li>Generated automatically when a journalist is accepted from RSS Suggestions</li>
-          <li>Re-generated automatically if a follower count is found during Find Profiles</li>
-        </ul>
-      </div>
-      <div class="card amber">
-        <div class="label">Score is a starting point — not the whole picture</div>
-        <p>A journalist with a lower score who has already covered us, or who replied to a previous pitch, is a higher priority than a higher-scoring cold contact.</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─────────── SLIDE 8: Campaign overview ─────────── -->
-  <div class="slide">
-    <div class="label">Feature: Campaigns</div>
-    <h2>Campaigns — the outreach workflow</h2>
-    <div class="mt">
-      <div class="label">The full flow</div>
-      <div class="flow mt">
-        <div class="flow-step">1. Set House Style</div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">2. Create campaign</div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">3. Select journalists</div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">4. Generate drafts</div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">5. Review &amp; approve</div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">6. Send from Gmail</div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">7. Mark as sent</div>
-      </div>
-    </div>
-    <div class="cols cols-3 mt2">
-      <div class="card">
-        <h3>Campaign types</h3>
-        <ul>
-          <li><strong>Cold Intro</strong> — first-time outreach</li>
-          <li><strong>Event</strong> — invite to a North Star event</li>
-          <li><strong>Hackathon</strong> — announce / coverage request</li>
-          <li><strong>Founder Promo</strong> — thought leadership pitch</li>
-        </ul>
-      </div>
-      <div class="card purple">
-        <h3>What Claude personalises</h3>
-        <ul>
-          <li>Journalist's specific beat</li>
-          <li>Their recent articles</li>
-          <li>Your campaign brief</li>
-          <li>Your house style instructions</li>
-          <li>Your name and title (from active user)</li>
-        </ul>
-      </div>
-      <div class="card amber">
-        <h3>Key rules</h3>
-        <ul>
-          <li>Always select yourself in the sidebar before generating drafts</li>
-          <li>The system never sends email — you do</li>
-          <li>Mark as sent after you email — this logs to Activity Feed</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─────────── SLIDE 9: House Style + Brief ─────────── -->
-  <div class="slide">
-    <div class="label">Campaigns: Step 1 &amp; 2</div>
-    <h2>House Style and the campaign brief</h2>
-    <div class="cols cols-2 mt">
-      <div style="display:flex;flex-direction:column;gap:1rem;">
-        <div class="card purple">
-          <div class="label">House Style (Admin → House Style)</div>
-          <p>Set once per campaign type. These are <strong>standing instructions</strong> Claude follows for every email of that type — tone, structure, what to avoid.</p>
-          <div class="highlight" style="margin-top:.8rem;font-size:.9rem;">
-            Example: "Keep subject lines under 8 words. Lead with something specific about the journalist's recent work. Don't use words like 'revolutionary' or 'disruptive'."
-          </div>
-        </div>
-        <div class="card">
-          <div class="label">Campaign Brief (per campaign)</div>
-          <p>2–4 sentences about what you're announcing and what angle journalists should take. Write it as if briefing a PR copywriter.</p>
-          <div class="highlight" style="margin-top:.8rem;font-size:.9rem;">
-            Example: "North Star AI Labs is launching publicly in July 2026. We build AI tools for enterprise talent teams. Focus on our differentiated approach to talent intelligence — not a generic AI announcement."
-          </div>
-        </div>
-      </div>
-      <div>
-        <table>
-          <tr><th></th><th>House Style</th><th>Campaign Brief</th></tr>
-          <tr><td>Scope</td><td>All campaigns of this type</td><td>This campaign only</td></tr>
-          <tr><td>Contains</td><td>Tone, structure, what to avoid</td><td>Story angle, announcement details</td></tr>
-          <tr><td>Changed by</td><td>Deliberate admin update</td><td>Created per campaign</td></tr>
-        </table>
-        <div class="card amber mt2">
-          <div class="label">Changing the brief after drafts are generated</div>
-          <p>If you edit the brief or campaign type after drafts already exist, an amber banner will prompt you to <strong>regenerate pending drafts</strong>. Approved and sent drafts are never touched.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─────────── SLIDE 10: Suggest with AI ─────────── -->
-  <div class="slide">
-    <div class="label">Campaigns: Step 3</div>
-    <h2>Selecting journalists — Suggest with AI</h2>
-    <div class="cols cols-2 mt">
-      <div>
-        <p>In the campaign's <strong>Journalists tab</strong>, click the purple <strong>Suggest with AI</strong> button. Claude reads your brief and every journalist in the roster, then returns a ranked list.</p>
-        <div class="mt">
-          <div class="label">What Claude weighs (in priority order)</div>
-          <table>
-            <tr><th>Signal</th><th>Why it matters</th></tr>
-            <tr><td><strong>Has covered North Star</strong></td><td>Proven interest — warmest possible contact</td></tr>
-            <tr><td><strong>Prior outreach relationship</strong></td><td>Responded / In Conversation = warm</td></tr>
-            <tr><td><strong>Beat match to campaign angle</strong></td><td>Specific beat fit &gt; generic tech reporter</td></tr>
-            <tr><td><strong>Has email on file</strong></td><td>Can't reach who you can't contact</td></tr>
-            <tr><td><strong>Actively publishing</strong></td><td>&gt;90 days since last article = flag</td></tr>
-            <tr><td><strong>Total score</strong></td><td>Tiebreaker — real context overrides it</td></tr>
-          </table>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:1rem;">
-        <div class="card green">
-          <div class="label">Recommended (purple section)</div>
-          <p>5–7 journalists Claude actively suggests adding. Each shows a reason chip and a warning if there's a concern (no email, stale, geographic mismatch).</p>
-        </div>
-        <div class="card slate">
-          <div class="label">Other journalists (remaining)</div>
-          <p>Your full roster, still ranked, available to add manually if you want to go beyond the recommendations.</p>
-        </div>
-        <div class="highlight">
-          Click <strong>+ Add</strong> on any row to add them. You can re-run suggestions at any time.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─────────── SLIDE 11: Review drafts ─────────── -->
-  <div class="slide">
-    <div class="label">Campaigns: Steps 4 &amp; 5</div>
-    <h2>Generating and reviewing drafts</h2>
-    <div class="cols cols-2 mt">
-      <div>
-        <div class="label">After clicking Generate Drafts</div>
-        <ul>
-          <li>Claude runs one API call per journalist in the background</li>
-          <li>The page polls every 3 seconds — statuses update live</li>
-          <li>You're automatically switched to the <strong>Drafts tab</strong> when ready</li>
-          <li>Closing the page is safe — come back any time</li>
-        </ul>
-        <div class="mt2">
-          <div class="label">For each draft you can</div>
-          <table>
-            <tr><td><strong>Edit</strong></td><td>Click into the subject or body and type — saves automatically</td></tr>
-            <tr><td><strong>Approve</strong></td><td>Adds the draft to the Email Pack</td></tr>
-            <tr><td><strong>Regenerate</strong></td><td>Give Claude new instructions and rewrite</td></tr>
-            <tr><td><strong>Remove</strong></td><td>Exclude this journalist from this campaign's sends</td></tr>
-          </table>
-        </div>
-      </div>
-      <div>
-        <div class="label">Draft status at a glance</div>
-        <div style="display:flex;flex-direction:column;gap:.6rem;margin-top:.5rem;">
-          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-grey">Pending</span><span style="font-size:.92rem;color:#475569;">Not yet generated</span></div>
-          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-blue">Ready</span><span style="font-size:.92rem;color:#475569;">Generated — needs review</span></div>
-          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-green">Approved</span><span style="font-size:.92rem;color:#475569;">In the Email Pack, ready to send</span></div>
-          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-dkgreen">Sent</span><span style="font-size:.92rem;color:#475569;">Marked as sent, logged to Activity Feed</span></div>
-          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-grey">Removed</span><span style="font-size:.92rem;color:#475569;">Excluded from this campaign</span></div>
-          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-red">Failed</span><span style="font-size:.92rem;color:#475569;">Generation failed — write manually</span></div>
-        </div>
-        <div class="card amber mt2">
-          <div class="label">Tip: pick your user first</div>
-          <p>Claude signs emails with the <strong>active user</strong> (bottom of sidebar). Switch to your name before hitting Generate Drafts.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─────────── SLIDE 12: Email Pack + Send ─────────── -->
-  <div class="slide">
-    <div class="label">Campaigns: Step 6 &amp; 7</div>
-    <h2>Sending from the Email Pack</h2>
-    <div class="cols cols-2 mt">
-      <div>
-        <p>Open the <strong>Email Pack tab</strong>. All approved drafts appear formatted and ready to send. You have two options:</p>
-        <div class="mt">
-          <div class="card green">
-            <div class="label">Option A — Save to Gmail Drafts (recommended)</div>
-            <p>Click <strong>Save to Gmail Drafts</strong>. One pre-addressed Gmail draft is created per approved journalist. Open Gmail → Drafts, add attachments, and hit Send yourself.</p>
-            <p style="margin-top:.5rem;font-size:.9rem;color:#64748b;">First time: click <strong>Connect Gmail</strong> → grant Gmail Compose access in the Google pop-up. Stays connected after that.</p>
-          </div>
-        </div>
-        <div class="mt card slate">
-          <div class="label">Option B — Copy and paste</div>
-          <p>Use <strong>Copy all</strong> to get all emails as a single text block, or copy individual cards.</p>
-        </div>
-      </div>
-      <div>
-        <div class="card purple">
-          <div class="label">After you send — Mark as sent</div>
-          <p>Click <strong>Mark as sent</strong> at the bottom of each email card after you've sent it. This automatically:</p>
+        <div style="background:#ede9fe;border:1.5px solid #c4b5fd;border-radius:14px;padding:1.25rem 1.4rem;">
+          <h3 style="color:#4c1d95;margin-bottom:.6rem;">Suggest with AI</h3>
+          <p style="font-size:.95rem;color:#4c1d95;line-height:1.6;">Click this in the Journalists tab and Claude reads your brief, then ranks every journalist in the roster. It prioritises:</p>
           <ul style="margin-top:.6rem;">
-            <li>Logs the pitch to the <strong>Activity Feed</strong> (channel, subject, body, date)</li>
-            <li>Sets the journalist's status to <strong>Pitched</strong></li>
-            <li>Moves the card to Sent (green) in Review Drafts</li>
+            <li style="font-size:.92rem;color:#5b21b6;"><strong>Has covered North Star before</strong> — ranked first, every time</li>
+            <li style="font-size:.92rem;color:#5b21b6;"><strong>Warm relationship</strong> — responded to or in conversation with us</li>
+            <li style="font-size:.92rem;color:#5b21b6;"><strong>Beat matches the campaign angle</strong> — specific &gt; generic</li>
+            <li style="font-size:.92rem;color:#5b21b6;"><strong>Has an email on file</strong> — can't pitch who you can't reach</li>
           </ul>
         </div>
-        <div class="highlight mt2">
-          You don't need to manually log anything on the journalist's profile — Mark as sent handles everything.
+        <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:14px;padding:1rem 1.4rem;">
+          <p style="font-size:.93rem;color:#92400e;line-height:1.55;"><strong>Before generating drafts:</strong> make sure your name is selected at the bottom of the sidebar — Claude signs every email with the active user's name and title.</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ─────────── SLIDE 13: Press Coverage ─────────── -->
+  <!-- ─────────── SLIDE 5: Review & send ─────────── -->
   <div class="slide">
-    <div class="label">Feature: Press Coverage</div>
-    <h2>Tracking press coverage</h2>
+    <div class="label">Campaigns — steps 4 &amp; 5</div>
+    <h2>Review, approve &amp; send</h2>
     <div class="cols cols-2 mt">
-      <div>
-        <div class="label">Adding a new article</div>
-        <div class="steps">
-          <div class="step">
-            <div class="step-num">1</div>
-            <div class="step-body">
-              <h3>Paste the article URL</h3>
-              <p>Click <strong>Auto-fill</strong> — the system fetches the title, publication, and date from the page's metadata automatically.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">2</div>
-            <div class="step-body">
-              <h3>Link the journalist</h3>
-              <p>Search by name from your tracked journalist roster. This builds a record of who has covered us.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">3</div>
-            <div class="step-body">
-              <h3>Set type and sentiment</h3>
-              <p><strong>Type:</strong> Mention, Feature, Interview, Quote, Review, Op-ed<br><strong>Sentiment:</strong> Positive, Neutral, Mixed, Negative</p>
-            </div>
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:14px;padding:1.2rem 1.4rem;">
+          <h3>In the Drafts tab</h3>
+          <ul style="margin-top:.5rem;">
+            <li style="font-size:.93rem;color:#475569;"><strong>Edit</strong> — click into the subject or body and type directly</li>
+            <li style="font-size:.93rem;color:#475569;"><strong>Approve</strong> — sends the draft to the Email Pack</li>
+            <li style="font-size:.93rem;color:#475569;"><strong>Regenerate</strong> — give Claude new instructions and rewrite</li>
+            <li style="font-size:.93rem;color:#475569;"><strong>Remove</strong> — exclude this journalist from the campaign</li>
+          </ul>
+        </div>
+        <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:14px;padding:1.2rem 1.4rem;">
+          <h3>Draft statuses</h3>
+          <div style="display:flex;flex-direction:column;gap:.45rem;margin-top:.5rem;">
+            <div style="display:flex;gap:.7rem;align-items:center;"><span class="badge badge-blue">Ready</span><span style="font-size:.88rem;color:#475569;">Generated — waiting for your review</span></div>
+            <div style="display:flex;gap:.7rem;align-items:center;"><span class="badge badge-green">Approved</span><span style="font-size:.88rem;color:#475569;">In the Email Pack, ready to send</span></div>
+            <div style="display:flex;gap:.7rem;align-items:center;"><span class="badge badge-dkgreen">Sent</span><span style="font-size:.88rem;color:#475569;">Marked as sent, logged to Activity Feed</span></div>
+            <div style="display:flex;gap:.7rem;align-items:center;"><span class="badge badge-red">Failed</span><span style="font-size:.88rem;color:#475569;">Generation failed — write it manually in the editor</span></div>
           </div>
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:1rem;">
-        <div class="card purple">
-          <div class="label">Linking coverage to a campaign</div>
-          <p>From any campaign's <strong>Coverage tab</strong>, search your coverage log and click <strong>+ Link</strong> to associate an article with that campaign. This shows, per campaign, how many articles it generated.</p>
+        <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:14px;padding:1.2rem 1.4rem;">
+          <h3 style="color:#14532d;">Email Pack tab</h3>
+          <p style="font-size:.93rem;color:#166534;line-height:1.6;margin-top:.4rem;">All approved drafts appear here. Click <strong>Save to Gmail Drafts</strong> — one pre-addressed draft is created in Gmail per journalist. Open Gmail, add attachments, hit Send yourself.</p>
+          <p style="font-size:.85rem;color:#16a34a;margin-top:.6rem;">First time: click <em>Connect Gmail</em> and grant Compose access in the pop-up. Stays connected after that.</p>
         </div>
-        <div class="card green">
-          <div class="label">Why this matters</div>
-          <ul>
-            <li>Journalists who have covered us are ranked highest when AI suggests contacts for a new campaign</li>
-            <li>Gives you a complete record of our media presence over time</li>
-            <li>Campaign coverage counts appear on the Dashboard pipeline</li>
-          </ul>
+        <div style="background:#eef2ff;border:1.5px solid #c7d2fe;border-radius:14px;padding:1.2rem 1.4rem;">
+          <h3>After you send — Mark as sent</h3>
+          <p style="font-size:.93rem;color:#334155;line-height:1.6;margin-top:.4rem;">Click <strong>Mark as sent</strong> on each email card. This automatically logs the pitch to the Activity Feed and sets the journalist's status to <strong>Pitched</strong>. No manual logging needed.</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ─────────── SLIDE 14: Activity Feed ─────────── -->
+  <!-- ─────────── SLIDE 6: After you send ─────────── -->
   <div class="slide">
-    <div class="label">Feature: Activity Feed</div>
-    <h2>Activity Feed — your full outreach history</h2>
+    <div class="label">After the campaign</div>
+    <h2>Tracking what happens next</h2>
     <div class="cols cols-2 mt">
-      <div>
-        <p>A chronological log of every pitch, follow-up, and response across all journalists — your complete media relations history.</p>
-        <div class="mt">
-          <div class="label">Each entry shows</div>
-          <ul>
-            <li>Journalist name (links to their profile)</li>
-            <li>Publication</li>
-            <li>Outreach status at time of log</li>
-            <li>Channel (Email, LinkedIn, Twitter, etc.)</li>
-            <li>Subject line and message body</li>
-            <li>Date sent</li>
-          </ul>
-        </div>
-        <div class="mt">
-          <div class="label">Filters</div>
-          <ul>
-            <li>By publication</li>
-            <li>By outreach status</li>
-            <li>By date range</li>
-          </ul>
-        </div>
-      </div>
-      <div>
-        <div class="card purple">
-          <div class="label">How entries are created</div>
-          <ul>
-            <li><strong>Automatically</strong> — clicking "Mark as sent" in the Email Pack creates a full log entry (subject, body, date, channel)</li>
-            <li><strong>Manually</strong> — add a log entry directly from the journalist's Outreach tab (for calls, LinkedIn DMs, or any other contact not going through the campaign flow)</li>
-          </ul>
-        </div>
-        <div class="card slate mt">
-          <div class="label">Summary stats</div>
-          <p>Top of the page shows totals across your filtered range: interactions, pitches sent, responses received, and coverage secured.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─────────── SLIDE 15: Publications + RSS ─────────── -->
-  <div class="slide">
-    <div class="label">Admin: Publications</div>
-    <h2>Publications — keeping your roster fresh</h2>
-    <div class="cols cols-2 mt">
-      <div>
-        <div class="label">Weekly automated flow</div>
-        <div class="steps">
-          <div class="step">
-            <div class="step-num">↻</div>
-            <div class="step-body">
-              <h3>RSS feeds refresh (Fridays 7am)</h3>
-              <p>Fetches new articles from all active publication feeds. Updates "last published" dates for all journalists.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">↻</div>
-            <div class="step-body">
-              <h3>AI publication suggestions (weekly)</h3>
-              <p>Claude suggests new outlets to track. Review them in the amber banner at the top of Publications — accept or reject.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">↻</div>
-            <div class="step-body">
-              <h3>Journalist suggestions → RSS Suggestions tab</h3>
-              <p>New journalist bylines found by the RSS scanner appear here weekly for your review.</p>
-            </div>
-          </div>
-        </div>
-      </div>
       <div style="display:flex;flex-direction:column;gap:1rem;">
-        <div class="card">
-          <div class="label">Publication tiers</div>
-          <table style="font-size:.9rem;">
-            <tr><th>Tier</th><th>Examples</th></tr>
-            <tr><td><strong>A</strong> — Major Tech &amp; AI</td><td>TechCrunch, Wired, MIT Tech Review</td></tr>
-            <tr><td><strong>B</strong> — Business / Mid-tier</td><td>Forbes, Fast Company, Bloomberg Tech</td></tr>
-            <tr><td><strong>C</strong> — Regional &amp; Niche</td><td>Hypepotamus, AI newsletters</td></tr>
-          </table>
+        <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:14px;padding:1.25rem 1.4rem;">
+          <div style="font-size:1.3rem;margin-bottom:.5rem;">📰</div>
+          <h3 style="color:#14532d;">Press Coverage</h3>
+          <p style="font-size:.93rem;color:#166534;line-height:1.6;margin-top:.3rem;">When an article comes in, go to <strong>Press Coverage</strong>, paste the URL, and click Auto-fill — title, publication, and date are pulled automatically. Link the journalist and set the sentiment. Then open the campaign's <strong>Coverage tab</strong> and link the article to the campaign.</p>
         </div>
-        <div class="card amber">
-          <div class="label">Your weekly task</div>
-          <p>Go to <strong>RSS Suggestions</strong> and review any new journalist suggestions. Accept the ones that are a good fit — Claude will score them automatically. This typically takes 5–10 minutes.</p>
+        <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:14px;padding:1.25rem 1.4rem;">
+          <div style="font-size:1.3rem;margin-bottom:.5rem;">📋</div>
+          <h3>Activity Feed</h3>
+          <p style="font-size:.93rem;color:#475569;line-height:1.6;margin-top:.3rem;">Every pitch, follow-up, and response in one chronological log. Entries are created automatically when you mark as sent — or add them manually for calls, LinkedIn DMs, or any off-system contact.</p>
+        </div>
+      </div>
+      <div>
+        <div style="background:#eef2ff;border:1.5px solid #c7d2fe;border-radius:14px;padding:1.25rem 1.4rem;">
+          <div style="font-size:1.3rem;margin-bottom:.5rem;">🌡️</div>
+          <h3>Update journalist status as things develop</h3>
+          <div style="display:flex;flex-direction:column;gap:.45rem;margin-top:.6rem;">
+            <div style="display:flex;gap:.7rem;align-items:center;"><span class="badge badge-amber">Pitched</span><span style="font-size:.88rem;color:#475569;">Email sent, waiting</span></div>
+            <div style="display:flex;gap:.7rem;align-items:center;"><span class="badge badge-green">Responded</span><span style="font-size:.88rem;color:#475569;">They replied</span></div>
+            <div style="display:flex;gap:.7rem;align-items:center;"><span class="badge badge-indigo">In Conversation</span><span style="font-size:.88rem;color:#475569;">Active back-and-forth</span></div>
+            <div style="display:flex;gap:.7rem;align-items:center;"><span class="badge badge-dkgreen">Covered</span><span style="font-size:.88rem;color:#475569;">Wrote about North Star</span></div>
+            <div style="display:flex;gap:.7rem;align-items:center;"><span class="badge badge-grey">Declined</span><span style="font-size:.88rem;color:#475569;">Confirmed won't cover us</span></div>
+          </div>
+          <p style="font-size:.88rem;color:#6366f1;margin-top:.9rem;line-height:1.55;">Journalists with <em>Covered</em>, <em>Responded</em>, or <em>In Conversation</em> status appear in the <strong>Warm Contacts</strong> panel on the Dashboard and rank highest in AI suggestions for your next campaign.</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ─────────── SLIDE 16: Tips ─────────── -->
-  <div class="slide">
-    <div class="label">Best Practices</div>
-    <h2>Tips for getting the most out of the system</h2>
-    <div class="cols cols-2 mt">
-      <div class="card purple">
-        <h3>Before generating drafts</h3>
-        <ul>
-          <li>Select your name in the sidebar bottom so the sign-off is correct</li>
-          <li>Make sure House Style is set for your campaign type</li>
-          <li>Write a specific brief — the more context, the better the drafts</li>
-          <li>Fill in Campaign Assets (press kit URL, boilerplate) in the Edit Campaign panel</li>
-        </ul>
+  <!-- ─────────── SLIDE 7: Tips + routine ─────────── -->
+  <div class="slide cover" style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#4338ca 100%);">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;width:100%;max-width:860px;">
+      <div>
+        <div class="label" style="color:#a5b4fc;margin-bottom:1.2rem;">Things to know</div>
+        <div style="display:flex;flex-direction:column;gap:1rem;">
+          <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:1rem 1.2rem;">
+            <div style="font-weight:700;color:#e0e7ff;font-size:.95rem;margin-bottom:.35rem;">Select yourself before generating drafts</div>
+            <div style="font-size:.88rem;color:#a5b4fc;line-height:1.55;">Claude signs every email with the active user's name. Pick your name at the bottom of the sidebar first.</div>
+          </div>
+          <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:1rem 1.2rem;">
+            <div style="font-weight:700;color:#e0e7ff;font-size:.95rem;margin-bottom:.35rem;">Warm beats cold, every time</div>
+            <div style="font-size:.88rem;color:#a5b4fc;line-height:1.55;">A journalist who has responded or covered us before is a better bet than a high-scoring stranger. The AI suggestion already weights this — trust it.</div>
+          </div>
+          <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:1rem 1.2rem;">
+            <div style="font-weight:700;color:#e0e7ff;font-size:.95rem;margin-bottom:.35rem;">The brief is the most important input</div>
+            <div style="font-size:.88rem;color:#a5b4fc;line-height:1.55;">The more specific your brief, the better the drafts. Write it as if briefing a copywriter — give the angle, not just the announcement.</div>
+          </div>
+        </div>
       </div>
-      <div class="card green">
-        <h3>Choosing who to pitch</h3>
-        <ul>
-          <li>Warm contacts first — prioritise journalists who have responded or covered us before</li>
-          <li>Score is a tiebreaker, not the primary signal</li>
-          <li>Check "last published" — don't pitch journalists who haven't posted in 90+ days without checking</li>
-          <li>Run "Find Profiles" first so Claude has social context when scoring</li>
-        </ul>
-      </div>
-      <div class="card amber">
-        <h3>Keeping the system healthy</h3>
-        <ul>
-          <li>Review RSS Suggestions weekly (5–10 min)</li>
-          <li>Log all outreach — even calls and LinkedIn DMs — from the journalist's Outreach tab</li>
-          <li>Add press coverage as it comes in so journalists who covered us rank higher in future AI suggestions</li>
-          <li>Check the Dashboard system alerts — they flag when attention is needed</li>
-        </ul>
-      </div>
-      <div class="card slate">
-        <h3>Editing a campaign mid-flight</h3>
-        <ul>
-          <li>Click the pencil icon next to the campaign title</li>
-          <li>You can update name, type, status, brief, and campaign assets in one panel</li>
-          <li>If you change the brief, use the amber banner to bulk-regenerate pending drafts</li>
-          <li>Approved and sent drafts are never regenerated automatically</li>
-        </ul>
+      <div>
+        <div class="label" style="color:#a5b4fc;margin-bottom:1.2rem;">The 10-minute weekly routine</div>
+        <div style="display:flex;flex-direction:column;gap:.65rem;">
+          <div style="display:flex;gap:.9rem;align-items:flex-start;">
+            <div style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.15);color:#e0e7ff;font-size:.8rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1rem;">1</div>
+            <div style="font-size:.92rem;color:#c7d2fe;line-height:1.55;">Check <strong style="color:#e0e7ff;">Dashboard</strong> alerts — overdue follow-ups, stale journalists</div>
+          </div>
+          <div style="display:flex;gap:.9rem;align-items:flex-start;">
+            <div style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.15);color:#e0e7ff;font-size:.8rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1rem;">2</div>
+            <div style="font-size:.92rem;color:#c7d2fe;line-height:1.55;">Review <strong style="color:#e0e7ff;">RSS Suggestions</strong> — accept the good journalists, reject the rest</div>
+          </div>
+          <div style="display:flex;gap:.9rem;align-items:flex-start;">
+            <div style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.15);color:#e0e7ff;font-size:.8rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1rem;">3</div>
+            <div style="font-size:.92rem;color:#c7d2fe;line-height:1.55;">Log any new coverage in <strong style="color:#e0e7ff;">Press Coverage</strong> and link it to the campaign</div>
+          </div>
+          <div style="display:flex;gap:.9rem;align-items:flex-start;">
+            <div style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.15);color:#e0e7ff;font-size:.8rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1rem;">4</div>
+            <div style="font-size:.92rem;color:#c7d2fe;line-height:1.55;">Update journalist statuses for anyone who replied or went quiet</div>
+          </div>
+        </div>
+        <div style="margin-top:1.5rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:1rem 1.2rem;">
+          <div style="font-size:.88rem;color:#c7d2fe;line-height:1.7;">
+            <strong style="color:#e0e7ff;">App:</strong> northstar-journalist-dossiers.vercel.app<br>
+            <strong style="color:#e0e7ff;">Full docs:</strong> GitBook — ask Ting-Ya for the link
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- ─────────── SLIDE 17: End ─────────── -->
-  <div class="slide cover" style="text-align:center;justify-content:center;align-items:center;">
-    <div style="max-width:560px;">
-      <div style="font-size:3rem;margin-bottom:1rem;">🚀</div>
-      <h1 style="font-size:2.4rem;">You're ready to go.</h1>
-      <p class="sub" style="margin-top:.8rem;">
-        App: <strong style="color:#c7d2fe">https://northstar-journalist-dossiers.vercel.app</strong><br>
-        Full docs: <strong style="color:#c7d2fe">GitBook</strong>
-      </p>
-      <div class="mt2">
-        <span class="pill">Questions? Ask Ting-Ya or check the GitBook docs.</span>
-      </div>
-    </div>
-  </div>
 
 </div><!-- #deck -->
 
