@@ -48,9 +48,6 @@ function calcTotal(form: typeof empty) {
     Math.min(form.contactabilityScore, 10);
 }
 
-function calcTier(total: number) {
-  return total >= 80 ? 1 : total >= 60 ? 2 : total >= 40 ? 3 : 4;
-}
 
 export default function JournalistForm() {
   const { id } = useParams<{ id: string }>();
