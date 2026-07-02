@@ -5,6 +5,7 @@
 
 ## Features
 
+* [Dashboard](features/dashboard.md)
 * [Journalists](features/journalists.md)
 * [Campaigns](features/campaigns.md)
 * [Publications](features/publications.md)
