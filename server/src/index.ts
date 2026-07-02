@@ -67,10 +67,11 @@ app.get('/api/dashboard', async (_req, res) => {
     const [
       totalRes, tiersRes, avgRes, followUpsRes, recentOutreachRes,
       staleRes, unreachableRes, activeCampaignsRes, draftsReadyRes,
-      sentRes, recentCampaignsRes, overdueFollowUpsRes, needsReSearchRes,
+      sentRes, sentLastWeekRes, recentCampaignsRes, overdueFollowUpsRes,
+      needsReSearchRes, approvedWaitingRes, warmContactsRes, recentCoverageRes,
     ] = await Promise.all([
       pool.query('SELECT COUNT(*)::int as c FROM journalists'),
-      pool.query('SELECT "priorityTier", COUNT(*)::int as count FROM journalists GROUP BY "priorityTier"'),
+      pool.query('SELECT "priorityTier", COUNT(*)::int as count FROM journalists GROUP BY "priorityTier" ORDER BY "priorityTier"'),
       pool.query('SELECT AVG("totalScore")::numeric(6,1) as avg FROM journalists'),
       pool.query(`
         SELECT * FROM journalists
@@ -97,21 +98,49 @@ app.get('/api/dashboard', async (_req, res) => {
         WHERE "serpSearchedAt" IS NOT NULL
           AND "serpSearchedAt" < NOW() - INTERVAL '90 days'
       `),
-      pool.query("SELECT COUNT(*)::int as c FROM campaigns WHERE status != 'completed'"),
+      pool.query("SELECT COUNT(*)::int as c FROM campaigns WHERE status NOT IN ('completed','archived')"),
       pool.query("SELECT COUNT(*)::int as c FROM campaign_journalists WHERE \"draftStatus\" IN ('ready','approved')"),
       pool.query(`
         SELECT COUNT(*)::int as c FROM campaign_journalists
         WHERE "draftStatus" = 'sent' AND "sentAt" != '' AND "sentAt"::DATE >= CURRENT_DATE - INTERVAL '7 days'
       `),
+      // sent last week (7–14 days ago) for velocity comparison
+      pool.query(`
+        SELECT COUNT(*)::int as c FROM campaign_journalists
+        WHERE "draftStatus" = 'sent' AND "sentAt" != ''
+          AND "sentAt"::DATE >= CURRENT_DATE - INTERVAL '14 days'
+          AND "sentAt"::DATE < CURRENT_DATE - INTERVAL '7 days'
+      `),
       pool.query(`
         SELECT c.id, c.name, c.type, c.status,
           COUNT(cj.id)::int as "journalistCount",
           SUM(CASE WHEN cj."draftStatus" = 'sent' THEN 1 ELSE 0 END)::int as "sentCount",
-          SUM(CASE WHEN cj."draftStatus" IN ('ready','approved') THEN 1 ELSE 0 END)::int as "readyCount"
+          SUM(CASE WHEN cj."draftStatus" IN ('ready','approved') THEN 1 ELSE 0 END)::int as "readyCount",
+          SUM(CASE WHEN cj."draftStatus" = 'approved' THEN 1 ELSE 0 END)::int as "approvedCount",
+          (SELECT COUNT(*)::int FROM coverage cv WHERE cv."campaignId" = c.id) as "coverageCount"
         FROM campaigns c
         LEFT JOIN campaign_journalists cj ON cj."campaignId" = c.id
         GROUP BY c.id
         ORDER BY c."updatedAt" DESC LIMIT 5
+      `),
+      // approved drafts waiting to be sent
+      pool.query("SELECT COUNT(*)::int as c FROM campaign_journalists WHERE \"draftStatus\" = 'approved'"),
+      // warm contacts: responded, in conversation, or covered
+      pool.query(`
+        SELECT id, name, publication, "outreachStatus", "totalScore", "lastContactedDate"
+        FROM journalists
+        WHERE "outreachStatus" IN ('Responded','In Conversation','Covered')
+        ORDER BY
+          CASE "outreachStatus" WHEN 'Covered' THEN 1 WHEN 'In Conversation' THEN 2 ELSE 3 END,
+          "lastContactedDate" DESC NULLS LAST
+        LIMIT 6
+      `),
+      // recent press coverage
+      pool.query(`
+        SELECT id, title, url, publication, "publishDate", "coverageType", sentiment
+        FROM coverage
+        ORDER BY "publishDate" DESC NULLS LAST, "createdAt" DESC
+        LIMIT 4
       `),
     ]);
 
@@ -127,8 +156,12 @@ app.get('/api/dashboard', async (_req, res) => {
       needsReSearch: needsReSearchRes.rows[0].c,
       activeCampaigns: activeCampaignsRes.rows[0].c,
       draftsReady: draftsReadyRes.rows[0].c,
+      approvedWaiting: approvedWaitingRes.rows[0].c,
       sentThisWeek: sentRes.rows[0].c,
+      sentLastWeek: sentLastWeekRes.rows[0].c,
       recentCampaigns: recentCampaignsRes.rows,
+      warmContacts: warmContactsRes.rows,
+      recentCoverage: recentCoverageRes.rows,
     });
   } catch (err: any) {
     console.error('[Dashboard]', err.message);
