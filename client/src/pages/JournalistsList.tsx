@@ -1,9 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, ChevronRight, SortDesc, Sparkles, Star, LayoutList, Columns, CheckCircle2, Circle, Link2, Info, Copy, Check } from 'lucide-react';
+import { Search, ChevronRight, SortDesc, Sparkles, Star, LayoutList, Columns, Circle, Link2, Info, Copy, Check } from 'lucide-react';
 
 import { journalists as api, enrichment as enrichApi } from '../api';
-import { daysAgo } from '../utils';
 import type { Journalist } from '../types';
 import StatusBadge from '../components/StatusBadge';
 

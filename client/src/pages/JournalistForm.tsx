@@ -82,7 +82,6 @@ export default function JournalistForm() {
   const isAutoDetectedFollowing = loadedSocialFollowing.includes('(from search snippets)');
 
   const total = calcTotal(form);
-  const tier = calcTier(total);
 
   const handleSubmit = async () => {
     if (!form.name) return alert('Name is required');
