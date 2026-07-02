@@ -1,6 +1,6 @@
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Users, FileDown, Star, Settings, Rss, Megaphone, Wand2, Activity, Newspaper, BookOpen, ChevronDown, AlertTriangle } from 'lucide-react';
+import { LayoutDashboard, Users, FileDown, Settings, Rss, Megaphone, Wand2, Activity, Newspaper, BookOpen, ChevronDown, AlertTriangle } from 'lucide-react';
 import { useUser } from './UserContext';
 import { users as usersApi } from './api';
 import type { User } from './types';
@@ -66,7 +66,6 @@ export default function App() {
       <aside className="w-60 bg-northstar-900 text-white flex flex-col shrink-0 fixed inset-y-0 left-0 z-10">
         <div className="p-5 border-b border-northstar-700">
           <div className="flex items-center gap-2.5">
-            <Star className="w-5 h-5 text-yellow-300" fill="currentColor" />
             <div>
               <div className="font-bold text-sm leading-tight">North Star AI Labs</div>
               <div className="text-northstar-300 text-xs mt-0.5">Media Dossiers</div>
