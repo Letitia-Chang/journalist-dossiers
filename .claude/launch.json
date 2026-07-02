@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "slides",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-e", "const h=require('http'),fs=require('fs'),p=require('path'),port=process.env.PORT||4173;const base='/Users/letitiachang/Desktop/northstar-journalist-dossiers/docs';h.createServer((req,res)=>{const url=req.url==='/'?'/team-slides.html':req.url;const f=p.join(base,url);fs.readFile(f,(e,d)=>{if(e){res.writeHead(404);res.end('Not found');}else{const ct=f.endsWith('.html')?'text/html':'text/plain';res.writeHead(200,{'Content-Type':ct});res.end(d);}});}).listen(port,()=>console.log('ready on '+port));"],
+      "port": 4173,
+      "autoPort": true
+    }
+  ]
+}

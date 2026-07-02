@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>North Star Media Dossiers — Team Guide</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: #1e293b;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── Slide shell ── */
+  #deck {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    display: none;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+    padding: 56px 72px 72px;
+    flex-direction: column;
+    justify-content: center;
+    background: #fff;
+    animation: fadeIn .25s ease;
+  }
+  .slide.active { display: flex; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  /* ── Typography ── */
+  h1 { font-size: 2.6rem; font-weight: 800; color: #312e81; line-height: 1.15; }
+  h2 { font-size: 1.9rem; font-weight: 700; color: #312e81; margin-bottom: 1.2rem; }
+  h3 { font-size: 1.1rem; font-weight: 700; color: #4338ca; margin-bottom: .4rem; }
+  p  { font-size: 1.05rem; color: #334155; line-height: 1.65; }
+  .sub { font-size: 1.15rem; color: #64748b; margin-top: .5rem; line-height: 1.6; }
+  .label { font-size: .72rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #818cf8; margin-bottom: .5rem; }
+
+  /* ── Cover slide ── */
+  .cover { background: linear-gradient(135deg, #312e81 0%, #4f46e5 60%, #818cf8 100%); }
+  .cover h1 { color: #fff; font-size: 3.2rem; }
+  .cover .sub { color: #c7d2fe; font-size: 1.25rem; }
+  .cover .pill {
+    display: inline-block; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3);
+    color: #e0e7ff; padding: .3rem .9rem; border-radius: 9999px; font-size: .85rem; margin-top: 1.2rem;
+  }
+
+  /* ── Two-column layout ── */
+  .cols { display: grid; gap: 2.5rem; }
+  .cols-2 { grid-template-columns: 1fr 1fr; }
+  .cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* ── Card ── */
+  .card {
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 1.25rem 1.4rem;
+  }
+  .card.purple { background: #eef2ff; border-color: #c7d2fe; }
+  .card.green  { background: #f0fdf4; border-color: #bbf7d0; }
+  .card.amber  { background: #fffbeb; border-color: #fde68a; }
+  .card.slate  { background: #f1f5f9; border-color: #cbd5e1; }
+
+  /* ── List ── */
+  ul { list-style: none; display: flex; flex-direction: column; gap: .55rem; }
+  ul li { display: flex; align-items: flex-start; gap: .6rem; font-size: 1rem; color: #334155; line-height: 1.5; }
+  ul li::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #6366f1; margin-top: .45rem; flex-shrink: 0; }
+
+  /* ── Numbered steps ── */
+  .steps { display: flex; flex-direction: column; gap: .8rem; }
+  .step  { display: flex; align-items: flex-start; gap: 1rem; }
+  .step-num {
+    width: 32px; height: 32px; border-radius: 50%; background: #4f46e5; color: #fff;
+    font-size: .9rem; font-weight: 800; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: .1rem;
+  }
+  .step-body h3 { color: #312e81; margin-bottom: .15rem; font-size: 1rem; }
+  .step-body p  { font-size: .95rem; color: #475569; line-height: 1.5; }
+
+  /* ── Status badges ── */
+  .badge {
+    display: inline-block; padding: .2rem .65rem; border-radius: 9999px;
+    font-size: .78rem; font-weight: 700;
+  }
+  .badge-grey   { background: #f1f5f9; color: #64748b; }
+  .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+  .badge-green  { background: #d1fae5; color: #065f46; }
+  .badge-dkgreen{ background: #bbf7d0; color: #14532d; }
+  .badge-amber  { background: #fef3c7; color: #92400e; }
+  .badge-red    { background: #fee2e2; color: #991b1b; }
+  .badge-indigo { background: #e0e7ff; color: #3730a3; }
+  .badge-purple { background: #ede9fe; color: #5b21b6; }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th { background: #eef2ff; color: #312e81; font-weight: 700; text-align: left; padding: .55rem .8rem; font-size: .88rem; }
+  td { padding: .5rem .8rem; border-bottom: 1px solid #e2e8f0; color: #334155; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1.5px solid #e2e8f0; margin: 1rem 0; }
+
+  /* ── Nav bar ── */
+  #nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(15,23,42,.95); backdrop-filter: blur(8px);
+    padding: .7rem 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    z-index: 100;
+  }
+  #nav button {
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15);
+    color: #e2e8f0; padding: .45rem 1.2rem; border-radius: 8px; cursor: pointer;
+    font-size: .9rem; font-weight: 600; transition: background .15s;
+  }
+  #nav button:hover  { background: rgba(255,255,255,.18); }
+  #nav button:disabled { opacity: .35; cursor: default; }
+  #counter { color: #94a3b8; font-size: .88rem; font-weight: 500; }
+  #progress {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, #818cf8, #6366f1);
+    transition: width .3s;
+    z-index: 200;
+  }
+
+  /* ── TOC dots ── */
+  #dots { display: flex; gap: .35rem; align-items: center; }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(255,255,255,.25); cursor: pointer; transition: background .15s;
+  }
+  .dot.on { background: #818cf8; }
+
+  /* ── Highlight box ── */
+  .highlight {
+    background: #eef2ff; border-left: 4px solid #6366f1;
+    padding: .8rem 1.1rem; border-radius: 0 10px 10px 0;
+    font-size: .97rem; color: #312e81; line-height: 1.6;
+  }
+
+  /* ── Big stat ── */
+  .stat-block { text-align: center; }
+  .stat-num   { font-size: 3rem; font-weight: 900; color: #4f46e5; line-height: 1; }
+  .stat-label { font-size: .9rem; color: #64748b; margin-top: .3rem; }
+
+  /* ── Icon emoji ── */
+  .icon { font-size: 1.4rem; }
+
+  /* ── Flow arrow ── */
+  .flow { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .flow-step { background: #eef2ff; border: 1.5px solid #c7d2fe; border-radius: 10px; padding: .5rem .9rem; font-size: .9rem; font-weight: 600; color: #3730a3; }
+  .flow-arrow { color: #94a3b8; font-size: 1.2rem; }
+
+  .mt { margin-top: 1rem; }
+  .mt2 { margin-top: 1.5rem; }
+  .mb { margin-bottom: .8rem; }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<div id="deck">
+
+  <!-- ─────────── SLIDE 1: Cover ─────────── -->
+  <div class="slide cover active">
+    <div class="label" style="color:#a5b4fc">North Star AI Labs · Internal Tool</div>
+    <h1>Media Dossiers</h1>
+    <p class="sub">Your journalist CRM — track reporters, run outreach campaigns,<br>and see how every pitch lands.</p>
+    <div>
+      <span class="pill">Team Guide · July 2026</span>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 2: What is this? ─────────── -->
+  <div class="slide">
+    <div class="label">Overview</div>
+    <h2>What does Media Dossiers do?</h2>
+    <div class="cols cols-2 mt">
+      <div class="card purple">
+        <h3>🗂 Build a journalist roster</h3>
+        <p>Track every AI/tech reporter we want to pitch — their beat, recent articles, contact info, and relationship history.</p>
+      </div>
+      <div class="card purple">
+        <h3>✉️ Run outreach campaigns</h3>
+        <p>Group journalists into campaigns. Claude drafts a personalised email for each one. You review, approve, and send.</p>
+      </div>
+      <div class="card purple">
+        <h3>📰 Track press coverage</h3>
+        <p>Log every article written about North Star. Link coverage back to the campaign that generated it.</p>
+      </div>
+      <div class="card purple">
+        <h3>📊 See everything in one place</h3>
+        <p>Activity feed, warm contacts panel, campaign pipeline — all the context you need before your next pitch.</p>
+      </div>
+    </div>
+    <div class="highlight mt2">
+      <strong>Important:</strong> The system never sends email on your behalf. All outreach is reviewed and sent by a human.
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 3: Sidebar nav ─────────── -->
+  <div class="slide">
+    <div class="label">Navigation</div>
+    <h2>Finding your way around</h2>
+    <div class="cols cols-2 mt">
+      <div>
+        <p class="mb"><strong>Main navigation</strong></p>
+        <ul>
+          <li><strong>Dashboard</strong> — health of your outreach programme at a glance</li>
+          <li><strong>Journalists</strong> — your full reporter roster, searchable and filterable</li>
+          <li><strong>Campaigns</strong> — all outreach campaigns</li>
+          <li><strong>Activity Feed</strong> — chronological log of every pitch ever sent</li>
+          <li><strong>Press Coverage</strong> — articles written about North Star</li>
+        </ul>
+        <hr class="mt" />
+        <p class="mb mt"><strong>Admin section</strong></p>
+        <ul>
+          <li><strong>Publications</strong> — outlets you track; manage RSS feeds</li>
+          <li><strong>RSS Suggestions</strong> — journalists surfaced by the RSS scanner</li>
+          <li><strong>House Style</strong> — standing instructions for Claude's drafts</li>
+          <li><strong>Export Data</strong> — download CSV of journalists / outreach</li>
+        </ul>
+      </div>
+      <div class="card slate" style="justify-content:center; display:flex; flex-direction:column; gap:1rem;">
+        <div>
+          <div class="label">User selector</div>
+          <p>Your name appears at the bottom of the sidebar. Always select yourself — drafts and outreach logs are attributed to the active user.</p>
+        </div>
+        <div>
+          <div class="label">Badge counts</div>
+          <p>Yellow number on Publications = pending AI suggestions. Green number on RSS Suggestions = journalists awaiting review.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 4: Dashboard ─────────── -->
+  <div class="slide">
+    <div class="label">Feature: Dashboard</div>
+    <h2>Dashboard — your daily starting point</h2>
+    <div class="cols cols-2 mt">
+      <div>
+        <div class="label">Pipeline cards</div>
+        <table>
+          <tr><th>Card</th><th>What it tells you</th></tr>
+          <tr><td><strong>Journalists</strong></td><td>Total profiles in the system</td></tr>
+          <tr><td><strong>Active campaigns</strong></td><td>Campaigns currently in progress</td></tr>
+          <tr><td><strong>Drafts to review</strong></td><td>Emails waiting for your approval</td></tr>
+          <tr><td><strong>Sent this week</strong></td><td>Pitches sent in the last 7 days (+ trend vs. prior week)</td></tr>
+        </table>
+        <div class="mt">
+          <div class="label">Warm contacts panel</div>
+          <p>Journalists who have <strong>Responded</strong>, are <strong>In Conversation</strong>, or have <strong>Covered</strong> us — your warmest relationships, ready to re-engage.</p>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="card amber">
+          <div class="label">System alerts — act on these</div>
+          <ul>
+            <li><strong>Overdue follow-ups</strong> — journalist waiting on a response from you</li>
+            <li><strong>Stale journalists</strong> — no articles in 30+ days</li>
+            <li><strong>Needs re-search</strong> — social profiles over 90 days old</li>
+            <li><strong>Unreachable publications</strong> — broken RSS feeds</li>
+          </ul>
+        </div>
+        <div class="card green">
+          <div class="label">Recent press coverage</div>
+          <p>The 4 latest articles added to Press Coverage — see at a glance who is writing about us.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 5: Journalists list ─────────── -->
+  <div class="slide">
+    <div class="label">Feature: Journalists</div>
+    <h2>Journalists — building your roster</h2>
+    <div class="cols cols-2 mt">
+      <div>
+        <div class="label">How journalists get added</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <h3>RSS Scanner finds them</h3>
+              <p>The scanner reads AI/tech RSS feeds weekly and surfaces journalist bylines. They appear in <strong>RSS Suggestions</strong> for you to review.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <h3>You accept or reject</h3>
+              <p>Go to <strong>Admin → RSS Suggestions</strong>. For each journalist, Accept (adds to roster + auto-scores) or Reject (removes suggestion).</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <h3>Claude auto-scores</h3>
+              <p>On accept, Claude reads their beat, articles, and publication and generates a relevance score. Runs in the background — usually under 30 seconds.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <h3>You can also add manually</h3>
+              <p>Click <strong>+ Add Journalist</strong> from the Journalists page and fill in their details yourself.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="card">
+          <div class="label">Journalists list — filters</div>
+          <ul>
+            <li>Search by name, publication, or beat</li>
+            <li>Filter by outreach status</li>
+            <li>Sort by score, name, or last published date</li>
+          </ul>
+        </div>
+        <div class="card purple">
+          <div class="label">Find Profiles (SerpAPI)</div>
+          <p>Click <strong>Find Profiles</strong> on any journalist (or run in bulk from the list) to discover their LinkedIn, MuckRack, Twitter/X, and sometimes their email — all from a Google search in the background.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 6: Journalist profile ─────────── -->
+  <div class="slide">
+    <div class="label">Feature: Journalist Profile</div>
+    <h2>The journalist profile — everything in one place</h2>
+    <div class="cols cols-2 mt">
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="card">
+          <h3>Overview tab</h3>
+          <ul>
+            <li>AI-generated <strong>score breakdown</strong> with descriptions</li>
+            <li><strong>Best pitch angle</strong> — Claude's suggested hook</li>
+            <li>Outreach context: preferred contact method, topics to avoid, social following</li>
+            <li>Relationship status and last contacted date</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Articles tab</h3>
+          <p>All articles by this journalist tracked in the system. Seeded automatically from RSS; add more manually.</p>
+        </div>
+        <div class="card">
+          <h3>Outreach tab</h3>
+          <p>Full log of every pitch, follow-up, and response — channel, subject, date, outcome.</p>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="card purple">
+          <div class="label">Outreach status — you control this</div>
+          <table style="font-size:.87rem;">
+            <tr><td><span class="badge badge-grey">Not Started</span></td><td>Default state</td></tr>
+            <tr><td><span class="badge badge-indigo">Researching</span></td><td>Actively evaluating</td></tr>
+            <tr><td><span class="badge badge-blue">Ready to Pitch</span></td><td>Decided they're a fit</td></tr>
+            <tr><td><span class="badge badge-amber">Pitched</span></td><td>Email sent, waiting</td></tr>
+            <tr><td><span class="badge badge-green">Responded</span></td><td>They replied</td></tr>
+            <tr><td><span class="badge badge-dkgreen">Covered</span></td><td>Wrote about North Star</td></tr>
+            <tr><td><span class="badge badge-grey">Declined</span></td><td>Confirmed won't cover us</td></tr>
+          </table>
+        </div>
+        <div class="card amber">
+          <div class="label">Admin notes tab</div>
+          <p>Write your own observations, follow-up reminders, or pitch strategy notes here. Claude's system notes (read-only) are also shown separately.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 7: Scoring ─────────── -->
+  <div class="slide">
+    <div class="label">Feature: Journalist Scoring</div>
+    <h2>How journalists are scored (out of 100)</h2>
+    <div class="mt">
+      <table>
+        <tr>
+          <th>Dimension</th>
+          <th>Max pts</th>
+          <th>What it measures</th>
+        </tr>
+        <tr><td><strong>AI Relevance</strong></td><td>25</td><td>How often they cover AI/ML/LLM topics</td></tr>
+        <tr><td><strong>Startup Relevance</strong></td><td>20</td><td>Coverage of startups, funding rounds, founders</td></tr>
+        <tr><td><strong>North Star Fit</strong></td><td>20</td><td>Likelihood they'd cover an AI enterprise startup like ours</td></tr>
+        <tr><td><strong>Publication Authority</strong></td><td>15</td><td>Reach and prestige of their outlet</td></tr>
+        <tr><td><strong>Audience Reach</strong></td><td>10</td><td>Estimated readership and social following</td></tr>
+        <tr><td><strong>Contactability</strong></td><td>10</td><td>Whether verified contact info is available</td></tr>
+      </table>
+    </div>
+    <div class="cols cols-2 mt2">
+      <div class="card green">
+        <div class="label">When scores update</div>
+        <ul>
+          <li>Generated automatically when a journalist is accepted from RSS Suggestions</li>
+          <li>Re-generated automatically if a follower count is found during Find Profiles</li>
+        </ul>
+      </div>
+      <div class="card amber">
+        <div class="label">Score is a starting point — not the whole picture</div>
+        <p>A journalist with a lower score who has already covered us, or who replied to a previous pitch, is a higher priority than a higher-scoring cold contact.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 8: Campaign overview ─────────── -->
+  <div class="slide">
+    <div class="label">Feature: Campaigns</div>
+    <h2>Campaigns — the outreach workflow</h2>
+    <div class="mt">
+      <div class="label">The full flow</div>
+      <div class="flow mt">
+        <div class="flow-step">1. Set House Style</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">2. Create campaign</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">3. Select journalists</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">4. Generate drafts</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">5. Review &amp; approve</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">6. Send from Gmail</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">7. Mark as sent</div>
+      </div>
+    </div>
+    <div class="cols cols-3 mt2">
+      <div class="card">
+        <h3>Campaign types</h3>
+        <ul>
+          <li><strong>Cold Intro</strong> — first-time outreach</li>
+          <li><strong>Event</strong> — invite to a North Star event</li>
+          <li><strong>Hackathon</strong> — announce / coverage request</li>
+          <li><strong>Founder Promo</strong> — thought leadership pitch</li>
+        </ul>
+      </div>
+      <div class="card purple">
+        <h3>What Claude personalises</h3>
+        <ul>
+          <li>Journalist's specific beat</li>
+          <li>Their recent articles</li>
+          <li>Your campaign brief</li>
+          <li>Your house style instructions</li>
+          <li>Your name and title (from active user)</li>
+        </ul>
+      </div>
+      <div class="card amber">
+        <h3>Key rules</h3>
+        <ul>
+          <li>Always select yourself in the sidebar before generating drafts</li>
+          <li>The system never sends email — you do</li>
+          <li>Mark as sent after you email — this logs to Activity Feed</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 9: House Style + Brief ─────────── -->
+  <div class="slide">
+    <div class="label">Campaigns: Step 1 &amp; 2</div>
+    <h2>House Style and the campaign brief</h2>
+    <div class="cols cols-2 mt">
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="card purple">
+          <div class="label">House Style (Admin → House Style)</div>
+          <p>Set once per campaign type. These are <strong>standing instructions</strong> Claude follows for every email of that type — tone, structure, what to avoid.</p>
+          <div class="highlight" style="margin-top:.8rem;font-size:.9rem;">
+            Example: "Keep subject lines under 8 words. Lead with something specific about the journalist's recent work. Don't use words like 'revolutionary' or 'disruptive'."
+          </div>
+        </div>
+        <div class="card">
+          <div class="label">Campaign Brief (per campaign)</div>
+          <p>2–4 sentences about what you're announcing and what angle journalists should take. Write it as if briefing a PR copywriter.</p>
+          <div class="highlight" style="margin-top:.8rem;font-size:.9rem;">
+            Example: "North Star AI Labs is launching publicly in July 2026. We build AI tools for enterprise talent teams. Focus on our differentiated approach to talent intelligence — not a generic AI announcement."
+          </div>
+        </div>
+      </div>
+      <div>
+        <table>
+          <tr><th></th><th>House Style</th><th>Campaign Brief</th></tr>
+          <tr><td>Scope</td><td>All campaigns of this type</td><td>This campaign only</td></tr>
+          <tr><td>Contains</td><td>Tone, structure, what to avoid</td><td>Story angle, announcement details</td></tr>
+          <tr><td>Changed by</td><td>Deliberate admin update</td><td>Created per campaign</td></tr>
+        </table>
+        <div class="card amber mt2">
+          <div class="label">Changing the brief after drafts are generated</div>
+          <p>If you edit the brief or campaign type after drafts already exist, an amber banner will prompt you to <strong>regenerate pending drafts</strong>. Approved and sent drafts are never touched.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 10: Suggest with AI ─────────── -->
+  <div class="slide">
+    <div class="label">Campaigns: Step 3</div>
+    <h2>Selecting journalists — Suggest with AI</h2>
+    <div class="cols cols-2 mt">
+      <div>
+        <p>In the campaign's <strong>Journalists tab</strong>, click the purple <strong>Suggest with AI</strong> button. Claude reads your brief and every journalist in the roster, then returns a ranked list.</p>
+        <div class="mt">
+          <div class="label">What Claude weighs (in priority order)</div>
+          <table>
+            <tr><th>Signal</th><th>Why it matters</th></tr>
+            <tr><td><strong>Has covered North Star</strong></td><td>Proven interest — warmest possible contact</td></tr>
+            <tr><td><strong>Prior outreach relationship</strong></td><td>Responded / In Conversation = warm</td></tr>
+            <tr><td><strong>Beat match to campaign angle</strong></td><td>Specific beat fit &gt; generic tech reporter</td></tr>
+            <tr><td><strong>Has email on file</strong></td><td>Can't reach who you can't contact</td></tr>
+            <tr><td><strong>Actively publishing</strong></td><td>&gt;90 days since last article = flag</td></tr>
+            <tr><td><strong>Total score</strong></td><td>Tiebreaker — real context overrides it</td></tr>
+          </table>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="card green">
+          <div class="label">Recommended (purple section)</div>
+          <p>5–7 journalists Claude actively suggests adding. Each shows a reason chip and a warning if there's a concern (no email, stale, geographic mismatch).</p>
+        </div>
+        <div class="card slate">
+          <div class="label">Other journalists (remaining)</div>
+          <p>Your full roster, still ranked, available to add manually if you want to go beyond the recommendations.</p>
+        </div>
+        <div class="highlight">
+          Click <strong>+ Add</strong> on any row to add them. You can re-run suggestions at any time.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 11: Review drafts ─────────── -->
+  <div class="slide">
+    <div class="label">Campaigns: Steps 4 &amp; 5</div>
+    <h2>Generating and reviewing drafts</h2>
+    <div class="cols cols-2 mt">
+      <div>
+        <div class="label">After clicking Generate Drafts</div>
+        <ul>
+          <li>Claude runs one API call per journalist in the background</li>
+          <li>The page polls every 3 seconds — statuses update live</li>
+          <li>You're automatically switched to the <strong>Drafts tab</strong> when ready</li>
+          <li>Closing the page is safe — come back any time</li>
+        </ul>
+        <div class="mt2">
+          <div class="label">For each draft you can</div>
+          <table>
+            <tr><td><strong>Edit</strong></td><td>Click into the subject or body and type — saves automatically</td></tr>
+            <tr><td><strong>Approve</strong></td><td>Adds the draft to the Email Pack</td></tr>
+            <tr><td><strong>Regenerate</strong></td><td>Give Claude new instructions and rewrite</td></tr>
+            <tr><td><strong>Remove</strong></td><td>Exclude this journalist from this campaign's sends</td></tr>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="label">Draft status at a glance</div>
+        <div style="display:flex;flex-direction:column;gap:.6rem;margin-top:.5rem;">
+          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-grey">Pending</span><span style="font-size:.92rem;color:#475569;">Not yet generated</span></div>
+          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-blue">Ready</span><span style="font-size:.92rem;color:#475569;">Generated — needs review</span></div>
+          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-green">Approved</span><span style="font-size:.92rem;color:#475569;">In the Email Pack, ready to send</span></div>
+          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-dkgreen">Sent</span><span style="font-size:.92rem;color:#475569;">Marked as sent, logged to Activity Feed</span></div>
+          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-grey">Removed</span><span style="font-size:.92rem;color:#475569;">Excluded from this campaign</span></div>
+          <div style="display:flex;gap:.8rem;align-items:center;"><span class="badge badge-red">Failed</span><span style="font-size:.92rem;color:#475569;">Generation failed — write manually</span></div>
+        </div>
+        <div class="card amber mt2">
+          <div class="label">Tip: pick your user first</div>
+          <p>Claude signs emails with the <strong>active user</strong> (bottom of sidebar). Switch to your name before hitting Generate Drafts.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 12: Email Pack + Send ─────────── -->
+  <div class="slide">
+    <div class="label">Campaigns: Step 6 &amp; 7</div>
+    <h2>Sending from the Email Pack</h2>
+    <div class="cols cols-2 mt">
+      <div>
+        <p>Open the <strong>Email Pack tab</strong>. All approved drafts appear formatted and ready to send. You have two options:</p>
+        <div class="mt">
+          <div class="card green">
+            <div class="label">Option A — Save to Gmail Drafts (recommended)</div>
+            <p>Click <strong>Save to Gmail Drafts</strong>. One pre-addressed Gmail draft is created per approved journalist. Open Gmail → Drafts, add attachments, and hit Send yourself.</p>
+            <p style="margin-top:.5rem;font-size:.9rem;color:#64748b;">First time: click <strong>Connect Gmail</strong> → grant Gmail Compose access in the Google pop-up. Stays connected after that.</p>
+          </div>
+        </div>
+        <div class="mt card slate">
+          <div class="label">Option B — Copy and paste</div>
+          <p>Use <strong>Copy all</strong> to get all emails as a single text block, or copy individual cards.</p>
+        </div>
+      </div>
+      <div>
+        <div class="card purple">
+          <div class="label">After you send — Mark as sent</div>
+          <p>Click <strong>Mark as sent</strong> at the bottom of each email card after you've sent it. This automatically:</p>
+          <ul style="margin-top:.6rem;">
+            <li>Logs the pitch to the <strong>Activity Feed</strong> (channel, subject, body, date)</li>
+            <li>Sets the journalist's status to <strong>Pitched</strong></li>
+            <li>Moves the card to Sent (green) in Review Drafts</li>
+          </ul>
+        </div>
+        <div class="highlight mt2">
+          You don't need to manually log anything on the journalist's profile — Mark as sent handles everything.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 13: Press Coverage ─────────── -->
+  <div class="slide">
+    <div class="label">Feature: Press Coverage</div>
+    <h2>Tracking press coverage</h2>
+    <div class="cols cols-2 mt">
+      <div>
+        <div class="label">Adding a new article</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <h3>Paste the article URL</h3>
+              <p>Click <strong>Auto-fill</strong> — the system fetches the title, publication, and date from the page's metadata automatically.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <h3>Link the journalist</h3>
+              <p>Search by name from your tracked journalist roster. This builds a record of who has covered us.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <h3>Set type and sentiment</h3>
+              <p><strong>Type:</strong> Mention, Feature, Interview, Quote, Review, Op-ed<br><strong>Sentiment:</strong> Positive, Neutral, Mixed, Negative</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="card purple">
+          <div class="label">Linking coverage to a campaign</div>
+          <p>From any campaign's <strong>Coverage tab</strong>, search your coverage log and click <strong>+ Link</strong> to associate an article with that campaign. This shows, per campaign, how many articles it generated.</p>
+        </div>
+        <div class="card green">
+          <div class="label">Why this matters</div>
+          <ul>
+            <li>Journalists who have covered us are ranked highest when AI suggests contacts for a new campaign</li>
+            <li>Gives you a complete record of our media presence over time</li>
+            <li>Campaign coverage counts appear on the Dashboard pipeline</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 14: Activity Feed ─────────── -->
+  <div class="slide">
+    <div class="label">Feature: Activity Feed</div>
+    <h2>Activity Feed — your full outreach history</h2>
+    <div class="cols cols-2 mt">
+      <div>
+        <p>A chronological log of every pitch, follow-up, and response across all journalists — your complete media relations history.</p>
+        <div class="mt">
+          <div class="label">Each entry shows</div>
+          <ul>
+            <li>Journalist name (links to their profile)</li>
+            <li>Publication</li>
+            <li>Outreach status at time of log</li>
+            <li>Channel (Email, LinkedIn, Twitter, etc.)</li>
+            <li>Subject line and message body</li>
+            <li>Date sent</li>
+          </ul>
+        </div>
+        <div class="mt">
+          <div class="label">Filters</div>
+          <ul>
+            <li>By publication</li>
+            <li>By outreach status</li>
+            <li>By date range</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div class="card purple">
+          <div class="label">How entries are created</div>
+          <ul>
+            <li><strong>Automatically</strong> — clicking "Mark as sent" in the Email Pack creates a full log entry (subject, body, date, channel)</li>
+            <li><strong>Manually</strong> — add a log entry directly from the journalist's Outreach tab (for calls, LinkedIn DMs, or any other contact not going through the campaign flow)</li>
+          </ul>
+        </div>
+        <div class="card slate mt">
+          <div class="label">Summary stats</div>
+          <p>Top of the page shows totals across your filtered range: interactions, pitches sent, responses received, and coverage secured.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 15: Publications + RSS ─────────── -->
+  <div class="slide">
+    <div class="label">Admin: Publications</div>
+    <h2>Publications — keeping your roster fresh</h2>
+    <div class="cols cols-2 mt">
+      <div>
+        <div class="label">Weekly automated flow</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">↻</div>
+            <div class="step-body">
+              <h3>RSS feeds refresh (Fridays 7am)</h3>
+              <p>Fetches new articles from all active publication feeds. Updates "last published" dates for all journalists.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">↻</div>
+            <div class="step-body">
+              <h3>AI publication suggestions (weekly)</h3>
+              <p>Claude suggests new outlets to track. Review them in the amber banner at the top of Publications — accept or reject.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">↻</div>
+            <div class="step-body">
+              <h3>Journalist suggestions → RSS Suggestions tab</h3>
+              <p>New journalist bylines found by the RSS scanner appear here weekly for your review.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="card">
+          <div class="label">Publication tiers</div>
+          <table style="font-size:.9rem;">
+            <tr><th>Tier</th><th>Examples</th></tr>
+            <tr><td><strong>A</strong> — Major Tech &amp; AI</td><td>TechCrunch, Wired, MIT Tech Review</td></tr>
+            <tr><td><strong>B</strong> — Business / Mid-tier</td><td>Forbes, Fast Company, Bloomberg Tech</td></tr>
+            <tr><td><strong>C</strong> — Regional &amp; Niche</td><td>Hypepotamus, AI newsletters</td></tr>
+          </table>
+        </div>
+        <div class="card amber">
+          <div class="label">Your weekly task</div>
+          <p>Go to <strong>RSS Suggestions</strong> and review any new journalist suggestions. Accept the ones that are a good fit — Claude will score them automatically. This typically takes 5–10 minutes.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 16: Tips ─────────── -->
+  <div class="slide">
+    <div class="label">Best Practices</div>
+    <h2>Tips for getting the most out of the system</h2>
+    <div class="cols cols-2 mt">
+      <div class="card purple">
+        <h3>Before generating drafts</h3>
+        <ul>
+          <li>Select your name in the sidebar bottom so the sign-off is correct</li>
+          <li>Make sure House Style is set for your campaign type</li>
+          <li>Write a specific brief — the more context, the better the drafts</li>
+          <li>Fill in Campaign Assets (press kit URL, boilerplate) in the Edit Campaign panel</li>
+        </ul>
+      </div>
+      <div class="card green">
+        <h3>Choosing who to pitch</h3>
+        <ul>
+          <li>Warm contacts first — prioritise journalists who have responded or covered us before</li>
+          <li>Score is a tiebreaker, not the primary signal</li>
+          <li>Check "last published" — don't pitch journalists who haven't posted in 90+ days without checking</li>
+          <li>Run "Find Profiles" first so Claude has social context when scoring</li>
+        </ul>
+      </div>
+      <div class="card amber">
+        <h3>Keeping the system healthy</h3>
+        <ul>
+          <li>Review RSS Suggestions weekly (5–10 min)</li>
+          <li>Log all outreach — even calls and LinkedIn DMs — from the journalist's Outreach tab</li>
+          <li>Add press coverage as it comes in so journalists who covered us rank higher in future AI suggestions</li>
+          <li>Check the Dashboard system alerts — they flag when attention is needed</li>
+        </ul>
+      </div>
+      <div class="card slate">
+        <h3>Editing a campaign mid-flight</h3>
+        <ul>
+          <li>Click the pencil icon next to the campaign title</li>
+          <li>You can update name, type, status, brief, and campaign assets in one panel</li>
+          <li>If you change the brief, use the amber banner to bulk-regenerate pending drafts</li>
+          <li>Approved and sent drafts are never regenerated automatically</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── SLIDE 17: End ─────────── -->
+  <div class="slide cover" style="text-align:center;justify-content:center;align-items:center;">
+    <div style="max-width:560px;">
+      <div style="font-size:3rem;margin-bottom:1rem;">🚀</div>
+      <h1 style="font-size:2.4rem;">You're ready to go.</h1>
+      <p class="sub" style="margin-top:.8rem;">
+        App: <strong style="color:#c7d2fe">https://northstar-journalist-dossiers.vercel.app</strong><br>
+        Full docs: <strong style="color:#c7d2fe">GitBook</strong>
+      </p>
+      <div class="mt2">
+        <span class="pill">Questions? Ask Ting-Ya or check the GitBook docs.</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- #deck -->
+
+<!-- Nav bar -->
+<div id="nav">
+  <button id="prev" onclick="go(-1)" disabled>← Prev</button>
+  <div style="display:flex;align-items:center;gap:1rem;">
+    <div id="dots"></div>
+    <span id="counter">1 / 17</span>
+  </div>
+  <button id="next" onclick="go(1)">Next →</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let cur = 0;
+
+  const dotsEl = document.getElementById('dots');
+  const counterEl = document.getElementById('counter');
+  const progressEl = document.getElementById('progress');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+
+  // Build dots
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' on' : '');
+    d.onclick = () => goTo(i);
+    dotsEl.appendChild(d);
+  }
+
+  function goTo(n) {
+    slides[cur].classList.remove('active');
+    dotsEl.children[cur].classList.remove('on');
+    cur = Math.max(0, Math.min(total - 1, n));
+    slides[cur].classList.add('active');
+    dotsEl.children[cur].classList.add('on');
+    counterEl.textContent = (cur + 1) + ' / ' + total;
+    prevBtn.disabled = cur === 0;
+    nextBtn.disabled = cur === total - 1;
+    progressEl.style.width = ((cur + 1) / total * 100) + '%';
+  }
+
+  function go(dir) { goTo(cur + dir); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') go(1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   go(-1);
+  });
+
+  goTo(0);
+</script>
+</body>
+</html>
