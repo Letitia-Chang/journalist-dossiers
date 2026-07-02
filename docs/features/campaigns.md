@@ -130,7 +130,7 @@ The page polls every 3 seconds while generation is running and switches to the *
 
 ### Step 4b — Add Campaign Assets (optional)
 
-Below the campaign brief, expand the **Campaign Assets** panel. These URLs and boilerplate text are injected into every draft prompt so Claude can reference them naturally in the email body.
+Campaign Assets are URLs and boilerplate text injected into every draft prompt so Claude can reference them naturally in the email body. To edit them, click the **pencil (Edit) icon** next to the campaign title to open the Edit Campaign panel — the Assets section is at the bottom of the panel.
 
 | Field | What to put here |
 |---|---|
@@ -139,7 +139,7 @@ Below the campaign brief, expand the **Campaign Assets** panel. These URLs and b
 | **Demo URL** | Product demo link or video |
 | **Boilerplate** | Standard one-paragraph company description — Claude uses this if the email needs one |
 
-Click **Save** after filling in. Assets can be updated at any time before or after generating drafts — re-generate to incorporate changes.
+Click **Save changes** to save. The Campaign Assets collapsible on the main campaign page shows the current values as read-only — click the "Edit Campaign panel" link there to jump straight to editing.
 
 ---
 
@@ -206,6 +206,37 @@ Open the **Coverage tab** on the campaign. Any press article that results from t
 | **Sent** | Dark green | Marked as sent; logged to Activity Feed |
 | **Removed** | Muted grey | Excluded from this campaign's send list |
 | **Failed** | Red | Claude generation failed; write manually |
+
+---
+
+## Editing a campaign
+
+Click the **pencil icon** (Edit2) next to the campaign title to open the Edit Campaign slide-out panel. You can update:
+
+| Field | Notes |
+|---|---|
+| **Name** | Can be changed at any time |
+| **Type** | Changing the type counts as a brief change and will flag drafts as outdated |
+| **Status** | Draft → Active → Completed → Archived |
+| **Campaign brief** | Changing the brief flags existing pending/ready drafts as outdated |
+| **Campaign Assets** | Press kit URL, photo folder URL, demo URL, boilerplate |
+
+### Outdated drafts banner
+
+If you change the brief or campaign type and save, an amber banner appears on the campaign page: **"Brief or type has changed — some drafts may be outdated."** A **Regenerate pending & ready drafts** button appears to bulk-rewrite all drafts that haven't yet been approved or sent. Approved and sent drafts are not touched.
+
+---
+
+## Campaign status
+
+| Status | Meaning |
+|---|---|
+| **Draft** | Being set up — drafts may not be generated yet |
+| **Active** | Outreach in progress |
+| **Completed** | Campaign finished — all pitches sent |
+| **Archived** | Parked for reference; excluded from active campaign counts |
+
+Change status via the Edit Campaign panel (pencil icon next to the campaign title).
 
 ---
 

@@ -18,7 +18,7 @@ Dashboard alerts appear automatically for stale journalists, overdue follow-ups,
 | Review publication suggestions | Weekly | Publications (Admin) — amber banner |
 | Log outreach after every contact | After each pitch | Journalist profile → Outreach tab |
 | Add press coverage | When articles appear | Press Coverage page |
-| Find emails via Apollo | When new journalists added | Journalists list → "Find emails via Apollo" |
+| Find social profiles + email | When new journalists added | Journalist profile → Find Profiles (SerpAPI) |
 | Run "Find Profiles" for new journalists | Shortly after accepting | Journalist profile or Journalists list (bulk) |
 | Re-run "Find Profiles" for stale profiles | Every 90 days | Dashboard alert flags when due |
 | Update journalist notes / beat | When they change roles | Journalist profile → Edit |
