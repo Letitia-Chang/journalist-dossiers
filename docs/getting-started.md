@@ -36,7 +36,7 @@ Go to **RSS Suggestions** (Admin section). The RSS scanner surfaces journalists 
 
 ### Step 4 — Add contact info
 
-On each journalist's profile, use **Find email via Apollo** to look up their professional email, or add it manually.
+On each journalist's profile, click **Find Profiles** to run a SerpAPI search. This discovers their LinkedIn, MuckRack, Twitter/X, and sometimes their email address automatically. Add email manually where needed — check their publication's author page or contact page.
 
 ### Step 5 — Set House Style
 
