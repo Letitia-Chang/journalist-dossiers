@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, TrendingUp, Clock, MessageSquare, Star,
-  Megaphone, Send, Sparkles, AlertTriangle,
+  Megaphone, Send, Sparkles, AlertTriangle, Newspaper,
+  CheckCircle, ArrowUp, ArrowDown, Minus, ThumbsUp,
 } from 'lucide-react';
 import { dashboard } from '../api';
 import type { DashboardData, CampaignType } from '../types';
@@ -13,10 +14,21 @@ const CAMPAIGN_TYPE_LABELS: Record<CampaignType | string, string> = {
   cold_intro: 'Cold Intro', event: 'Event', hackathon: 'Hackathon', founder_promo: 'Founder',
 };
 const CAMPAIGN_TYPE_COLORS: Record<string, string> = {
-  cold_intro: 'bg-slate-100 text-slate-600',
-  event:      'bg-blue-50 text-blue-600',
-  hackathon:  'bg-violet-50 text-violet-600',
-  founder_promo: 'bg-amber-50 text-amber-700',
+  cold_intro:   'bg-slate-100 text-slate-600',
+  event:        'bg-blue-50 text-blue-600',
+  hackathon:    'bg-violet-50 text-violet-600',
+  founder_promo:'bg-amber-50 text-amber-700',
+};
+const SENTIMENT_COLORS: Record<string, string> = {
+  positive: 'text-emerald-600',
+  neutral:  'text-slate-400',
+  mixed:    'text-amber-500',
+  negative: 'text-rose-500',
+};
+const WARM_STATUS_COLOR: Record<string, string> = {
+  'Covered':        'bg-emerald-100 text-emerald-800',
+  'In Conversation':'bg-blue-100 text-blue-800',
+  'Responded':      'bg-northstar-100 text-northstar-800',
 };
 
 export default function Dashboard() {
@@ -30,6 +42,16 @@ export default function Dashboard() {
 
   const hasAlerts = data.staleJournalists > 0 || data.unreachablePubs > 0 || data.overdueFollowUps > 0 || data.needsReSearch > 0;
 
+  // Tier breakdown
+  const tierMap: Record<number, number> = {};
+  data.tiers.forEach(t => { tierMap[t.priorityTier] = t.count; });
+  const tierTotal = data.total || 1;
+  const tierColors = ['bg-northstar-500', 'bg-northstar-300', 'bg-northstar-200', 'bg-slate-200'];
+  const tierLabels = ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4'];
+
+  // Velocity
+  const velocityDelta = data.sentThisWeek - data.sentLastWeek;
+
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-7">
@@ -39,10 +61,57 @@ export default function Dashboard() {
 
       {/* ── Top stats row ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={Users}        label="Total Journalists"  value={data.total}        color="northstar" link="/journalists" />
-        <StatCard icon={TrendingUp}   label="Avg Score"          value={data.avgScore}      suffix="/100" color="green" />
-        <StatCard icon={Clock}        label="Follow-ups Due"     value={data.followUps.length} color="amber" />
-        <StatCard icon={MessageSquare} label="Recent Outreach"   value={data.recentOutreach.length} color="blue" />
+        {/* Journalists with tier bar */}
+        <Link to="/journalists" className="card p-5 hover:shadow-md transition-shadow">
+          <div className="w-9 h-9 rounded-lg bg-northstar-50 text-northstar-600 flex items-center justify-center mb-3">
+            <Users className="w-4 h-4" />
+          </div>
+          <div className="text-2xl font-bold text-slate-900">{data.total}</div>
+          <div className="text-sm text-slate-500 mt-0.5 mb-3">Total Journalists</div>
+          {data.total > 0 && (
+            <div className="space-y-1">
+              <div className="flex h-2 rounded-full overflow-hidden gap-px">
+                {[1,2,3,4].map((tier, i) => {
+                  const pct = ((tierMap[tier] || 0) / tierTotal) * 100;
+                  return pct > 0 ? (
+                    <div key={tier} className={`${tierColors[i]} transition-all`} style={{ width: `${pct}%` }} title={`${tierLabels[i]}: ${tierMap[tier] || 0}`} />
+                  ) : null;
+                })}
+              </div>
+              <div className="flex gap-3 flex-wrap">
+                {[1,2,3,4].map((tier, i) => tierMap[tier] ? (
+                  <span key={tier} className="text-xs text-slate-500 flex items-center gap-1">
+                    <span className={`w-2 h-2 rounded-full ${tierColors[i]}`} />
+                    T{tier} {tierMap[tier]}
+                  </span>
+                ) : null)}
+              </div>
+            </div>
+          )}
+        </Link>
+
+        <StatCard icon={TrendingUp} label="Avg Score" value={data.avgScore} suffix="/100" color="green" />
+
+        <StatCard icon={Clock} label="Follow-ups Due" value={data.followUps.length} color="amber" />
+
+        {/* Sent this week with velocity */}
+        <div className="card p-5 hover:shadow-md transition-shadow">
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
+            <Send className="w-4 h-4" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <div className="text-2xl font-bold text-slate-900">{data.sentThisWeek}</div>
+            {data.sentLastWeek > 0 || data.sentThisWeek > 0 ? (
+              <span className={`text-xs font-medium flex items-center gap-0.5 ${
+                velocityDelta > 0 ? 'text-emerald-600' : velocityDelta < 0 ? 'text-rose-500' : 'text-slate-400'
+              }`}>
+                {velocityDelta > 0 ? <ArrowUp className="w-3 h-3" /> : velocityDelta < 0 ? <ArrowDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                {Math.abs(velocityDelta)} vs last wk
+              </span>
+            ) : null}
+          </div>
+          <div className="text-sm text-slate-500 mt-0.5">Sent this week</div>
+        </div>
       </div>
 
       {/* ── Campaign pipeline ─────────────────────────────────────────────── */}
@@ -58,26 +127,9 @@ export default function Dashboard() {
 
         {/* Pipeline stat pills */}
         <div className="grid grid-cols-3 gap-3 mb-5">
-          <PipelineStat
-            icon={Megaphone}
-            value={data.activeCampaigns}
-            label="Active campaigns"
-            color="indigo"
-            link="/campaigns"
-          />
-          <PipelineStat
-            icon={Sparkles}
-            value={data.draftsReady}
-            label="Drafts to review"
-            color={data.draftsReady > 0 ? 'amber' : 'slate'}
-            link="/campaigns"
-          />
-          <PipelineStat
-            icon={Send}
-            value={data.sentThisWeek}
-            label="Sent this week"
-            color="emerald"
-          />
+          <PipelineStat icon={Megaphone}    value={data.activeCampaigns}  label="Active campaigns"    color="indigo" link="/campaigns" />
+          <PipelineStat icon={Sparkles}     value={data.draftsReady}      label="Drafts to review"    color={data.draftsReady > 0 ? 'amber' : 'slate'} link="/campaigns" />
+          <PipelineStat icon={CheckCircle}  value={data.approvedWaiting}  label="Approved, ready to send" color={data.approvedWaiting > 0 ? 'emerald' : 'slate'} link="/campaigns" />
         </div>
 
         {/* Recent campaigns table */}
@@ -101,17 +153,27 @@ export default function Dashboard() {
                 </span>
                 <span className="text-sm font-medium text-slate-800 flex-1 truncate">{c.name}</span>
                 <div className="flex items-center gap-3 text-xs text-slate-500 shrink-0">
-                  {c.readyCount > 0 && (
+                  {c.approvedCount > 0 && (
+                    <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                      <CheckCircle className="w-3 h-3" /> {c.approvedCount} ready
+                    </span>
+                  )}
+                  {c.readyCount > c.approvedCount && (
                     <span className="flex items-center gap-1 text-amber-600 font-medium">
-                      <Sparkles className="w-3 h-3" /> {c.readyCount} to review
+                      <Sparkles className="w-3 h-3" /> {c.readyCount - c.approvedCount} to review
                     </span>
                   )}
                   <span className="flex items-center gap-1">
                     <Users className="w-3 h-3" /> {c.journalistCount}
                   </span>
-                  <span className="flex items-center gap-1 text-emerald-600">
-                    <Send className="w-3 h-3" /> {c.sentCount} sent
+                  <span className="flex items-center gap-1 text-indigo-600">
+                    <Send className="w-3 h-3" /> {c.sentCount}
                   </span>
+                  {c.coverageCount > 0 && (
+                    <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                      <Newspaper className="w-3 h-3" /> {c.coverageCount}
+                    </span>
+                  )}
                 </div>
               </Link>
             ))}
@@ -119,6 +181,68 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* ── Warm contacts + Recent coverage ──────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Warm contacts */}
+        <div className="card p-5">
+          <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <ThumbsUp className="w-4 h-4 text-northstar-500" /> Warm Contacts
+          </h2>
+          {data.warmContacts.length === 0 ? (
+            <p className="text-slate-400 text-sm">No warm contacts yet. Start pitching to build relationships.</p>
+          ) : (
+            <div className="space-y-1">
+              {data.warmContacts.map(j => (
+                <Link key={j.id} to={`/journalists/${j.id}`} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm text-slate-900 truncate">{j.name}</div>
+                    <div className="text-xs text-slate-500 truncate">{j.publication}</div>
+                  </div>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ml-2 ${WARM_STATUS_COLOR[j.outreachStatus] || 'bg-slate-100 text-slate-600'}`}>
+                    {j.outreachStatus}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+          <Link to="/journalists?status=Responded" className="text-xs text-northstar-600 hover:underline mt-3 inline-block font-medium">
+            View all warm contacts →
+          </Link>
+        </div>
+
+        {/* Recent coverage */}
+        <div className="card p-5">
+          <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <Newspaper className="w-4 h-4 text-blue-500" /> Recent Press Coverage
+          </h2>
+          {data.recentCoverage.length === 0 ? (
+            <p className="text-slate-400 text-sm">No coverage tracked yet.</p>
+          ) : (
+            <div className="space-y-1">
+              {data.recentCoverage.map(c => (
+                <div key={c.id} className="py-2 px-3 rounded-lg hover:bg-slate-50">
+                  <div className="flex items-start gap-2">
+                    <span className={`text-xs mt-0.5 shrink-0 ${SENTIMENT_COLORS[c.sentiment]}`}>●</span>
+                    <div className="min-w-0">
+                      {c.url ? (
+                        <a href={c.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-slate-900 hover:text-northstar-700 hover:underline line-clamp-1">
+                          {c.title}
+                        </a>
+                      ) : (
+                        <div className="text-sm font-medium text-slate-900 line-clamp-1">{c.title}</div>
+                      )}
+                      <div className="text-xs text-slate-500">{c.publication}{c.publishDate ? ` · ${c.publishDate}` : ''}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <Link to="/coverage" className="text-xs text-northstar-600 hover:underline mt-3 inline-block font-medium">
+            View all coverage →
+          </Link>
+        </div>
+      </div>
 
       {/* ── Follow-ups + Recent outreach ──────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -189,13 +313,13 @@ export default function Dashboard() {
             {data.staleJournalists > 0 && (
               <Link to="/journalists" className="flex items-center gap-2 text-sm text-amber-800 hover:underline">
                 <AlertBadge count={data.staleJournalists} />
-                journalist{data.staleJournalists !== 1 ? 's' : ''} flagged as stale — no articles in 30+ days. Check if they've moved or gone quiet.
+                journalist{data.staleJournalists !== 1 ? 's' : ''} flagged as stale — no articles in 30+ days
               </Link>
             )}
             {data.needsReSearch > 0 && (
               <Link to="/journalists" className="flex items-center gap-2 text-sm text-amber-800 hover:underline">
                 <AlertBadge count={data.needsReSearch} />
-                journalist{data.needsReSearch !== 1 ? 's' : ''} not re-searched in 90+ days — run "Find profiles" to refresh social data
+                journalist{data.needsReSearch !== 1 ? 's' : ''} not re-searched in 90+ days — run "Find profiles" to refresh
               </Link>
             )}
             {data.unreachablePubs > 0 && (
@@ -208,7 +332,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Onboarding checklist (shown when system has no data yet) ─────── */}
       {data.total === 0 && <OnboardingChecklist />}
     </div>
   );
@@ -216,42 +339,12 @@ export default function Dashboard() {
 
 function OnboardingChecklist() {
   const steps = [
-    {
-      n: 1, done: false,
-      label: 'Add target publications',
-      detail: 'Go to Publications admin and add the outlets you want to track, or use "Discover blogs" to search Feedly & Substack.',
-      link: '/admin/publications', cta: 'Go to Publications →',
-    },
-    {
-      n: 2, done: false,
-      label: 'Discover RSS feeds per publication',
-      detail: 'On each publication row, click the Scan icon to find journalists from their RSS feeds.',
-      link: '/admin/publications', cta: 'Open Publications →',
-    },
-    {
-      n: 3, done: false,
-      label: 'Review journalist suggestions',
-      detail: 'Accept or reject each journalist Claude found. Accepted journalists get auto-scored.',
-      link: '/admin/journalist-suggestions', cta: 'Review suggestions →',
-    },
-    {
-      n: 4, done: false,
-      label: 'Add contact info (emails)',
-      detail: 'Use "Find profiles via SerpAPI" to discover LinkedIn and MuckRack profiles, then add contact info manually.',
-      link: '/journalists', cta: 'Open Journalists →',
-    },
-    {
-      n: 5, done: false,
-      label: 'Set your House Style',
-      detail: 'Write standing instructions Claude will follow when drafting every outreach email.',
-      link: '/campaigns/styles', cta: 'Set House Style →',
-    },
-    {
-      n: 6, done: false,
-      label: 'Create your first campaign',
-      detail: 'Pick a campaign type, select journalists, generate AI drafts, review and send.',
-      link: '/campaigns', cta: 'New Campaign →',
-    },
+    { n: 1, label: 'Add target publications', detail: 'Go to Publications admin and add the outlets you want to track.', link: '/admin/publications', cta: 'Go to Publications →' },
+    { n: 2, label: 'Discover RSS feeds per publication', detail: 'On each publication row, click the Scan icon to find journalists.', link: '/admin/publications', cta: 'Open Publications →' },
+    { n: 3, label: 'Review journalist suggestions', detail: 'Accept or reject each journalist Claude found. Accepted journalists get auto-scored.', link: '/admin/journalist-suggestions', cta: 'Review suggestions →' },
+    { n: 4, label: 'Add contact info (emails)', detail: 'Use "Find profiles via SerpAPI" to discover LinkedIn and MuckRack profiles.', link: '/journalists', cta: 'Open Journalists →' },
+    { n: 5, label: 'Set your House Style', detail: 'Write standing instructions Claude will follow when drafting every outreach email.', link: '/campaigns/styles', cta: 'Set House Style →' },
+    { n: 6, label: 'Create your first campaign', detail: 'Pick a campaign type, select journalists, generate AI drafts, review and send.', link: '/campaigns', cta: 'New Campaign →' },
   ];
 
   return (
@@ -266,32 +359,25 @@ function OnboardingChecklist() {
       <div className="space-y-3">
         {steps.map(s => (
           <div key={s.n} className="flex items-start gap-4 p-4 rounded-xl border border-slate-100 hover:border-northstar-200 hover:bg-northstar-50/30 transition-colors group">
-            <div className="w-7 h-7 rounded-full border-2 border-slate-200 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold text-slate-400">
-              {s.n}
-            </div>
+            <div className="w-7 h-7 rounded-full border-2 border-slate-200 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold text-slate-400">{s.n}</div>
             <div className="flex-1 min-w-0">
               <div className="font-medium text-slate-900 text-sm">{s.label}</div>
               <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{s.detail}</div>
             </div>
-            <Link to={s.link}
-              className="shrink-0 text-xs font-medium text-northstar-600 hover:text-northstar-800 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+            <Link to={s.link} className="shrink-0 text-xs font-medium text-northstar-600 hover:text-northstar-800 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
               {s.cta}
             </Link>
           </div>
         ))}
       </div>
-      <p className="text-xs text-slate-400 mt-4 text-center">
-        This checklist disappears once you have journalists in the system.
-      </p>
+      <p className="text-xs text-slate-400 mt-4 text-center">This checklist disappears once you have journalists in the system.</p>
     </div>
   );
 }
 
 function AlertBadge({ count }: { count: number }) {
   return (
-    <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-xs font-bold flex items-center justify-center shrink-0">
-      {count}
-    </span>
+    <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 text-xs font-bold flex items-center justify-center shrink-0">{count}</span>
   );
 }
 

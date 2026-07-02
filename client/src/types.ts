@@ -217,9 +217,14 @@ export interface DashboardData {
   needsReSearch: number;
   activeCampaigns: number;
   draftsReady: number;
+  approvedWaiting: number;
   sentThisWeek: number;
+  sentLastWeek: number;
   recentCampaigns: {
     id: number; name: string; type: string; status: string;
     journalistCount: number; sentCount: number; readyCount: number;
+    approvedCount: number; coverageCount: number;
   }[];
+  warmContacts: { id: number; name: string; publication: string; outreachStatus: string; totalScore: number; lastContactedDate: string }[];
+  recentCoverage: { id: number; title: string; url: string; publication: string; publishDate: string; coverageType: string; sentiment: string }[];
 }
