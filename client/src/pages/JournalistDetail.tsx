@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
-  Edit2, Trash2, ExternalLink, Mail, AtSign, Link2, Globe, FileText,
+  Edit2, Trash2, ExternalLink, AtSign, Link2, Globe, FileText,
   MessageSquare, ChevronLeft, Plus, Target, TrendingUp,
   Clock, Send, CheckCircle2, XCircle, AlertCircle, Camera, Copy, Check,
 } from 'lucide-react';
@@ -276,7 +276,7 @@ export default function JournalistDetail() {
               <><XCircle className="w-3.5 h-3.5 shrink-0" /> {profileResult.error}</>
             ) : (
               <><CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                {profileResult.saved
+                {(profileResult as any).saved
                   ? `Found and saved: ${[profileResult.linkedinUrl && 'LinkedIn', profileResult.muckrackUrl && 'MuckRack', profileResult.twitterUrl && 'Twitter', profileResult.contactUrl && 'Contact page'].filter(Boolean).join(', ')}`
                   : 'No new profiles found via Google search.'}
               </>

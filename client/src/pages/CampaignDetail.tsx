@@ -229,13 +229,6 @@ export default function CampaignDetail() {
     }
   };
 
-  const handleMarkSent = async (cj: CampaignJournalist) => {
-    setSending(cj.journalistId);
-    await handleSaveDraft(cj, 'approved'); // save any edits first
-    await cApi.markSent(Number(id), cj.journalistId, campaign.type);
-    setSending(null);
-    loadCampaign();
-  };
 
   const handleCopy = async (text: string, id: number) => {
     await navigator.clipboard.writeText(text);

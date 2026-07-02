@@ -140,7 +140,7 @@ export interface PublicationSuggestion {
 }
 
 export type CampaignType = 'cold_intro' | 'event' | 'hackathon' | 'founder_promo';
-export type CampaignStatus = 'draft' | 'active' | 'completed';
+export type CampaignStatus = 'draft' | 'active' | 'completed' | 'archived';
 export type DraftStatus = 'pending' | 'ready' | 'approved' | 'sent' | 'skipped' | 'failed';
 
 export interface Campaign {
