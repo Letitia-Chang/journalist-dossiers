@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Users, Sparkles, Download, Check, X,
   ChevronDown, ChevronUp, Copy, Send, RefreshCw, Search, Mail,
-  Wand2, AlertCircle, Star, Newspaper,
+  Wand2, AlertCircle, Star, Newspaper, Edit2,
 } from 'lucide-react';
 import { campaigns as cApi, journalists as jApi, coverage as covApi, auth as authApi } from '../api';
 import type { Campaign, CampaignJournalist, Journalist, CampaignType, CoverageItem } from '../types';
@@ -69,6 +69,11 @@ export default function CampaignDetail() {
   const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
   const [creatingGmailDrafts, setCreatingGmailDrafts] = useState(false);
   const [gmailDraftResults, setGmailDraftResults] = useState<{ name: string; email: string; success: boolean; error?: string }[] | null>(null);
+  const [showEditPanel, setShowEditPanel] = useState(false);
+  const [editDraft, setEditDraft] = useState({ name: '', type: 'cold_intro' as CampaignType, status: 'draft', brief: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [briefChanged, setBriefChanged] = useState(false);
+  const [regenAllPending, setRegenAllPending] = useState(false);
 
   const loadCoverage = useCallback(async () => {
     const [linked, all] = await Promise.all([
@@ -129,6 +134,43 @@ export default function CampaignDetail() {
       });
     }, 3000);
   }, [id, stopPolling]);
+
+  const openEditPanel = () => {
+    if (!campaign) return;
+    setEditDraft({
+      name: campaign.name,
+      type: campaign.type,
+      status: campaign.status,
+      brief: campaign.brief || '',
+    });
+    setBriefChanged(false);
+    setShowEditPanel(true);
+  };
+
+  const handleSaveEdit = async () => {
+    setSavingEdit(true);
+    const originalBrief = campaign?.brief || '';
+    const briefUpdated = editDraft.brief !== originalBrief || editDraft.type !== campaign?.type;
+    await cApi.update(Number(id), {
+      name: editDraft.name,
+      type: editDraft.type,
+      status: editDraft.status,
+      brief: editDraft.brief,
+    });
+    await loadCampaign();
+    setSavingEdit(false);
+    setShowEditPanel(false);
+    if (briefUpdated) setBriefChanged(true);
+  };
+
+  const handleRegenAllPending = async () => {
+    setRegenAllPending(true);
+    const pending = campaignJournalists.filter(cj => cj.draftStatus === 'pending' || cj.draftStatus === 'ready' || cj.draftStatus === 'failed');
+    await Promise.all(pending.map(cj => cApi.regenerateDraft(Number(id), cj.journalistId, '')));
+    startPolling();
+    setRegenAllPending(false);
+    setBriefChanged(false);
+  };
 
   if (!campaign) return <div className="p-8 text-slate-400">Loading…</div>;
 
@@ -270,31 +312,43 @@ export default function CampaignDetail() {
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-northstar-100 text-northstar-700">
                 {TYPE_LABELS[campaign.type]}
               </span>
-              <button
-                onClick={async () => {
-                  const next = campaign.status === 'draft' ? 'active' : campaign.status === 'active' ? 'completed' : 'active';
-                  await cApi.update(Number(id), { ...campaign, status: next });
-                  await loadCampaign();
-                }}
-                className={`text-xs font-semibold px-2 py-0.5 rounded-full border transition-colors ${
-                  campaign.status === 'active'    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' :
-                  campaign.status === 'completed' ? 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200' :
-                  campaign.status === 'archived'  ? 'bg-slate-100 text-slate-400 border-slate-200' :
-                  'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                }`}
-                title={
-                  campaign.status === 'draft'     ? 'Click to mark Active' :
-                  campaign.status === 'active'    ? 'Click to mark Completed' :
-                  campaign.status === 'completed' ? 'Click to reactivate' : ''
-                }
-                disabled={campaign.status === 'archived'}
-              >
-                {campaign.status === 'draft' ? 'Draft' : campaign.status === 'active' ? 'Active' : campaign.status === 'completed' ? 'Completed' : 'Archived'}
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                campaign.status === 'active'    ? 'bg-emerald-50 text-emerald-700' :
+                campaign.status === 'completed' ? 'bg-slate-100 text-slate-500' :
+                campaign.status === 'archived'  ? 'bg-slate-100 text-slate-400' :
+                'bg-amber-50 text-amber-700'
+              }`}>
+                {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-900">{campaign.name}</h1>
+              <button onClick={openEditPanel} className="text-slate-400 hover:text-northstar-600 transition-colors" title="Edit campaign">
+                <Edit2 className="w-4 h-4" />
               </button>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900">{campaign.name}</h1>
             {campaign.brief && (
               <p className="text-slate-500 mt-1 text-sm max-w-2xl">{campaign.brief}</p>
+            )}
+
+            {/* Outdated drafts banner */}
+            {briefChanged && (
+              <div className="mt-3 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-start gap-3 max-w-2xl">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <strong>Brief updated</strong> — drafts generated before this change may be outdated. Approved and sent drafts are untouched.
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={handleRegenAllPending}
+                      disabled={regenAllPending}
+                      className="text-xs font-semibold bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      {regenAllPending ? 'Regenerating…' : 'Regenerate pending & ready drafts'}
+                    </button>
+                    <button onClick={() => setBriefChanged(false)} className="text-xs text-amber-600 hover:text-amber-800 px-2">Dismiss</button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Campaign Assets */}
@@ -1131,6 +1185,102 @@ export default function CampaignDetail() {
             })()}
           </div>
         </div>
+      )}
+
+      {/* ── Edit Campaign Panel ───────────────────────────────────────────── */}
+      {showEditPanel && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 bg-black/30 z-20" onClick={() => setShowEditPanel(false)} />
+          {/* Slide-out panel */}
+          <div className="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-xl z-30 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h2 className="font-bold text-slate-900 text-lg">Edit Campaign</h2>
+              <button onClick={() => setShowEditPanel(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              {/* Name */}
+              <div>
+                <label className="form-label">Campaign name</label>
+                <input
+                  className="form-input"
+                  value={editDraft.name}
+                  onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
+                />
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="form-label">Type</label>
+                <select
+                  className="form-input"
+                  value={editDraft.type}
+                  onChange={e => setEditDraft(d => ({ ...d, type: e.target.value as CampaignType }))}
+                >
+                  <option value="cold_intro">Cold Introduction</option>
+                  <option value="event">Event Coverage</option>
+                  <option value="hackathon">Hackathon</option>
+                  <option value="founder_promo">Founder Spotlight</option>
+                </select>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="form-label">Status</label>
+                <select
+                  className="form-input"
+                  value={editDraft.status}
+                  onChange={e => setEditDraft(d => ({ ...d, status: e.target.value }))}
+                >
+                  <option value="draft">Draft</option>
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </div>
+
+              {/* Brief */}
+              <div>
+                <label className="form-label">
+                  Campaign brief
+                  <span className="ml-1 text-slate-400 font-normal">(used in every draft prompt)</span>
+                </label>
+                <textarea
+                  className="form-textarea"
+                  rows={5}
+                  value={editDraft.brief}
+                  onChange={e => setEditDraft(d => ({ ...d, brief: e.target.value }))}
+                  placeholder="2–4 sentences about what you're announcing and what angle you want journalists to take…"
+                />
+                {(editDraft.brief !== (campaign.brief || '') || editDraft.type !== campaign.type) && (
+                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> Saving this will flag existing pending drafts as outdated
+                  </p>
+                )}
+              </div>
+
+              <p className="text-xs text-slate-400 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                The email sign-off name and title come from the <strong>active user</strong> selected in the sidebar — switch users there before generating drafts.
+              </p>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-200 flex gap-3">
+              <button
+                onClick={handleSaveEdit}
+                disabled={savingEdit || !editDraft.name.trim()}
+                className="btn-primary flex-1"
+              >
+                {savingEdit ? 'Saving…' : 'Save changes'}
+              </button>
+              <button onClick={() => setShowEditPanel(false)} className="btn-secondary">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
