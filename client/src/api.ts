@@ -1,8 +1,37 @@
 import axios from 'axios';
 
+const TOKEN_KEY = 'ns_auth_token';
+
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
+export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
 });
+
+api.interceptors.request.use(config => {
+  const token = getToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+api.interceptors.response.use(
+  r => r,
+  err => {
+    if (err.response?.status === 401) {
+      clearToken();
+      window.dispatchEvent(new Event('ns:logout'));
+    }
+    return Promise.reject(err);
+  },
+);
+
+export const login = (password: string) =>
+  axios.post(
+    `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/auth/login`,
+    { password },
+  );
 
 export default api;
 
