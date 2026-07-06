@@ -11,7 +11,7 @@ const parser = new Parser({
   customFields: { item: [['dc:creator', 'creator'], ['author', 'author']] },
 });
 
-const STALE_DAYS = 30;
+const STALE_DAYS = 60;
 
 export interface RefreshResult {
   journalistId: number;

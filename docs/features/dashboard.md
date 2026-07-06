@@ -40,7 +40,7 @@ Below the main content, alerts fire automatically for four conditions:
 | Alert | What it means | Action |
 |---|---|---|
 | **Overdue follow-ups** | Journalists with status Pitched or Responded whose follow-up date has passed | Log your next step or update their status |
-| **Stale journalists** | No new published articles in 30+ days | Check if they've changed beats or left the publication |
+| **Stale journalists** | No new published articles in 60+ days | Check if they've changed beats or left the publication |
 | **Needs re-search** | "Find Profiles" hasn't been run in 90+ days | Run Find Profiles to refresh social data |
 | **Unreachable publications** | RSS feeds returning errors | Use Sync Feeds or fix the URL in Publications |
 

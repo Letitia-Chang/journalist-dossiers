@@ -1,8 +1,9 @@
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Users, FileDown, Settings, Rss, Megaphone, Wand2, Activity, Newspaper, BookOpen, ChevronDown, AlertTriangle } from 'lucide-react';
+import { LayoutDashboard, Users, FileDown, Settings, Rss, Megaphone, Wand2, Activity, Newspaper, BookOpen, ChevronDown, AlertTriangle, LogOut } from 'lucide-react';
 import { useUser } from './UserContext';
-import { users as usersApi } from './api';
+import { users as usersApi, getToken, clearToken } from './api';
+import LoginPage from './pages/LoginPage';
 import type { User } from './types';
 import Dashboard from './pages/Dashboard';
 import JournalistsList from './pages/JournalistsList';
@@ -41,6 +42,7 @@ function initials(name: string) {
 }
 
 export default function App() {
+  const [authed, setAuthed] = useState(() => !!getToken());
   const [suggestionCount, setSuggestionCount] = useState(0);
   const [jSuggestionCount, setJSuggestionCount] = useState(0);
   const [userList, setUserList] = useState<User[]>([]);
@@ -48,6 +50,13 @@ export default function App() {
   const { currentUser, setCurrentUser } = useUser();
 
   useEffect(() => {
+    const handler = () => setAuthed(false);
+    window.addEventListener('ns:logout', handler);
+    return () => window.removeEventListener('ns:logout', handler);
+  }, []);
+
+  useEffect(() => {
+    if (!authed) return;
     const fetchCounts = () => {
       suggestApi.count().then(r => setSuggestionCount(r.data.count)).catch(() => {});
       jSuggestApi.count().then(r => setJSuggestionCount(r.data.count)).catch(() => {});
@@ -55,11 +64,14 @@ export default function App() {
     fetchCounts();
     const interval = setInterval(fetchCounts, 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [authed]);
 
   useEffect(() => {
+    if (!authed) return;
     usersApi.list().then(r => setUserList(r.data)).catch(() => {});
-  }, []);
+  }, [authed]);
+
+  if (!authed) return <LoginPage onLogin={() => setAuthed(true)} />;
 
   return (
     <div className="flex bg-slate-50" style={{ margin: 0, minHeight: '100vh', width: '100%' }}>
@@ -147,8 +159,15 @@ export default function App() {
           )}
         </div>
 
-        <div className="px-4 pb-3 text-northstar-500 text-xs">
-          MVP v1.0 · PostgreSQL
+        <div className="px-4 pb-3 flex items-center justify-between">
+          <span className="text-northstar-500 text-xs">MVP v1.0 · PostgreSQL</span>
+          <button
+            onClick={() => { clearToken(); setAuthed(false); }}
+            title="Lock"
+            className="text-northstar-500 hover:text-northstar-300 transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
         </div>
       </aside>
 
