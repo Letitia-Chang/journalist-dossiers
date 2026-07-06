@@ -279,7 +279,7 @@ export default function Dashboard() {
             {data.staleJournalists > 0 && (
               <Link to="/journalists" className="flex items-center gap-2 text-sm text-amber-800 hover:underline">
                 <AlertBadge count={data.staleJournalists} />
-                journalist{data.staleJournalists !== 1 ? 's' : ''} flagged as stale — no articles in 30+ days
+                journalist{data.staleJournalists !== 1 ? 's' : ''} flagged as stale — no articles in 60+ days
               </Link>
             )}
             {data.needsReSearch > 0 && (

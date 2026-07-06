@@ -22,6 +22,7 @@ import coverageRouter from './routes/coverage';
 import usersRouter from './routes/users';
 import authRouter from './routes/auth';
 import cron from 'node-cron';
+import { requireAuth, loginHandler } from './middleware/auth';
 
 const app = express();
 
@@ -45,6 +46,12 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '10mb' }));
+
+// ── Auth — login + health must come before requireAuth middleware ──────────────
+app.post('/api/auth/login', loginHandler);
+app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
+app.use('/api', requireAuth);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/journalists', journalistsRouter);
@@ -167,10 +174,6 @@ app.get('/api/dashboard', async (_req, res) => {
   }
 });
 
-// ── Healthcheck (Railway) ────────────────────────────────────────────────────
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok' });
-});
 
 
 
