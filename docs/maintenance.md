@@ -31,7 +31,7 @@ The dashboard **System Alerts** section flags four conditions automatically:
 | Alert | Meaning | Action |
 |---|---|---|
 | **Overdue follow-ups** | Journalists with status "Pitched" or "Responded" whose follow-up date has passed | Log your next step or update the status |
-| **Stale journalists** | No new articles in 30+ days | Check if they've changed beats or left the publication |
+| **Stale journalists** | No new articles in 60+ days | Check if they've changed beats or left the publication |
 | **Needs re-search** | "Find Profiles" hasn't been run in 90+ days | Run "Find Profiles" to refresh social data and check for updated follower counts |
 | **Unreachable publications** | RSS feeds returning errors | Click "Sync Feeds" or fix the feed URL manually |
 

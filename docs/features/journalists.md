@@ -101,7 +101,7 @@ Each journalist has a relationship status that you control manually. The status 
 
 The journalist list and profile both show **"last published X days ago"** based on the most recent article in the system from their RSS feed. This is refreshed every Friday by the automated RSS cron job.
 
-If a journalist hasn't published in 30+ days, they're flagged as **stale** and the date is highlighted in amber. A stale flag doesn't mean they're gone — they may be on leave, writing long-form pieces, or between jobs. Check their LinkedIn or publication page before removing them.
+If a journalist hasn't published in 60+ days, they're flagged as **stale** and the date is highlighted in amber. A stale flag doesn't mean they're gone — they may be on leave, writing long-form pieces, or between jobs. Check their LinkedIn or publication page before removing them.
 
 ---
 
