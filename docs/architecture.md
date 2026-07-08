@@ -18,8 +18,8 @@ The system is fully cloud-hosted — no local installation needed for team membe
 
 | Service | Platform | URL |
 |---|---|---|
-| Frontend | Vercel | https://northstar-journalist-dossiers.vercel.app |
-| Backend API | Railway | https://northstar-journalist-dossiers-production.up.railway.app |
+| Frontend | Vercel | https://journalist-dossiers.vercel.app |
+| Backend API | Railway | https://journalist-dossiers-production.up.railway.app |
 | Database | Railway (PostgreSQL) | Internal — accessed only by the backend |
 
 The frontend is a static React SPA deployed on Vercel. The backend is an Express server on Railway (~$5/month). The PostgreSQL database is a managed Railway add-on.

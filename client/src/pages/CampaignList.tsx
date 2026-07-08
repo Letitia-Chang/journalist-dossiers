@@ -40,7 +40,7 @@ export default function CampaignList() {
   const handleCreate = async () => {
     if (!form.name.trim() || !form.brief.trim()) return;
     setSaving(true);
-    await api.create(form);
+    await api.create({ name: form.name, brief: form.brief, campaignType: form.type });
     setSaving(false);
     setShowForm(false);
     setForm({ name: '', type: 'cold_intro', brief: '' });
@@ -186,8 +186,8 @@ export default function CampaignList() {
               {/* Type + name */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLORS[c.type]}`}>
-                    {TYPE_LABELS[c.type]}
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLORS[c.campaign_type as CampaignType] ?? 'bg-slate-100 text-slate-700'}`}>
+                    {TYPE_LABELS[c.campaign_type as CampaignType] ?? c.campaign_type}
                   </span>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[c.status] ?? 'bg-slate-100 text-slate-500'}`}>
                     {c.status}
@@ -206,17 +206,17 @@ export default function CampaignList() {
                 <div className="text-center">
                   <div className="flex items-center gap-1 text-slate-500">
                     <Users className="w-3.5 h-3.5" />
-                    <span className="text-sm font-semibold text-slate-700">{c.journalistCount ?? 0}</span>
+                    <span className="text-sm font-semibold text-slate-700">{c.journalist_count ?? 0}</span>
                   </div>
                   <div className="text-xs text-slate-400">journalists</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-semibold text-emerald-600">{c.sentCount ?? 0}</div>
+                  <div className="text-sm font-semibold text-emerald-600">{c.sent_count ?? 0}</div>
                   <div className="text-xs text-slate-400">sent</div>
                 </div>
                 <div className="flex items-center gap-1 text-xs text-slate-400">
                   <Calendar className="w-3 h-3" />
-                  {new Date(c.createdAt).toLocaleDateString()}
+                  {new Date(c.created_at).toLocaleDateString()}
                 </div>
               </div>
 

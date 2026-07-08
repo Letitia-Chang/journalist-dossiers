@@ -5,8 +5,10 @@ export default function StatusBadge({ status }: { status: string }) {
     'Ready to Pitch': 'bg-blue-100 text-blue-700',
     'Pitched': 'bg-yellow-100 text-yellow-700',
     'Responded': 'bg-green-100 text-green-700',
+    'No Response': 'bg-amber-100 text-amber-700',
     'In Conversation': 'bg-emerald-100 text-emerald-700',
     'Covered': 'bg-teal-100 text-teal-700',
+    'Declined': 'bg-red-100 text-red-600',
     'Not a Fit': 'bg-red-100 text-red-600',
     'On Hold': 'bg-slate-100 text-slate-500',
   };

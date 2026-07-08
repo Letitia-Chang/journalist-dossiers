@@ -42,7 +42,7 @@ npm run dev        # runs on :5173
 ## Project structure
 
 ```
-northstar-journalist-dossiers/
+journalist-dossiers/
 ├── client/src/
 │   ├── pages/           # One file per route/page
 │   ├── components/      # Shared UI components

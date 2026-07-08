@@ -1,153 +1,85 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import pool from '../db';
 
 const router = Router();
 
-const LOG_PRIORITY: Record<string, number> = {
-  'Not a Fit': 8, 'Declined': 8, 'Covered': 7, 'Meeting Scheduled': 6,
-  'Responded': 5, 'Sent': 3, 'No Response': 3, 'Draft': 0,
-};
-const LOG_TO_JOURNALIST_STATUS: Record<string, string> = {
-  'Not a Fit': 'Not a Fit', 'Declined': 'Not a Fit', 'Covered': 'Covered',
-  'Meeting Scheduled': 'In Conversation', 'Responded': 'Responded',
-  'Sent': 'Pitched', 'No Response': 'Pitched',
-};
-
-async function syncJournalistStatus(journalistId: number): Promise<void> {
-  const logs = (await pool.query(
-    'SELECT * FROM outreach_logs WHERE "journalistId" = $1 ORDER BY date DESC, "createdAt" DESC',
-    [journalistId]
-  )).rows;
-
-  if (logs.length === 0) {
-    await pool.query(
-      "UPDATE journalists SET \"outreachStatus\" = 'Researching', \"lastContactedDate\" = '', \"updatedAt\" = NOW() WHERE id = $1",
-      [journalistId]
-    );
-    return;
-  }
-
-  let bestStatus = '';
-  let bestPriority = -1;
-  for (const log of logs) {
-    const p = LOG_PRIORITY[log.status] ?? 0;
-    if (p > bestPriority) { bestPriority = p; bestStatus = log.status; }
-  }
-  if (bestPriority <= 0) return;
-
-  const newOutreachStatus = LOG_TO_JOURNALIST_STATUS[bestStatus];
-  if (!newOutreachStatus) return;
-
-  const lastSent = logs.find(l => l.status !== 'Draft' && l.date);
-  const lastContactedDate = lastSent?.date || '';
-
-  let followUpDate = '';
-  if (newOutreachStatus === 'Pitched' && lastContactedDate) {
-    const followUp = new Date(lastContactedDate);
-    followUp.setDate(followUp.getDate() + 7);
-    followUpDate = followUp.toISOString().split('T')[0];
-  }
-
-  await pool.query(`
-    UPDATE journalists SET
-      "outreachStatus" = $1,
-      "lastContactedDate" = CASE WHEN $2 != '' THEN $2 ELSE "lastContactedDate" END,
-      "nextFollowUpDate" = CASE WHEN $3 != '' AND ("nextFollowUpDate" IS NULL OR "nextFollowUpDate" = '') THEN $3 ELSE "nextFollowUpDate" END,
-      "updatedAt" = NOW()
-    WHERE id = $4
-  `, [newOutreachStatus, lastContactedDate, followUpDate, journalistId]);
-
-  console.log(`[OutreachSync] Journalist ${journalistId} → ${newOutreachStatus}`);
-}
-
-// GET /activity — full activity feed
-router.get('/activity', async (req: Request, res: Response) => {
-  try {
-    const { publication, status, from, to, limit = '200' } = req.query as Record<string, string>;
-    let where = '1=1';
-    const params: any[] = [];
-    let n = 1;
-
-    if (publication) { where += ` AND j.publication = $${n++}`; params.push(publication); }
-    if (status)      { where += ` AND ol.status = $${n++}`;      params.push(status); }
-    if (from)        { where += ` AND ol.date >= $${n++}`;        params.push(from); }
-    if (to)          { where += ` AND ol.date <= $${n++}`;        params.push(to); }
-
-    const rows = (await pool.query(`
-      SELECT ol.*, j.name AS "journalistName", j.publication AS publication,
-             j."outreachStatus" AS "journalistStatus"
-      FROM outreach_logs ol
-      JOIN journalists j ON j.id = ol."journalistId"
-      WHERE ${where}
-      ORDER BY ol.date DESC, ol."createdAt" DESC
-      LIMIT $${n}
-    `, [...params, Number(limit)])).rows;
-
-    const publications = (await pool.query(`
-      SELECT DISTINCT j.publication
-      FROM outreach_logs ol
-      JOIN journalists j ON j.id = ol."journalistId"
-      ORDER BY j.publication
-    `)).rows.map((r: any) => r.publication);
-
-    res.json({ logs: rows, publications });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+// GET /api/outreach/activity — chronological feed across all journalists
+router.get('/activity', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT ol.id, ol.journalist_id, ol.campaign_id, ol.type, ol.status, ol.notes, ol.logged_at,
+            j.name as journalist_name, p.name as publication_name,
+            u.name as logged_by_name
+     FROM outreach_logs ol
+     JOIN journalists j ON j.id = ol.journalist_id
+     LEFT JOIN publications p ON p.id = j.publication_id
+     LEFT JOIN users u ON u.id = ol.logged_by
+     WHERE ol.org_id = $1
+     ORDER BY ol.logged_at DESC
+     LIMIT 100`,
+    [req.orgId],
+  );
+  res.json(rows);
 });
 
-router.get('/journalist/:journalistId', async (req: Request, res: Response) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM outreach_logs WHERE "journalistId" = $1 ORDER BY date DESC, "createdAt" DESC',
-      [req.params.journalistId]
-    );
-    res.json(result.rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+// GET /api/outreach/journalist/:journalistId — history for one journalist
+router.get('/journalist/:journalistId', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT ol.id, ol.journalist_id, ol.campaign_id, ol.type, ol.status, ol.notes, ol.logged_at,
+            u.name as logged_by_name
+     FROM outreach_logs ol
+     LEFT JOIN users u ON u.id = ol.logged_by
+     WHERE ol.org_id = $1 AND ol.journalist_id = $2
+     ORDER BY ol.logged_at DESC`,
+    [req.orgId, req.params.journalistId],
+  );
+  res.json(rows);
 });
 
-router.post('/', async (req: Request, res: Response) => {
-  try {
-    const b = req.body;
-    const result = await pool.query(`
-      INSERT INTO outreach_logs ("journalistId", date, channel, "messageType", "subjectLine", "messageBody", response, status, "nextStep")
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
-    `, [b.journalistId, b.date, b.channel, b.messageType, b.subjectLine, b.messageBody, b.response, b.status, b.nextStep]);
-    const created = (await pool.query('SELECT * FROM outreach_logs WHERE id = $1', [result.rows[0].id])).rows[0];
-    await syncJournalistStatus(Number(b.journalistId));
-    res.status(201).json(created);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+router.post('/', async (req, res) => {
+  const { journalistId, campaignId, type, status, notes } = req.body as {
+    journalistId?: number; campaignId?: number; type?: string; status?: string; notes?: string;
+  };
+  if (!journalistId || !type || !status) {
+    return res.status(400).json({ error: 'journalistId, type, and status are required' });
   }
+
+  const { rows: [journalist] } = await pool.query(
+    'SELECT id FROM journalists WHERE id = $1 AND org_id = $2',
+    [journalistId, req.orgId],
+  );
+  if (!journalist) return res.status(404).json({ error: 'Journalist not found' });
+
+  const { rows: [row] } = await pool.query(
+    `INSERT INTO outreach_logs (org_id, journalist_id, campaign_id, logged_by, type, status, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id, journalist_id, campaign_id, type, status, notes, logged_at`,
+    [req.orgId, journalistId, campaignId ?? null, req.userId, type, status, notes ?? ''],
+  );
+  res.status(201).json(row);
 });
 
-router.put('/:id', async (req: Request, res: Response) => {
-  try {
-    const b = req.body;
-    await pool.query(`
-      UPDATE outreach_logs SET date=$1, channel=$2, "messageType"=$3,
-      "subjectLine"=$4, "messageBody"=$5, response=$6,
-      status=$7, "nextStep"=$8, "updatedAt"=NOW() WHERE id=$9
-    `, [b.date, b.channel, b.messageType, b.subjectLine, b.messageBody, b.response, b.status, b.nextStep, req.params.id]);
-    const updated = (await pool.query('SELECT * FROM outreach_logs WHERE id = $1', [req.params.id])).rows[0];
-    if (updated) await syncJournalistStatus(Number(updated.journalistId));
-    res.json(updated);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.put('/:id', async (req, res) => {
+  const { type, status, notes } = req.body as { type?: string; status?: string; notes?: string };
+  const { rows: [row] } = await pool.query(
+    `UPDATE outreach_logs SET
+       type = COALESCE($1, type),
+       status = COALESCE($2, status),
+       notes = COALESCE($3, notes)
+     WHERE id = $4 AND org_id = $5
+     RETURNING id, journalist_id, campaign_id, type, status, notes, logged_at`,
+    [type, status, notes, req.params.id, req.orgId],
+  );
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(row);
 });
 
-router.delete('/:id', async (req: Request, res: Response) => {
-  try {
-    const log = (await pool.query('SELECT "journalistId" FROM outreach_logs WHERE id = $1', [req.params.id])).rows[0];
-    await pool.query('DELETE FROM outreach_logs WHERE id = $1', [req.params.id]);
-    if (log) await syncJournalistStatus(Number(log.journalistId));
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.delete('/:id', async (req, res) => {
+  const result = await pool.query(
+    'DELETE FROM outreach_logs WHERE id = $1 AND org_id = $2',
+    [req.params.id, req.orgId],
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  res.status(204).end();
 });
 
 export default router;

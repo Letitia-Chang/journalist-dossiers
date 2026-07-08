@@ -1,10 +1,24 @@
 import type { Request, Response, NextFunction } from 'express';
-import { createHmac } from 'crypto';
+import jwt from 'jsonwebtoken';
 
-function computeToken(): string {
-  const secret = process.env.SESSION_SECRET ?? 'dev-secret';
-  const password = process.env.APP_PASSWORD ?? '';
-  return createHmac('sha256', secret).update(password).digest('hex');
+export interface AuthTokenPayload {
+  sub: string;
+  orgId: string;
+  role: string;
+}
+
+function getSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error('SESSION_SECRET is not set');
+  return secret;
+}
+
+export function signToken(payload: AuthTokenPayload): string {
+  return jwt.sign(payload, getSecret(), { expiresIn: '7d' });
+}
+
+export function verifyToken(token: string): AuthTokenPayload {
+  return jwt.verify(token, getSecret()) as AuthTokenPayload;
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -12,16 +26,22 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!header?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  if (header.slice(7) !== computeToken()) {
+  try {
+    const decoded = jwt.verify(header.slice(7), getSecret()) as AuthTokenPayload;
+    req.userId = decoded.sub;
+    req.orgId = decoded.orgId;
+    req.userRole = decoded.role;
+    next();
+  } catch {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  next();
 }
 
-export function loginHandler(req: Request, res: Response) {
-  const { password } = req.body as { password?: string };
-  if (!password || password !== process.env.APP_PASSWORD) {
-    return res.status(401).json({ error: 'Wrong password' });
-  }
-  res.json({ token: computeToken() });
+export function requireRole(...roles: Array<'owner' | 'admin' | 'member'>) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userRole || !roles.includes(req.userRole as any)) {
+      return res.status(403).json({ error: 'You do not have permission to perform this action' });
+    }
+    next();
+  };
 }

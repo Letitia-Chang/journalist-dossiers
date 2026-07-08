@@ -1,36 +1,28 @@
 import { Router } from 'express';
 import pool from '../db';
+import { requireRole } from '../middleware/auth';
 
 const router = Router();
 
-// GET /api/campaign-styles
-router.get('/', async (_req, res) => {
-  try {
-    const result = await pool.query('SELECT type, instructions, "updatedAt" FROM campaign_type_styles');
-    res.json(result.rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/', async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT campaign_type, instructions, updated_at FROM campaign_type_styles WHERE org_id = $1',
+    [req.orgId],
+  );
+  res.json(rows);
 });
 
-// PUT /api/campaign-styles/:type
-router.put('/:type', async (req, res) => {
-  try {
-    const { type } = req.params;
-    const valid = ['cold_intro', 'event', 'hackathon', 'founder_promo'];
-    if (!valid.includes(type)) return res.status(400).json({ error: 'Invalid campaign type' });
-
-    const { instructions } = req.body;
-    if (typeof instructions !== 'string') return res.status(400).json({ error: 'instructions must be a string' });
-
-    await pool.query(
-      'UPDATE campaign_type_styles SET instructions = $1, "updatedAt" = NOW() WHERE type = $2',
-      [instructions.trim(), type]
-    );
-    res.json({ type, instructions: instructions.trim() });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.put('/:campaignType', requireRole('owner', 'admin'), async (req, res) => {
+  const { instructions } = req.body as { instructions?: string };
+  const { rows: [row] } = await pool.query(
+    `INSERT INTO campaign_type_styles (org_id, campaign_type, instructions)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (org_id, campaign_type)
+     DO UPDATE SET instructions = $3, updated_at = NOW()
+     RETURNING campaign_type, instructions, updated_at`,
+    [req.orgId, req.params.campaignType, instructions ?? ''],
+  );
+  res.json(row);
 });
 
 export default router;

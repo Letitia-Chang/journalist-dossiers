@@ -1,50 +1,30 @@
-import { useEffect, useState } from 'react';
-import { useRef } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus, Pencil, Trash2, ExternalLink, Check, X,
   Sparkles, RefreshCw, History, ChevronUp, ChevronDown,
   Globe, ChevronRight, Rss, AlertCircle, HelpCircle,
-  BookOpen, Search, TriangleAlert, Upload, Layers, Zap, Users,
+  BookOpen, Search, TriangleAlert, Layers, Zap, Users, Upload,
 } from 'lucide-react';
 import { publications as pubApi, suggestions as suggestApi, journalistSuggestions as jSuggestApi, healthCheck as healthApi } from '../api';
+import { useAuth } from '../context/AuthContext';
 import type { Publication, PublicationSuggestion, PublicationFeed } from '../types';
-
-// ─── Tier config ─────────────────────────────────────────────────────────────
 
 const TIER_CONFIG = {
   A: {
-    label: 'Major Tech & AI',
+    label: 'Major & National',
     pill: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200',
-    accent: 'border-indigo-400',
-    bg: 'bg-indigo-50',
-    text: 'text-indigo-700',
-    dot: 'bg-indigo-400',
-    description: 'Large-audience national publications where AI and tech is the primary editorial beat.',
-    examples: 'TechCrunch, Wired, MIT Technology Review, The Verge, VentureBeat',
-    when: 'Product launches, funding rounds, research breakthroughs — anything with broad industry reach.',
+    description: 'Large-audience outlets where your space is a primary editorial beat.',
   },
   B: {
     label: 'Business / Mid-Tier',
     pill: 'bg-sky-50 text-sky-700 ring-1 ring-sky-200',
-    accent: 'border-sky-400',
-    bg: 'bg-sky-50',
-    text: 'text-sky-700',
-    dot: 'bg-sky-400',
-    description: 'Business publications with dedicated tech or AI desks. Audience skews executive and investor.',
-    examples: 'Forbes Technology, Fortune Tech, Fast Company, Bloomberg Technology, WSJ Tech',
-    when: 'Funding announcements, leadership profiles, enterprise AI adoption stories.',
+    description: 'Business publications with a dedicated desk relevant to you.',
   },
   C: {
     label: 'Regional & Niche',
     pill: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
-    accent: 'border-slate-400',
-    bg: 'bg-slate-50',
-    text: 'text-slate-600',
-    dot: 'bg-slate-400',
-    description: 'Regional outlets (especially Southeast US), AI newsletters, and emerging vertical publications.',
-    examples: 'Hypepotamus, Atlanta Business Chronicle, AJC, GeekWire, AI newsletters',
-    when: 'Local ecosystem stories, community announcements. Not lower priority — just more targeted.',
+    description: 'Regional outlets, newsletters, and emerging vertical publications.',
   },
 } as const;
 
@@ -56,9 +36,6 @@ const TierPill = ({ tier, showLabel = false }: { tier: Tier; showLabel?: boolean
   </span>
 );
 
-// ─── Empty form ───────────────────────────────────────────────────────────────
-
-// RSS status badge
 const RSS_STATUS = {
   active:   { label: 'Active',   cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200',  icon: Rss },
   inactive: { label: 'Failed',   cls: 'bg-red-50 text-red-600 ring-red-200',              icon: AlertCircle },
@@ -71,7 +48,7 @@ function parseRssNote(note: string): { analysis: string; action: string } | null
   try {
     const parsed = JSON.parse(note);
     if (parsed.analysis || parsed.action) return parsed;
-  } catch { /* plain text note from before structured format */ }
+  } catch { /* plain text note */ }
   return null;
 }
 
@@ -90,7 +67,6 @@ function RssStatusBadge({ status, note }: { status: string; note?: string }) {
   return (
     <span className="relative group/rss inline-flex">
       {badge}
-      {/* pb-2 bridges the gap between arrow and badge so mouse doesn't leave hover zone */}
       <span className="absolute bottom-full left-0 z-50 hidden group-hover/rss:flex w-80 flex-col pb-2">
         <span className="rounded-xl bg-slate-900 shadow-xl overflow-hidden">
           {structured ? (
@@ -114,11 +90,11 @@ function RssStatusBadge({ status, note }: { status: string; note?: string }) {
   );
 }
 
-const empty = { name: '', url: '', tier: 'B' as Tier, focus: '', notes: '', rssUrl: '', active: 1 };
-
-// ─── Main component ───────────────────────────────────────────────────────────
+const empty = { name: '', url: '', tier: 'B' as Tier, focus: '', notes: '', rssUrl: '' };
 
 export default function AdminPublications() {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'owner' || user?.role === 'admin';
   const [pubs, setPubs]             = useState<Publication[]>([]);
   const [suggestions, setSuggestions] = useState<PublicationSuggestion[]>([]);
   const [editingId, setEditingId]   = useState<number | null>(null);
@@ -136,7 +112,7 @@ export default function AdminPublications() {
   const [rejectingId, setRejectingId]   = useState<number | null>(null);
   const [staffScanningId, setStaffScanningId]   = useState<number | null>(null);
   const [discoveringFeedsId, setDiscoveringFeedsId] = useState<number | null>(null);
-  const [feedsDiscoveryResult, setFeedsDiscoveryResult] = useState<{ pubName: string; added: number } | null>(null);
+  const [feedsDiscoveryResult, setFeedsDiscoveryResult] = useState<{ pubName: string } | null>(null);
   const [expandedFeedsPubId, setExpandedFeedsPubId] = useState<number | null>(null);
   const [pubFeeds, setPubFeeds] = useState<Record<number, PublicationFeed[]>>({});
   const [manualFeedUrl, setManualFeedUrl] = useState('');
@@ -144,22 +120,19 @@ export default function AdminPublications() {
   const [addingFeed, setAddingFeed] = useState(false);
   const [staffScanResult, setStaffScanResult] = useState<{ pubName: string; added: number; pageScanned: string | null; error?: string } | null>(null);
   const [jSuggestionCount, setJSuggestionCount] = useState(0);
-  const [opmlImporting, setOpmlImporting] = useState(false);
-  const [opmlResult, setOpmlResult] = useState<{ added: number; total: number; skippedDuplicate: number; preview: string[]; message: string; error?: string } | null>(null);
-  const opmlInputRef = useRef<HTMLInputElement>(null);
-  const [healthWarnings, setHealthWarnings] = useState<{ unreachable: any[]; stale: any[]; inactiveFeeds: any[] }>({ unreachable: [], stale: [], inactiveFeeds: [] });
+  const [healthWarnings, setHealthWarnings] = useState<{ unreachable: any[]; inactiveFeeds: any[] }>({ unreachable: [], inactiveFeeds: [] });
   const [syncingFeeds, setSyncingFeeds] = useState(false);
   const [syncFeedsMsg, setSyncFeedsMsg] = useState('');
-  const [discoveringFeedsPubIds, setDiscoveringFeedsPubIds] = useState<Set<number>>(new Set());
 
-  // Blog discovery
-  const [showSuggestions, setShowSuggestions] = useState(true);
   const [showDiscover, setShowDiscover]     = useState(false);
-  const [discoverQuery, setDiscoverQuery]   = useState('AI startup machine learning');
+  const [discoverQuery, setDiscoverQuery]   = useState('');
   const [discovering, setDiscovering]       = useState(false);
   const [discoverResults, setDiscoverResults] = useState<any[]>([]);
   const [discoverError, setDiscoverError]   = useState('');
-  const [addingDiscover, setAddingDiscover] = useState<string | null>(null); // url being added
+  const [addingDiscover, setAddingDiscover] = useState<string | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [importingOpml, setImportingOpml] = useState(false);
+  const [opmlResult, setOpmlResult] = useState<{ added?: number; feedsAdded?: number; skipped?: number; error?: string } | null>(null);
 
   const loadPubs        = () => pubApi.list().then(r => setPubs(r.data));
   const loadSuggestions = () => suggestApi.list().then(r => setSuggestions(r.data));
@@ -172,32 +145,10 @@ export default function AdminPublications() {
 
   const startEdit = (p: Publication) => {
     setEditingId(p.id);
-    setForm({ name: p.name, url: p.url, tier: p.tier, focus: p.focus, notes: p.notes || '', rssUrl: p.rssUrl || '', active: p.active });
+    setForm({ name: p.name, url: p.url, tier: p.tier, focus: p.focus, notes: p.notes || '', rssUrl: p.rss_url || '' });
     setShowAdd(false);
   };
   const cancelEdit = () => { setEditingId(null); setForm({ ...empty }); };
-
-  const pollUntilDiscoveryDone = (pubId: number) => {
-    setDiscoveringFeedsPubIds(prev => new Set(prev).add(pubId));
-    let attempts = 0;
-    const maxAttempts = 24; // 2 minutes at 5s intervals
-    const interval = setInterval(async () => {
-      attempts++;
-      try {
-        const res = await pubApi.get(pubId);
-        const pub: Publication = res.data;
-        // Discovery is done when rssLastChecked is populated
-        if (pub.rssLastChecked || attempts >= maxAttempts) {
-          clearInterval(interval);
-          setDiscoveringFeedsPubIds(prev => { const s = new Set(prev); s.delete(pubId); return s; });
-          // Update just this pub in local state without a full reload
-          setPubs(prev => prev.map(p => p.id === pubId ? { ...p, ...pub } : p));
-        }
-      } catch {
-        // Non-fatal — keep polling
-      }
-    }, 5_000);
-  };
 
   const handleSave = async () => {
     if (!form.name.trim()) return alert('Name is required');
@@ -207,11 +158,8 @@ export default function AdminPublications() {
         await pubApi.update(editingId, form);
         setEditingId(null);
       } else {
-        const res = await pubApi.create(form);
+        await pubApi.create(form);
         setShowAdd(false);
-        if (res.data.discoveringFeeds && res.data.id) {
-          pollUntilDiscoveryDone(res.data.id);
-        }
       }
       setForm({ ...empty });
       loadPubs();
@@ -219,24 +167,21 @@ export default function AdminPublications() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this publication? Journalists linked to it will keep their existing publication text.')) return;
+    if (!confirm('Delete this publication? Journalists linked to it will keep their existing record.')) return;
     await pubApi.delete(id);
     loadPubs();
   };
 
   const toggleActive = async (p: Publication) => {
-    await pubApi.update(p.id, { active: p.active ? 0 : 1 });
+    await pubApi.update(p.id, { active: !p.active });
     loadPubs();
   };
 
   const handleAccept = async (s: PublicationSuggestion) => {
     setAcceptingId(s.id);
-    const res = await suggestApi.accept(s.id);
+    await suggestApi.accept(s.id);
     await Promise.all([loadPubs(), loadSuggestions()]);
     setAcceptingId(null);
-    if (res.data.discoveringFeeds && res.data.pubId) {
-      pollUntilDiscoveryDone(res.data.pubId);
-    }
   };
 
   const handleReject = async (s: PublicationSuggestion) => {
@@ -246,7 +191,7 @@ export default function AdminPublications() {
     setRejectingId(null);
   };
 
-const handleStaffScan = async (p: Publication) => {
+  const handleStaffScan = async (p: Publication) => {
     if (!p.url) return alert('No homepage URL set for this publication.');
     setStaffScanningId(p.id);
     setStaffScanResult(null);
@@ -259,17 +204,14 @@ const handleStaffScan = async (p: Publication) => {
     }
   };
 
-const handleDiscoverFeeds = async (p: Publication) => {
+  const handleDiscoverFeeds = async (p: Publication) => {
     setDiscoveringFeedsId(p.id);
     setFeedsDiscoveryResult(null);
     await pubApi.discoverFeeds(p.id);
-    // Poll after 20s — discovery runs in background
     setTimeout(async () => {
       const [feedRes] = await Promise.all([pubApi.getFeeds(p.id), loadPubs()]);
-      const feeds: PublicationFeed[] = feedRes.data;
-      const categoryFeeds = feeds.filter(f => f.feedType === 'category');
-      setPubFeeds(prev => ({ ...prev, [p.id]: feeds }));
-      setFeedsDiscoveryResult({ pubName: p.name, added: categoryFeeds.length });
+      setPubFeeds(prev => ({ ...prev, [p.id]: feedRes.data }));
+      setFeedsDiscoveryResult({ pubName: p.name });
       setExpandedFeedsPubId(p.id);
       setDiscoveringFeedsId(null);
     }, 20000);
@@ -323,13 +265,26 @@ const handleDiscoverFeeds = async (p: Publication) => {
         tier: item.suggestedTier,
         focus: item.focus || item.description || '',
         rssUrl: item.feedUrl,
-        active: 1,
       });
-      // Remove from results so the list shrinks naturally
       setDiscoverResults(prev => prev.filter(r => r.url !== item.url));
       loadPubs();
     } finally {
       setAddingDiscover(null);
+    }
+  };
+
+  const handleImportOpml = async (file: File) => {
+    setImportingOpml(true);
+    setOpmlResult(null);
+    try {
+      const text = await file.text();
+      const res = await pubApi.importOpml(text);
+      setOpmlResult({ ...res.data });
+      loadPubs();
+    } catch (err: any) {
+      setOpmlResult({ error: err.response?.data?.error || 'Import failed. Check that this is a valid OPML file.' });
+    } finally {
+      setImportingOpml(false);
     }
   };
 
@@ -342,28 +297,10 @@ const handleDiscoverFeeds = async (p: Publication) => {
     setExpandedFeedsPubId(pubId);
   };
 
-  const handleOpmlFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setOpmlImporting(true);
-    setOpmlResult(null);
-    try {
-      const text = await file.text();
-      const res = await pubApi.importOpml(text);
-      setOpmlResult(res.data);
-      if (res.data.added > 0) await loadSuggestions();
-    } catch (err: any) {
-      setOpmlResult({ added: 0, total: 0, skippedDuplicate: 0, preview: [], message: '', error: err.response?.data?.error || 'Import failed' });
-    } finally {
-      setOpmlImporting(false);
-      if (opmlInputRef.current) opmlInputRef.current.value = '';
-    }
-  };
-
   const handleRunNow = async () => {
     setRunningJob(true);
     await suggestApi.runNow();
-    setTimeout(async () => { await loadSuggestions(); setRunningJob(false); }, 4000);
+    setTimeout(async () => { await loadSuggestions(); setRunningJob(false); }, 8000);
   };
 
   const handleSyncFeeds = async () => {
@@ -372,8 +309,7 @@ const handleDiscoverFeeds = async (p: Publication) => {
     try {
       const res = await pubApi.syncFeeds();
       setSyncFeedsMsg(res.data.message);
-      // Reload after ~5 min to show updated statuses (discovery + verification takes time)
-      setTimeout(async () => { await loadPubs(); setSyncingFeeds(false); }, 300_000);
+      setTimeout(async () => { await loadPubs(); await loadHealth(); setSyncingFeeds(false); }, 60_000);
     } catch {
       setSyncFeedsMsg('Feed sync failed. Check server logs.');
       setSyncingFeeds(false);
@@ -390,7 +326,7 @@ const handleDiscoverFeeds = async (p: Publication) => {
     .filter(p => !filterTier || p.tier === filterTier)
     .sort((a, b) => {
       let va: any = a[sortCol], vb: any = b[sortCol];
-      if (sortCol === 'tier') { va = ['A','B','C'].indexOf(a.tier); vb = ['A','B','C'].indexOf(b.tier); }
+      if (sortCol === 'tier') { va = ['A', 'B', 'C'].indexOf(a.tier); vb = ['A', 'B', 'C'].indexOf(b.tier); }
       if (typeof va === 'string') va = va.toLowerCase();
       if (typeof vb === 'string') vb = vb.toLowerCase();
       return sortAsc ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
@@ -417,63 +353,74 @@ const handleDiscoverFeeds = async (p: Publication) => {
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-screen-xl mx-auto px-6 py-8">
 
-        {/* ── Page header ── */}
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Publications</h1>
-            <p className="text-slate-400 text-sm mt-0.5">
-              Track which outlets to source journalists from.
-            </p>
+            <p className="text-slate-400 text-sm mt-0.5">Track which outlets to source journalists from.</p>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Hidden file input for OPML */}
-            <input
-              ref={opmlInputRef}
-              type="file"
-              accept=".opml,.xml"
-              className="hidden"
-              onChange={handleOpmlFile}
-            />
-            {/* Sparkles — AI suggests new publications autonomously */}
-            <button onClick={handleRunNow} disabled={runningJob}
-              title="AI Suggest — Claude autonomously picks new publications relevant to AI/startups and adds them to suggestions"
-              className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all">
-              <Sparkles className={`w-4 h-4 ${runningJob ? 'animate-pulse text-indigo-500' : ''}`} />
-            </button>
-            {/* Sync Feeds — discover + verify in one step */}
-            <button onClick={handleSyncFeeds} disabled={syncingFeeds}
-              title="Sync Feeds — discovers RSS feeds for all publications, then verifies every feed URL. May take several minutes."
-              className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all">
-              <RefreshCw className={`w-4 h-4 ${syncingFeeds ? 'animate-spin text-emerald-500' : ''}`} />
-            </button>
-            {/* Import OPML */}
-            <button onClick={() => opmlInputRef.current?.click()} disabled={opmlImporting}
-              title="Import OPML — upload an export file from Feedly, Feedspot, or any RSS reader. Each feed becomes a publication. Expected format: .opml or .xml"
-              className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all">
-              <Upload className={`w-4 h-4 ${opmlImporting ? 'animate-bounce text-indigo-500' : ''}`} />
-            </button>
-            {/* Discover — keyword search across Feedly, Substack, Medium */}
-            <button
-              onClick={() => { setShowDiscover(v => !v); setDiscoverResults([]); setDiscoverError(''); }}
-              title="Search for publications by keyword across Feedly, Substack, and Medium"
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
-                showDiscover
-                  ? 'bg-northstar-50 border-northstar-300 text-northstar-700'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
-              }`}
-            >
-              <Search className="w-3.5 h-3.5" />
-              Discover
-            </button>
-            <button
-              onClick={() => { setShowAdd(v => !v); setEditingId(null); setForm({ ...empty }); }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors">
-              <Plus className="w-4 h-4" /> Add
-            </button>
-          </div>
+          {canEdit && (
+            <div className="flex items-center gap-2">
+              <button onClick={handleRunNow} disabled={runningJob}
+                title="AI Suggest — Claude picks new publications relevant to your company and adds them to suggestions"
+                className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all">
+                <Sparkles className={`w-4 h-4 ${runningJob ? 'animate-pulse text-indigo-500' : ''}`} />
+              </button>
+              <button onClick={handleSyncFeeds} disabled={syncingFeeds}
+                title="Sync Feeds — discovers RSS feeds for all publications, then verifies every feed URL. May take several minutes."
+                className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all">
+                <RefreshCw className={`w-4 h-4 ${syncingFeeds ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={() => { setShowDiscover(v => !v); setDiscoverResults([]); setDiscoverError(''); }}
+                title="Search for publications by keyword across Feedly, Substack, and Medium"
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                  showDiscover ? 'bg-northstar-50 border-northstar-300 text-northstar-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                }`}
+              >
+                <Search className="w-3.5 h-3.5" />
+                Discover
+              </button>
+              <label
+                title="Import publications and feeds from an OPML file exported from Feedly, Inoreader, etc."
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm font-medium hover:border-slate-300 hover:text-slate-900 transition-all cursor-pointer">
+                {importingOpml ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                Import OPML
+                <input
+                  type="file"
+                  accept=".opml,.xml,text/xml,text/x-opml"
+                  className="hidden"
+                  disabled={importingOpml}
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImportOpml(file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              <button
+                onClick={() => { setShowAdd(v => !v); setEditingId(null); setForm({ ...empty }); }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors">
+                <Plus className="w-4 h-4" /> Add
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* ── Discover blogs panel ── */}
+        {opmlResult && (
+          <div className={`mb-6 px-4 py-3 rounded-lg text-sm border flex items-center justify-between ${
+            opmlResult.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          }`}>
+            <span>
+              {opmlResult.error
+                ? opmlResult.error
+                : `Imported ${opmlResult.added} publication${opmlResult.added === 1 ? '' : 's'} and ${opmlResult.feedsAdded} feed${opmlResult.feedsAdded === 1 ? '' : 's'}${opmlResult.skipped ? ` — ${opmlResult.skipped} already tracked` : ''}.`}
+            </span>
+            <button onClick={() => setOpmlResult(null)} className="text-current opacity-60 hover:opacity-100">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {showDiscover && (
           <div className="mb-6 card p-5 border-northstar-200 bg-northstar-50/30">
             <h3 className="font-semibold text-slate-900 mb-1">Discover blogs & newsletters</h3>
@@ -483,7 +430,7 @@ const handleDiscoverFeeds = async (p: Publication) => {
             <div className="flex gap-2 mb-4">
               <input
                 className="form-input flex-1"
-                placeholder="e.g. AI startup machine learning deep learning"
+                placeholder="e.g. AI startup machine learning"
                 value={discoverQuery}
                 onChange={e => setDiscoverQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleDiscover()}
@@ -493,76 +440,45 @@ const handleDiscoverFeeds = async (p: Publication) => {
                 disabled={discovering || !discoverQuery.trim()}
                 className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-northstar-600 text-white text-sm font-medium hover:bg-northstar-700 disabled:opacity-50 transition-colors"
               >
-                {discovering
-                  ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Searching…</>
-                  : <><Search className="w-3.5 h-3.5" /> Search</>
-                }
+                {discovering ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Searching…</> : <><Search className="w-3.5 h-3.5" /> Search</>}
               </button>
             </div>
 
-            {discoverError && (
-              <p className="text-sm text-rose-600 mb-3">{discoverError}</p>
-            )}
+            {discoverError && <p className="text-sm text-rose-600 mb-3">{discoverError}</p>}
 
             {discoverResults.length > 0 && (
-              <>
-                <div className="text-xs text-slate-500 mb-3 flex items-center gap-2">
-                  <span><strong>{discoverResults.length}</strong> new publications found</span>
-                  <span className="flex items-center gap-1.5">
-                    {['feedly','substack','medium'].map(src => {
-                      const count = discoverResults.filter(r => r.source === src).length;
-                      return count > 0 ? (
-                        <span key={src} className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-xs">
-                          {src} {count}
-                        </span>
-                      ) : null;
-                    })}
-                  </span>
-                </div>
-                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                  {discoverResults.map(item => (
-                    <div key={item.url} className="bg-white rounded-lg border border-slate-200 px-4 py-3 flex items-start gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <span className="font-medium text-slate-900 text-sm truncate">{item.name}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                            item.source === 'feedly'   ? 'bg-emerald-50 text-emerald-700' :
-                            item.source === 'substack' ? 'bg-orange-50 text-orange-700' :
-                            'bg-blue-50 text-blue-700'
-                          }`}>{item.source}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                            item.suggestedTier === 'A' ? 'bg-indigo-50 text-indigo-700' :
-                            item.suggestedTier === 'B' ? 'bg-sky-50 text-sky-700' :
-                            'bg-slate-100 text-slate-600'
-                          }`}>Tier {item.suggestedTier}</span>
-                          {item.subscribers > 0 && (
-                            <span className="text-xs text-slate-400">{item.subscribers.toLocaleString()} subscribers</span>
-                          )}
-                        </div>
-                        <a href={item.url} target="_blank" rel="noreferrer"
-                          className="text-xs text-slate-400 hover:text-northstar-600 truncate block">
-                          {item.url}
-                        </a>
-                        {item.description && (
-                          <p className="text-xs text-slate-500 mt-1 line-clamp-1">{item.description}</p>
-                        )}
+              <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                {discoverResults.map(item => (
+                  <div key={item.url} className="bg-white rounded-lg border border-slate-200 px-4 py-3 flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <span className="font-medium text-slate-900 text-sm truncate">{item.name}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                          item.source === 'feedly' ? 'bg-emerald-50 text-emerald-700' :
+                          item.source === 'substack' ? 'bg-orange-50 text-orange-700' : 'bg-blue-50 text-blue-700'
+                        }`}>{item.source}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                          item.suggestedTier === 'A' ? 'bg-indigo-50 text-indigo-700' :
+                          item.suggestedTier === 'B' ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'
+                        }`}>Tier {item.suggestedTier}</span>
                       </div>
-                      <button
-                        onClick={() => handleAddDiscovered(item)}
-                        disabled={addingDiscover === item.url}
-                        className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-northstar-50 text-northstar-700 border border-northstar-200 text-xs font-medium hover:bg-northstar-100 disabled:opacity-50 transition-colors"
-                      >
-                        {addingDiscover === item.url ? 'Adding…' : '+ Add'}
-                      </button>
+                      <a href={item.url} target="_blank" rel="noreferrer" className="text-xs text-slate-400 hover:text-northstar-600 truncate block">{item.url}</a>
+                      {item.description && <p className="text-xs text-slate-500 mt-1 line-clamp-1">{item.description}</p>}
                     </div>
-                  ))}
-                </div>
-              </>
+                    <button
+                      onClick={() => handleAddDiscovered(item)}
+                      disabled={addingDiscover === item.url}
+                      className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-northstar-50 text-northstar-700 border border-northstar-200 text-xs font-medium hover:bg-northstar-100 disabled:opacity-50 transition-colors"
+                    >
+                      {addingDiscover === item.url ? 'Adding…' : '+ Add'}
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
 
-        {/* ── AI suggestions banner ── */}
         {suggestions.length > 0 && (
           <div className="mb-6 bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
             <button
@@ -583,11 +499,8 @@ const handleDiscoverFeeds = async (p: Publication) => {
             {showSuggestions && <div className="divide-y divide-slate-50">
               {suggestions.map(s => {
                 const tier = (s.tier || 'B') as Tier;
-                const cfg = TIER_CONFIG[tier];
                 return (
                   <div key={s.id} className="flex items-start gap-4 px-5 py-4 hover:bg-slate-50/60 transition-colors">
-                    {/* Left accent */}
-                    <div className={`w-0.5 self-stretch rounded-full ${cfg.dot} shrink-0 mt-0.5`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-semibold text-slate-900">{s.name}</span>
@@ -602,24 +515,26 @@ const handleDiscoverFeeds = async (p: Publication) => {
                         </a>
                       )}
                       {s.focus && <p className="text-xs text-slate-500 mb-1">{s.focus}</p>}
-                      {s.reason && (
+                      {s.rationale && (
                         <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5 inline-block border border-amber-100">
-                          💡 {s.reason}
+                          {s.rationale}
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 pt-0.5">
-                      <button onClick={() => handleAccept(s)} disabled={acceptingId === s.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-medium border border-emerald-200 transition-colors">
-                        <Check className="w-3.5 h-3.5" />
-                        {acceptingId === s.id ? 'Adding…' : 'Accept'}
-                      </button>
-                      <button onClick={() => handleReject(s)} disabled={rejectingId === s.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-xs font-medium border border-slate-200 transition-colors">
-                        <X className="w-3.5 h-3.5" />
-                        {rejectingId === s.id ? 'Rejecting…' : 'Reject'}
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                        <button onClick={() => handleAccept(s)} disabled={acceptingId === s.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-medium border border-emerald-200 transition-colors">
+                          <Check className="w-3.5 h-3.5" />
+                          {acceptingId === s.id ? 'Adding…' : 'Accept'}
+                        </button>
+                        <button onClick={() => handleReject(s)} disabled={rejectingId === s.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-xs font-medium border border-slate-200 transition-colors">
+                          <X className="w-3.5 h-3.5" />
+                          {rejectingId === s.id ? 'Rejecting…' : 'Reject'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -627,7 +542,6 @@ const handleDiscoverFeeds = async (p: Publication) => {
           </div>
         )}
 
-        {/* ── Feed sync status message ── */}
         {syncFeedsMsg && (
           <div className="mb-4 px-4 py-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
             <RefreshCw className={`w-4 h-4 shrink-0 ${syncingFeeds ? 'animate-spin' : ''}`} />
@@ -636,13 +550,12 @@ const handleDiscoverFeeds = async (p: Publication) => {
           </div>
         )}
 
-        {/* ── Health warnings ── */}
         {(healthWarnings.unreachable.length > 0 || healthWarnings.inactiveFeeds.length > 0) && (
           <div className="mb-6 bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-3.5 border-b border-amber-100 bg-amber-50/60">
               <TriangleAlert className="w-4 h-4 text-amber-600" />
               <span className="text-sm font-semibold text-slate-800">Data health warnings</span>
-              <button onClick={() => setHealthWarnings({ unreachable: [], stale: [], inactiveFeeds: [] })}
+              <button onClick={() => setHealthWarnings({ unreachable: [], inactiveFeeds: [] })}
                 className="ml-auto text-slate-300 hover:text-slate-500"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-5 py-3 flex flex-wrap gap-3 text-xs">
@@ -660,56 +573,14 @@ const handleDiscoverFeeds = async (p: Publication) => {
           </div>
         )}
 
-        {/* ── OPML import result ── */}
-        {opmlResult && (
-          <div className={`mb-4 rounded-2xl border shadow-sm overflow-hidden ${
-            opmlResult.error ? 'bg-red-50 border-red-200' : opmlResult.added > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
-          }`}>
-            <div className="flex items-start gap-3 px-5 py-4">
-              <Upload className={`w-4 h-4 mt-0.5 shrink-0 ${opmlResult.error ? 'text-red-500' : opmlResult.added > 0 ? 'text-emerald-600' : 'text-slate-400'}`} />
-              <div className="flex-1">
-                {opmlResult.error
-                  ? <p className="text-sm font-medium text-red-700">{opmlResult.error}</p>
-                  : <>
-                    <p className="text-sm font-semibold text-slate-800 mb-1">
-                      OPML import complete — {opmlResult.total} feeds parsed
-                    </p>
-                    <div className="flex flex-wrap gap-3 text-xs text-slate-500 mb-2">
-                      <span className="text-emerald-700 font-medium">{opmlResult.added} added to review queue</span>
-                      {opmlResult.skippedDuplicate > 0 && <span>{opmlResult.skippedDuplicate} already in your list</span>}
-                    </div>
-                    {opmlResult.preview.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        {opmlResult.preview.map(name => (
-                          <span key={name} className="text-xs bg-white text-slate-600 ring-1 ring-slate-200 px-2 py-0.5 rounded-full">{name}</span>
-                        ))}
-                        {opmlResult.added > 10 && <span className="text-xs text-slate-400">+{opmlResult.added - 10} more</span>}
-                      </div>
-                    )}
-                    {opmlResult.added > 0 && (
-                      <p className="text-xs text-slate-400 mt-2">Scroll up to review the new suggestions ↑</p>
-                    )}
-                  </>
-                }
-              </div>
-              <button onClick={() => setOpmlResult(null)} className="text-slate-300 hover:text-slate-500 shrink-0">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Staff scan result toast ── */}
         {staffScanResult && (
           <div className={`mb-4 flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${
-            staffScanResult.error
-              ? 'bg-amber-50 border-amber-200 text-amber-800'
-              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            staffScanResult.error ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
           }`}>
             <BookOpen className="w-4 h-4 shrink-0" />
             {staffScanResult.error
-              ? <span>Deep scan of <strong>{staffScanResult.pubName}</strong>: {staffScanResult.error}</span>
-              : <span>Deep scan of <strong>{staffScanResult.pubName}</strong>: found {staffScanResult.added} new journalist{staffScanResult.added !== 1 ? 's' : ''} from {staffScanResult.pageScanned}</span>
+              ? <span>Staff scan of <strong>{staffScanResult.pubName}</strong>: {staffScanResult.error}</span>
+              : <span>Staff scan of <strong>{staffScanResult.pubName}</strong>: found {staffScanResult.added} new journalist{staffScanResult.added !== 1 ? 's' : ''} from {staffScanResult.pageScanned}</span>
             }
             <button onClick={() => setStaffScanResult(null)} className="ml-auto opacity-50 hover:opacity-100">
               <X className="w-3.5 h-3.5" />
@@ -717,22 +588,16 @@ const handleDiscoverFeeds = async (p: Publication) => {
           </div>
         )}
 
-        {/* ── Feed discovery result banner ── */}
         {feedsDiscoveryResult && (
           <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl border bg-violet-50 border-violet-200 text-sm text-violet-800">
             <Layers className="w-4 h-4 shrink-0" />
-            <span>
-              Discovered <strong>{feedsDiscoveryResult.added}</strong> category feed{feedsDiscoveryResult.added !== 1 ? 's' : ''} for <strong>{feedsDiscoveryResult.pubName}</strong>.
-              {feedsDiscoveryResult.added > 0 && ' Click "Feeds" on the row to review them.'}
-              {feedsDiscoveryResult.added === 0 && ' No new AI/tech section RSS feeds found on this site.'}
-            </span>
+            <span>Feed discovery for <strong>{feedsDiscoveryResult.pubName}</strong> finished — click "Feeds" on the row to review.</span>
             <button onClick={() => setFeedsDiscoveryResult(null)} className="ml-auto opacity-50 hover:opacity-100">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
-        {/* ── Add form ── */}
         {showAdd && (
           <div className="mb-6 bg-white rounded-2xl border border-indigo-100 shadow-sm p-6">
             <h2 className="text-sm font-semibold text-slate-900 mb-4">New Publication</h2>
@@ -741,26 +606,19 @@ const handleDiscoverFeeds = async (p: Publication) => {
           </div>
         )}
 
-        {/* ── Main card ── */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-
-          {/* Toolbar */}
           <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100">
-            {/* Filter pills */}
             <div className="flex items-center gap-1.5">
               {(['', 'A', 'B', 'C'] as const).map(t => (
                 <button key={t} onClick={() => setFilterTier(t)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    filterTier === t
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-slate-500 hover:bg-slate-100'
+                    filterTier === t ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
                   }`}>
                   {t === '' ? `All · ${pubs.length}` : `Tier ${t} · ${counts[t as Tier]}`}
                 </button>
               ))}
             </div>
 
-            {/* Tier guide toggle */}
             <button onClick={() => setShowTierGuide(v => !v)}
               className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-indigo-600 ml-1 transition-colors">
               <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showTierGuide ? 'rotate-90' : ''}`} />
@@ -768,11 +626,11 @@ const handleDiscoverFeeds = async (p: Publication) => {
             </button>
 
             {jSuggestionCount > 0 && (
-              <a href="/admin/journalist-suggestions"
+              <Link to="/admin/journalist-suggestions"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg ring-1 ring-emerald-200 hover:bg-emerald-100 transition-colors">
                 <Rss className="w-3 h-3" />
                 {jSuggestionCount} new journalist{jSuggestionCount !== 1 ? 's' : ''} found
-              </a>
+              </Link>
             )}
             <button onClick={loadHistory}
               className="ml-auto inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors">
@@ -780,27 +638,20 @@ const handleDiscoverFeeds = async (p: Publication) => {
             </button>
           </div>
 
-          {/* Tier guide — inline collapsible */}
           {showTierGuide && (
             <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100 bg-slate-50/50">
-              {(['A', 'B', 'C'] as Tier[]).map(t => {
-                const cfg = TIER_CONFIG[t];
-                return (
-                  <div key={t} className="px-5 py-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <TierPill tier={t} />
-                      <span className="text-xs font-semibold text-slate-700">{cfg.label}</span>
-                    </div>
-                    <p className="text-xs text-slate-500 leading-relaxed mb-2">{cfg.description}</p>
-                    <p className="text-xs text-slate-400"><span className="font-medium text-slate-500">e.g. </span>{cfg.examples}</p>
-                    <p className={`text-xs mt-2 rounded-lg px-2.5 py-1.5 ${cfg.bg} ${cfg.text} leading-relaxed`}>{cfg.when}</p>
+              {(['A', 'B', 'C'] as Tier[]).map(t => (
+                <div key={t} className="px-5 py-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TierPill tier={t} />
+                    <span className="text-xs font-semibold text-slate-700">{TIER_CONFIG[t].label}</span>
                   </div>
-                );
-              })}
+                  <p className="text-xs text-slate-500 leading-relaxed">{TIER_CONFIG[t].description}</p>
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Edit form inline */}
           {editingId !== null && (
             <div className="px-5 py-4 border-b border-indigo-100 bg-indigo-50/30">
               <p className="text-xs font-semibold text-indigo-700 mb-3">Editing publication</p>
@@ -808,7 +659,6 @@ const handleDiscoverFeeds = async (p: Publication) => {
             </div>
           )}
 
-          {/* Table */}
           <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -824,74 +674,64 @@ const handleDiscoverFeeds = async (p: Publication) => {
                   </span>
                 </th>
                 <th className="px-4 py-3 text-center w-16"><SortBtn col="active">Active</SortBtn></th>
-                <th className="px-4 py-3 w-24" />
+                <th className="px-4 py-3 w-28" />
               </tr>
             </thead>
             <tbody>
               {sortedPubs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">
-                    No publications found.
-                  </td>
+                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">No publications found.</td>
                 </tr>
               )}
               {sortedPubs.map(p => {
                 const feeds = pubFeeds[p.id] || [];
-                return (<>
-                <tr key={p.id}
+                return (<Fragment key={p.id}>
+                <tr
                   className={`border-b border-slate-50 last:border-0 group transition-colors ${
                     editingId === p.id ? 'bg-indigo-50/40' :
                     !p.active ? 'opacity-40 hover:opacity-60' : 'hover:bg-slate-50/70'
                   }`}>
-                  {/* Name + URL subtitle */}
                   <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <Link to={`/admin/publications/${p.id}`}
-                        className="font-medium text-slate-800 hover:text-northstar-600 transition-colors text-sm">
-                        {p.name}
-                      </Link>
-                      {p.isVirtual === 1 && (
-                        <span className="text-xs bg-purple-50 text-purple-600 ring-1 ring-purple-200 px-1.5 py-0.5 rounded-full">Virtual</span>
-                      )}
-                    </div>
+                    <Link to={`/admin/publications/${p.id}`}
+                      className="font-medium text-slate-800 hover:text-northstar-600 transition-colors text-sm">
+                      {p.name}
+                    </Link>
                     {p.url && (
                       <a href={p.url} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-slate-400 hover:text-indigo-500 transition-colors mt-0.5 block">
                         {p.url.replace(/^https?:\/\//, '')}
                       </a>
                     )}
+                    {p.health_status === 'unreachable' && (
+                      <span className="text-xs text-red-500 mt-0.5 flex items-center gap-1"><TriangleAlert className="w-3 h-3" /> unreachable</span>
+                    )}
                   </td>
                   <td className="px-4 py-3.5"><TierPill tier={p.tier as Tier} /></td>
                   <td className="px-4 py-3.5 text-xs text-slate-500 max-w-[200px]">
                     <span className="truncate block" title={p.focus}>{p.focus || <span className="text-slate-300">—</span>}</span>
                   </td>
-                  {/* Combined feeds + RSS status */}
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
-                      <RssStatusBadge status={p.rssStatus || 'unknown'} note={p.rssStatusNote || undefined} />
-                      {discoveringFeedsPubIds.has(p.id) && (
+                      <RssStatusBadge status={p.rss_status || 'unknown'} note={p.rss_status_note || undefined} />
+                      {discoveringFeedsId === p.id ? (
                         <span className="inline-flex items-center gap-1 text-xs text-violet-600 animate-pulse">
-                          <RefreshCw className="w-3 h-3 animate-spin" />
-                          Discovering…
+                          <RefreshCw className="w-3 h-3 animate-spin" /> Discovering…
                         </span>
-                      )}
-                      {!discoveringFeedsPubIds.has(p.id) && p.isVirtual !== 1 && (
-                        <div className="flex flex-col items-start gap-0.5">
-                          <button onClick={() => toggleFeedsPanel(p.id)}
-                            className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 transition-colors"
-                            title="View / manage feeds">
-                            <Layers className="w-3 h-3" />
-                            {p.feedCount}
-                            <ChevronRight className={`w-3 h-3 transition-transform ${expandedFeedsPubId === p.id ? 'rotate-90' : ''}`} />
-                          </button>
-                        </div>
+                      ) : (
+                        <button onClick={() => toggleFeedsPanel(p.id)}
+                          className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 transition-colors"
+                          title="View / manage feeds">
+                          <Layers className="w-3 h-3" />
+                          <ChevronRight className={`w-3 h-3 transition-transform ${expandedFeedsPubId === p.id ? 'rotate-90' : ''}`} />
+                        </button>
                       )}
                     </div>
                   </td>
                   <td className="px-4 py-3.5 text-center">
-                    <button onClick={() => toggleActive(p)}
-                      title={p.active ? 'Active — click to deactivate' : 'Inactive — click to activate'}
-                      className={`w-8 h-5 rounded-full transition-colors relative mx-auto block ${p.active ? 'bg-emerald-400' : 'bg-slate-200'}`}>
+                    <button onClick={() => canEdit && toggleActive(p)}
+                      disabled={!canEdit}
+                      title={!canEdit ? (p.active ? 'Active' : 'Inactive') : p.active ? 'Active — click to deactivate' : 'Inactive — click to activate'}
+                      className={`w-8 h-5 rounded-full transition-colors relative mx-auto block ${p.active ? 'bg-emerald-400' : 'bg-slate-200'} ${!canEdit ? 'cursor-default' : ''}`}>
                       <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${p.active ? 'left-3.5' : 'left-0.5'}`} />
                     </button>
                   </td>
@@ -901,18 +741,21 @@ const handleDiscoverFeeds = async (p: Publication) => {
                         className="p-1.5 rounded-lg text-slate-400 hover:text-northstar-600 hover:bg-northstar-50 transition-colors" title="View journalists">
                         <Users className="w-3.5 h-3.5" />
                       </Link>
-                      <button onClick={() => startEdit(p)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Edit">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => handleDelete(p.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canEdit && (
+                        <>
+                          <button onClick={() => startEdit(p)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Edit">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDelete(p.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
-                {/* ── Feeds panel (inline expanded row) ── */}
                 {expandedFeedsPubId === p.id && (
                   <tr key={`feeds-${p.id}`} className="bg-slate-50/80 border-b border-slate-100">
                     <td colSpan={6} className="px-8 py-4">
@@ -923,101 +766,99 @@ const handleDiscoverFeeds = async (p: Publication) => {
                             <span className="text-xs font-semibold text-slate-600">RSS Feeds — {p.name}</span>
                             <span className="text-xs text-slate-400">{feeds.length} feed{feeds.length !== 1 ? 's' : ''}</span>
                           </div>
-                          {/* Feed list */}
                           {feeds.length === 0
                             ? <p className="text-xs text-slate-400 italic mb-3">No feeds yet. Auto-discover or add one manually below.</p>
                             : <div className="space-y-1.5 mb-3">
                                 {feeds.map(f => (
                                   <div key={f.id} className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-white border border-slate-100">
                                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                      f.rssStatus === 'active' ? 'bg-emerald-400' :
-                                      f.rssStatus === 'inactive' ? 'bg-red-400' : 'bg-slate-300'
+                                      f.rss_status === 'active' ? 'bg-emerald-400' : f.rss_status === 'inactive' ? 'bg-red-400' : 'bg-slate-300'
                                     }`} />
                                     <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${
-                                      f.feedType === 'main'
-                                        ? 'bg-slate-100 text-slate-500'
-                                        : 'bg-indigo-50 text-indigo-600'
+                                      f.feed_type === 'main' ? 'bg-slate-100 text-slate-500' : 'bg-indigo-50 text-indigo-600'
                                     }`}>
-                                      {f.feedType === 'main' ? 'Main' : 'Category'}
+                                      {f.feed_type === 'main' ? 'Main' : 'Category'}
                                     </span>
-                                    <span className="text-xs font-medium text-slate-700 shrink-0 min-w-[100px]">{f.feedLabel}</span>
-                                    <a href={f.feedUrl} target="_blank" rel="noopener noreferrer"
+                                    <span className="text-xs font-medium text-slate-700 shrink-0 min-w-[100px]">{f.feed_label}</span>
+                                    <a href={f.feed_url} target="_blank" rel="noopener noreferrer"
                                       className="text-xs text-slate-400 hover:text-indigo-600 truncate transition-colors flex items-center gap-1 min-w-0">
-                                      {f.feedUrl.replace(/^https?:\/\//, '')}
+                                      {f.feed_url.replace(/^https?:\/\//, '')}
                                       <ExternalLink className="w-2.5 h-2.5 shrink-0" />
                                     </a>
-                                    <button onClick={() => handleDeleteFeed(p.id, f.id)}
-                                      className="ml-auto p-1 text-slate-300 hover:text-red-500 rounded transition-colors shrink-0" title="Remove feed">
-                                      <X className="w-3 h-3" />
-                                    </button>
+                                    {canEdit && (
+                                      <button onClick={() => handleDeleteFeed(p.id, f.id)}
+                                        className="ml-auto p-1 text-slate-300 hover:text-red-500 rounded transition-colors shrink-0" title="Remove feed">
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    )}
                                   </div>
                                 ))}
                               </div>
                           }
-
-                          {/* Manual add feed */}
-                          <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                            <input
-                              type="url"
-                              placeholder="https://techcrunch.com/category/artificial-intelligence/feed/"
-                              value={expandedFeedsPubId === p.id ? manualFeedUrl : ''}
-                              onChange={e => setManualFeedUrl(e.target.value)}
-                              onKeyDown={e => e.key === 'Enter' && handleAddFeedManually(p.id)}
-                              className="flex-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white placeholder:text-slate-300"
-                            />
-                            <input
-                              type="text"
-                              placeholder="Label (e.g. AI)"
-                              value={expandedFeedsPubId === p.id ? manualFeedLabel : ''}
-                              onChange={e => setManualFeedLabel(e.target.value)}
-                              className="w-28 text-xs px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white placeholder:text-slate-300"
-                            />
-                            <button
-                              onClick={() => handleAddFeedManually(p.id)}
-                              disabled={addingFeed || !manualFeedUrl.trim()}
-                              className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-medium ring-1 ring-indigo-200 transition-colors disabled:opacity-40"
-                            >
-                              {addingFeed ? 'Adding…' : '+ Add feed'}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Right: scan actions */}
-                        <div className="flex flex-col gap-2 shrink-0 pt-5">
-                          {p.url && p.isVirtual !== 1 && (
-                            <>
+                          {canEdit && (
+                            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                              <input
+                                type="url"
+                                placeholder="https://techcrunch.com/category/artificial-intelligence/feed/"
+                                value={manualFeedUrl}
+                                onChange={e => setManualFeedUrl(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleAddFeedManually(p.id)}
+                                className="flex-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white placeholder:text-slate-300"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Label"
+                                value={manualFeedLabel}
+                                onChange={e => setManualFeedLabel(e.target.value)}
+                                className="w-28 text-xs px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white placeholder:text-slate-300"
+                              />
                               <button
-                                onClick={() => handleDiscoverFeeds(p)}
-                                disabled={discoveringFeedsId === p.id}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-xs font-medium ring-1 ring-violet-200 transition-colors"
+                                onClick={() => handleAddFeedManually(p.id)}
+                                disabled={addingFeed || !manualFeedUrl.trim()}
+                                className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-medium ring-1 ring-indigo-200 transition-colors disabled:opacity-40"
                               >
-                                <Zap className={`w-3.5 h-3.5 ${discoveringFeedsId === p.id ? 'animate-pulse' : ''}`} />
-                                {discoveringFeedsId === p.id ? 'Discovering… (~20s)' : 'Auto-discover feeds'}
+                                {addingFeed ? 'Adding…' : '+ Add feed'}
                               </button>
-                              <button
-                                onClick={() => handleStaffScan(p)}
-                                disabled={staffScanningId === p.id}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-medium ring-1 ring-indigo-200 transition-colors"
-                              >
-                                <BookOpen className={`w-3.5 h-3.5 ${staffScanningId === p.id ? 'animate-pulse' : ''}`} />
-                                {staffScanningId === p.id ? 'Scanning staff page…' : 'Scan staff page'}
-                              </button>
-                            </>
+                            </div>
                           )}
-                          <p className="text-xs text-slate-400 max-w-[150px] leading-relaxed">These scans find journalists automatically</p>
                         </div>
+
+                        {canEdit && (
+                          <div className="flex flex-col gap-2 shrink-0 pt-5">
+                            {p.url && (
+                              <>
+                                <button
+                                  onClick={() => handleDiscoverFeeds(p)}
+                                  disabled={discoveringFeedsId === p.id}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-xs font-medium ring-1 ring-violet-200 transition-colors"
+                                >
+                                  <Zap className={`w-3.5 h-3.5 ${discoveringFeedsId === p.id ? 'animate-pulse' : ''}`} />
+                                  {discoveringFeedsId === p.id ? 'Discovering… (~20s)' : 'Auto-discover feeds'}
+                                </button>
+                                <button
+                                  onClick={() => handleStaffScan(p)}
+                                  disabled={staffScanningId === p.id}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-medium ring-1 ring-indigo-200 transition-colors"
+                                >
+                                  <BookOpen className={`w-3.5 h-3.5 ${staffScanningId === p.id ? 'animate-pulse' : ''}`} />
+                                  {staffScanningId === p.id ? 'Scanning staff page…' : 'Scan staff page'}
+                                </button>
+                              </>
+                            )}
+                            <p className="text-xs text-slate-400 max-w-[150px] leading-relaxed">These scans find journalists automatically — review suggestions before they're added.</p>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
                 )}
-                </>);
+                </Fragment>);
               })}
             </tbody>
           </table>
-          </div>{/* end overflow-x-auto */}
+          </div>
         </div>
 
-        {/* ── History modal ── */}
         {showHistory && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-6"
             onClick={() => setShowHistory(false)}>
@@ -1047,15 +888,13 @@ const handleDiscoverFeeds = async (p: Publication) => {
                             <td className="px-5 py-3 text-slate-800 font-medium">{h.name}</td>
                             <td className="px-5 py-3">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                h.status === 'accepted'
-                                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
-                                  : 'bg-red-50 text-red-600 ring-1 ring-red-200'
+                                h.status === 'accepted' ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-red-50 text-red-600 ring-1 ring-red-200'
                               }`}>
                                 {h.status === 'accepted' ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
                                 {h.status}
                               </span>
                             </td>
-                            <td className="px-5 py-3 text-slate-400 text-xs">{h.createdAt?.slice(0, 10)}</td>
+                            <td className="px-5 py-3 text-slate-400 text-xs">{h.created_at?.slice(0, 10)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1070,8 +909,6 @@ const handleDiscoverFeeds = async (p: Publication) => {
     </div>
   );
 }
-
-// ─── Publication form ─────────────────────────────────────────────────────────
 
 function PublicationForm({ form, set, saving, onSave, onCancel }: {
   form: typeof empty; set: (k: string, v: any) => void;
@@ -1099,7 +936,7 @@ function PublicationForm({ form, set, saving, onSave, onCancel }: {
       <div className="col-span-2">
         <label className="form-label">Tier</label>
         <select className="form-select" value={form.tier} onChange={e => set('tier', e.target.value)}>
-          <option value="A">A — Major Tech & AI</option>
+          <option value="A">A — Major & National</option>
           <option value="B">B — Business / Mid-tier</option>
           <option value="C">C — Regional & Niche</option>
         </select>

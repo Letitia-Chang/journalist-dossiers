@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Save, Check, Sparkles } from 'lucide-react';
-import { campaignStyles as api } from '../api';
+import { ArrowLeft, Save, Check, Sparkles, Mail, Unplug } from 'lucide-react';
+import { campaignStyles as api, auth as authApi } from '../api';
+import { useAuth } from '../context/AuthContext';
 
 type CampaignType = 'cold_intro' | 'event' | 'hackathon' | 'founder_promo';
 
@@ -10,8 +11,8 @@ const TYPE_META: Record<CampaignType, { label: string; color: string; placeholde
     label: 'Cold Introduction',
     color: 'border-slate-300 focus:border-slate-400',
     placeholder: `Examples:
-- Always sign off as: Letitia Chang, Head of Communications, North Star AI Labs
-- End every email with: "Happy to send over our latest research brief if useful."
+- Always sign off as: [Your name], [Your title], [Company name]
+- End every email with: "Happy to send over more details if useful."
 - Never mention funding rounds or valuations.
 - Keep the intro to one sentence — journalists know who we are.`,
   },
@@ -42,12 +43,15 @@ const TYPE_META: Record<CampaignType, { label: string; color: string; placeholde
 };
 
 interface StyleRow {
-  type: CampaignType;
+  campaign_type: CampaignType;
   instructions: string;
-  updatedAt: string;
+  updated_at: string;
 }
 
 export default function CampaignStyles() {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'owner' || user?.role === 'admin';
+  const isOwner = user?.role === 'owner';
   const [styles, setStyles] = useState<Record<CampaignType, string>>({
     cold_intro: '', event: '', hackathon: '', founder_promo: '',
   });
@@ -56,19 +60,42 @@ export default function CampaignStyles() {
   });
   const [saving, setSaving] = useState<CampaignType | null>(null);
   const [justSaved, setJustSaved] = useState<CampaignType | null>(null);
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email: string | null } | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const loadGmailStatus = () => authApi.gmailStatus().then(r => setGmailStatus(r.data)).catch(() => {});
 
   useEffect(() => {
     api.list().then(r => {
       const s: Record<CampaignType, string> = { cold_intro: '', event: '', hackathon: '', founder_promo: '' };
       const d: Record<CampaignType, string> = { cold_intro: '', event: '', hackathon: '', founder_promo: '' };
       for (const row of r.data as StyleRow[]) {
-        s[row.type] = row.instructions;
-        d[row.type] = row.updatedAt;
+        s[row.campaign_type] = row.instructions;
+        d[row.campaign_type] = row.updated_at;
       }
       setStyles(s);
       setSavedAt(d);
     });
+    loadGmailStatus();
   }, []);
+
+  // Popups can't message back reliably across origins, so just refresh
+  // status when the user returns focus to this tab after the popup closes.
+  useEffect(() => {
+    window.addEventListener('focus', loadGmailStatus);
+    return () => window.removeEventListener('focus', loadGmailStatus);
+  }, []);
+
+  const handleDisconnectGmail = async () => {
+    if (!confirm('Disconnect Gmail? Campaigns will no longer be able to create drafts until reconnected.')) return;
+    setDisconnecting(true);
+    try {
+      await authApi.disconnectGmail();
+      await loadGmailStatus();
+    } finally {
+      setDisconnecting(false);
+    }
+  };
 
   const handleSave = async (type: CampaignType) => {
     setSaving(type);
@@ -96,6 +123,35 @@ export default function CampaignStyles() {
         </p>
       </div>
 
+      <div className="card p-5 mb-6">
+        <h2 className="text-sm font-semibold text-slate-900 mb-1 flex items-center gap-1.5">
+          <Mail className="w-4 h-4" /> Gmail Connection
+        </h2>
+        <p className="text-xs text-slate-500 mb-3">
+          Connect a Gmail account so "Create Gmail Drafts" on a campaign can create real drafts your team can review and send.
+        </p>
+        {gmailStatus === null ? (
+          <p className="text-xs text-slate-400">Checking connection…</p>
+        ) : gmailStatus.connected ? (
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <Check className="w-3 h-3" /> Connected as {gmailStatus.email}
+            </span>
+            {isOwner && (
+              <button className="btn-secondary py-1 px-2.5 text-xs" onClick={handleDisconnectGmail} disabled={disconnecting}>
+                <Unplug className="w-3 h-3" /> {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+              </button>
+            )}
+          </div>
+        ) : isOwner ? (
+          <button className="btn-primary py-1.5 text-sm" onClick={() => authApi.connectGmail()}>
+            <Mail className="w-3.5 h-3.5" /> Connect Gmail
+          </button>
+        ) : (
+          <p className="text-xs text-slate-400">Not connected — ask an organization owner to connect Gmail.</p>
+        )}
+      </div>
+
       <div className="space-y-6">
         {(Object.keys(TYPE_META) as CampaignType[]).map(type => {
           const meta = TYPE_META[type];
@@ -121,29 +177,32 @@ export default function CampaignStyles() {
                       saved {new Date(lastSaved).toLocaleDateString()}
                     </span>
                   )}
-                  <button
-                    onClick={() => handleSave(type)}
-                    disabled={isSaving}
-                    className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${
-                      isSaved
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-northstar-600 text-white hover:bg-northstar-700'
-                    }`}
-                  >
-                    {isSaved
-                      ? <><Check className="w-3.5 h-3.5" /> Saved</>
-                      : <><Save className="w-3.5 h-3.5" /> {isSaving ? 'Saving…' : 'Save'}</>
-                    }
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => handleSave(type)}
+                      disabled={isSaving}
+                      className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                        isSaved
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-northstar-600 text-white hover:bg-northstar-700'
+                      }`}
+                    >
+                      {isSaved
+                        ? <><Check className="w-3.5 h-3.5" /> Saved</>
+                        : <><Save className="w-3.5 h-3.5" /> {isSaving ? 'Saving…' : 'Save'}</>
+                      }
+                    </button>
+                  )}
                 </div>
               </div>
 
               <textarea
-                className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-northstar-200 resize-none font-mono leading-relaxed ${meta.color}`}
+                className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-northstar-200 resize-none font-mono leading-relaxed disabled:bg-slate-50 disabled:text-slate-500 ${meta.color}`}
                 rows={6}
                 value={styles[type]}
                 onChange={e => setStyles(prev => ({ ...prev, [type]: e.target.value }))}
                 placeholder={meta.placeholder}
+                disabled={!canEdit}
               />
 
               <p className="text-xs text-slate-400 mt-2">

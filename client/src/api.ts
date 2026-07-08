@@ -6,8 +6,11 @@ export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_ORIGIN = API_URL.replace(/\/api\/?$/, '');
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
+  baseURL: API_URL,
 });
 
 api.interceptors.request.use(config => {
@@ -27,26 +30,49 @@ api.interceptors.response.use(
   },
 );
 
-export const login = (password: string) =>
-  axios.post(
-    `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/auth/login`,
-    { password },
-  );
+export interface AuthResponse {
+  token: string;
+  user: { id: string; email: string; name: string; role: string };
+  org: { id: string; name: string; slug: string; company_description?: string; target_verticals?: string[] };
+}
+
+export const signup = (data: {
+  orgName: string;
+  email: string;
+  password: string;
+  name: string;
+  companyDescription?: string;
+  targetVerticals?: string[];
+}) => axios.post<AuthResponse>(`${API_URL}/auth/signup`, data);
+
+export const login = (email: string, password: string) =>
+  axios.post<AuthResponse>(`${API_URL}/auth/login`, { email, password });
 
 export default api;
 
 export const journalists = {
-  list: (params?: any) => api.get('/journalists', { params }),
+  // params accepted for backward compatibility with not-yet-rewritten pages;
+  // the org-scoped backend doesn't support server-side sort/filter yet.
+  list: (_params?: any) => api.get('/journalists'),
   get: (id: number) => api.get(`/journalists/${id}`),
   create: (data: any) => api.post('/journalists', data),
   update: (id: number, data: any) => api.put(`/journalists/${id}`, data),
   delete: (id: number) => api.delete(`/journalists/${id}`),
+  scoreWithAI: (id: number) => api.post(`/journalists/${id}/score`),
+  // Not yet implemented on the org-scoped backend (deferred to later phases):
   bulkRescore: () => api.post('/journalists/bulk-rescore'),
   backfillArticles: () => api.post('/journalists/backfill-articles'),
   toggleFavorite: (id: number) => api.patch(`/journalists/${id}/favorite`),
   uploadPhoto: (id: number, photoUrl: string) => api.post(`/journalists/${id}/photo`, { photoUrl }),
   rescore: (id: number) => api.post(`/journalists/${id}/rescore`),
   refreshArticles: () => api.post('/journalist-articles/refresh-now'),
+};
+
+export const scoringDimensions = {
+  list: () => api.get('/scoring-dimensions'),
+  create: (data: any) => api.post('/scoring-dimensions', data),
+  update: (id: number, data: any) => api.put(`/scoring-dimensions/${id}`, data),
+  delete: (id: number) => api.delete(`/scoring-dimensions/${id}`),
 };
 
 export const articles = {
@@ -90,27 +116,30 @@ export const campaigns = {
 };
 
 export const auth = {
-  gmailStatus: () => api.get('/auth/gmail/status', { baseURL: 'http://localhost:3001' }),
-  connectGmail: () => { window.open('http://localhost:3001/auth/google', '_blank', 'width=500,height=600'); },
-  disconnectGmail: () => api.delete('/auth/gmail', { baseURL: 'http://localhost:3001' }),
+  gmailStatus: () => api.get('/auth/gmail/status', { baseURL: API_ORIGIN }),
+  connectGmail: () => {
+    const token = getToken();
+    window.open(`${API_ORIGIN}/auth/google?token=${encodeURIComponent(token ?? '')}`, '_blank', 'width=500,height=600');
+  },
+  disconnectGmail: () => api.delete('/auth/gmail', { baseURL: API_ORIGIN }),
 };
 
 export const publications = {
-  list:          () => api.get('/publications'),
-  get:           (id: number) => api.get(`/publications/${id}`),
-  create:        (data: any) => api.post('/publications', data),
-  update:        (id: number, data: any) => api.put(`/publications/${id}`, data),
-  delete:        (id: number) => api.delete(`/publications/${id}`),
-  importOpml:    (opmlContent: string) => api.post('/publications/import-opml', { opmlContent }),
+  list:   () => api.get('/publications'),
+  get:    (id: number) => api.get(`/publications/${id}`),
+  create: (data: any) => api.post('/publications', data),
+  update: (id: number, data: any) => api.put(`/publications/${id}`, data),
+  delete: (id: number) => api.delete(`/publications/${id}`),
   getFeeds:      (id: number) => api.get(`/publications/${id}/feeds`),
   getJournalists: (id: number) => api.get(`/publications/${id}/journalists`),
   discover: (query: string) => api.post('/publications/discover', { query }),
+  discoverRss: (id: number) => api.post(`/publications/${id}/discover-rss`),
   discoverFeeds: (id: number) => api.post(`/publications/${id}/discover-feeds`),
   addFeed:       (id: number, feedUrl: string, feedLabel: string) => api.post(`/publications/${id}/feeds`, { feedUrl, feedLabel }),
   deleteFeed:    (id: number, feedId: number) => api.delete(`/publications/${id}/feeds/${feedId}`),
   checkAllFeeds: () => api.post('/publications/check-feeds'),
-  discoverFeedsAll: () => api.post('/publications/discover-feeds-all'),
   syncFeeds: () => api.post('/publications/sync-feeds'),
+  importOpml: (opml: string) => api.post('/publications/import-opml', { opml }),
 };
 
 export const journalistSuggestions = {
@@ -125,8 +154,8 @@ export const journalistSuggestions = {
 };
 
 export const healthCheck = {
-  summary: () => api.get('/health-check/summary'),
-  runNow: () => api.post('/health-check/run-now'),
+  summary: () => api.get('/publications/health-summary'),
+  runNow: () => api.post('/publications/check-feeds'),
 };
 
 export const suggestions = {
@@ -148,20 +177,33 @@ export const coverage = {
   parseText:  (text: string) => api.post('/coverage/parse-text', { text }),
 };
 
-export const users = {
-  list: () => api.get('/users'),
+export const team = {
+  members: () => api.get('/team/members'),
+  updateMemberRole: (id: string, role: string) => api.put(`/team/members/${id}/role`, { role }),
+  removeMember: (id: string) => api.delete(`/team/members/${id}`),
+  invites: () => api.get('/team/invites'),
+  createInvite: (email: string, role: string) => api.post('/team/invites', { email, role }),
+  revokeInvite: (id: string) => api.delete(`/team/invites/${id}`),
 };
+
+export const getInvite = (token: string) => axios.get<{ email: string; role: string; orgName: string }>(`${API_URL}/auth/invite/${token}`);
+
+export const acceptInvite = (data: { token: string; name: string; password: string }) =>
+  axios.post<AuthResponse>(`${API_URL}/auth/accept-invite`, data);
 
 export const campaignStyles = {
   list: () => api.get('/campaign-styles'),
   update: (type: string, instructions: string) => api.put(`/campaign-styles/${type}`, { instructions }),
 };
 
-export const enrichment = {
-  credits:       ()           => api.get('/enrichment/credits'),
-  findProfiles:  (id: number) => api.post(`/enrichment/${id}/profiles`),
-  bulkProfiles:  ()           => api.post('/enrichment/bulk/profiles'),
+// Export requires the JWT auth header, so a plain <a href> download won't work —
+// fetch authenticated via axios, then trigger the download from a Blob URL.
+export const downloadExport = async (type: 'journalists' | 'articles' | 'outreach', filename: string) => {
+  const res = await api.get(`/export/${type}`, { responseType: 'blob' });
+  const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 };
-
-export const exportUrl = (type: 'journalists' | 'articles' | 'outreach') =>
-  `http://localhost:3001/api/export/${type}`;

@@ -11,6 +11,7 @@ import pool from '../db';
 const client = new Anthropic();
 
 export async function generateRssDiagnosticNote(
+  orgId: string,
   publicationId: number,
   publicationName: string,
   publicationUrl: string,
@@ -65,8 +66,8 @@ Respond with ONLY a JSON object in this exact format (no markdown, no explanatio
 
     if (note) {
       await pool.query(
-        `UPDATE publications SET "rssStatusNote" = $1 WHERE id = $2`,
-        [note, publicationId]
+        `UPDATE publications SET rss_status_note = $1 WHERE id = $2 AND org_id = $3`,
+        [note, publicationId, orgId]
       );
       console.log(`[RssDiagnostic] ${publicationName}: note saved`);
     }

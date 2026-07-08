@@ -1,16 +1,18 @@
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Users, FileDown, Settings, Rss, Megaphone, Wand2, Activity, Newspaper, BookOpen, ChevronDown, AlertTriangle, LogOut } from 'lucide-react';
-import { useUser } from './UserContext';
-import { users as usersApi, getToken, clearToken } from './api';
+import { LayoutDashboard, Users, FileDown, Settings, Rss, Megaphone, Wand2, Activity, Newspaper, BookOpen, LogOut, Target, UserCog } from 'lucide-react';
+import { useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
-import type { User } from './types';
+import SignupPage from './pages/SignupPage';
+import AcceptInvitePage from './pages/AcceptInvitePage';
+import TeamPage from './pages/TeamPage';
 import Dashboard from './pages/Dashboard';
 import JournalistsList from './pages/JournalistsList';
 import JournalistDetail from './pages/JournalistDetail';
 import JournalistForm from './pages/JournalistForm';
 import ExportPage from './pages/ExportPage';
 import AdminPublications from './pages/AdminPublications';
+import ScoringDimensions from './pages/ScoringDimensions';
 import AdminJournalistSuggestions from './pages/AdminJournalistSuggestions';
 import CampaignList from './pages/CampaignList';
 import CampaignDetail from './pages/CampaignDetail';
@@ -30,10 +32,12 @@ const navItems = [
 ];
 
 const adminItems = [
+  { to: '/admin/scoring-dimensions', label: 'Scoring Dimensions', icon: Target },
   { to: '/admin/publications', label: 'Publications', icon: Settings },
   { to: '/admin/journalist-suggestions', label: 'RSS Suggestions', icon: Rss },
   { to: '/campaigns/styles', label: 'House Style', icon: Wand2 },
   { to: '/export', label: 'Export Data', icon: FileDown },
+  { to: '/team', label: 'Team', icon: UserCog },
   { to: '/system', label: 'System Info', icon: BookOpen },
 ];
 
@@ -42,21 +46,12 @@ function initials(name: string) {
 }
 
 export default function App() {
-  const [authed, setAuthed] = useState(() => !!getToken());
+  const { user, org, isAuthenticated, logout } = useAuth();
   const [suggestionCount, setSuggestionCount] = useState(0);
   const [jSuggestionCount, setJSuggestionCount] = useState(0);
-  const [userList, setUserList] = useState<User[]>([]);
-  const [showUserPicker, setShowUserPicker] = useState(false);
-  const { currentUser, setCurrentUser } = useUser();
 
   useEffect(() => {
-    const handler = () => setAuthed(false);
-    window.addEventListener('ns:logout', handler);
-    return () => window.removeEventListener('ns:logout', handler);
-  }, []);
-
-  useEffect(() => {
-    if (!authed) return;
+    if (!isAuthenticated) return;
     const fetchCounts = () => {
       suggestApi.count().then(r => setSuggestionCount(r.data.count)).catch(() => {});
       jSuggestApi.count().then(r => setJSuggestionCount(r.data.count)).catch(() => {});
@@ -64,23 +59,26 @@ export default function App() {
     fetchCounts();
     const interval = setInterval(fetchCounts, 60_000);
     return () => clearInterval(interval);
-  }, [authed]);
+  }, [isAuthenticated]);
 
-  useEffect(() => {
-    if (!authed) return;
-    usersApi.list().then(r => setUserList(r.data)).catch(() => {});
-  }, [authed]);
-
-  if (!authed) return <LoginPage onLogin={() => setAuthed(true)} />;
+  if (!isAuthenticated) {
+    return (
+      <Routes>
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
+        <Route path="*" element={<LoginPage />} />
+      </Routes>
+    );
+  }
 
   return (
     <div className="flex bg-slate-50" style={{ margin: 0, minHeight: '100vh', width: '100%' }}>
-      <aside className="w-60 bg-northstar-900 text-white flex flex-col shrink-0 fixed inset-y-0 left-0 z-10">
-        <div className="p-5 border-b border-northstar-700">
+      <aside className="w-60 bg-slate-900 text-white flex flex-col shrink-0 fixed inset-y-0 left-0 z-10">
+        <div className="p-5 border-b border-slate-700">
           <div className="flex items-center gap-2.5">
-            <div>
-              <div className="font-bold text-sm leading-tight">North Star AI Labs</div>
-              <div className="text-northstar-300 text-xs mt-0.5">Media Dossiers</div>
+            <div className="min-w-0">
+              <div className="font-bold text-sm leading-tight truncate">{org?.name}</div>
+              <div className="text-slate-400 text-xs mt-0.5">Media Dossiers</div>
             </div>
           </div>
         </div>
@@ -93,8 +91,8 @@ export default function App() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-northstar-600 text-white'
-                    : 'text-northstar-200 hover:bg-northstar-800 hover:text-white'
+                    ? 'bg-slate-700 text-white'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 }`
               }
             >
@@ -103,8 +101,8 @@ export default function App() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-3 pb-2 pt-3 border-t border-northstar-700">
-          <div className="text-northstar-400 text-xs px-3 pb-1 uppercase tracking-wider">Admin</div>
+        <div className="px-3 pb-2 pt-3 border-t border-slate-700">
+          <div className="text-slate-400 text-xs px-3 pb-1 uppercase tracking-wider">Admin</div>
           {adminItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -112,8 +110,8 @@ export default function App() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-northstar-600 text-white'
-                    : 'text-northstar-200 hover:bg-northstar-800 hover:text-white'
+                    ? 'bg-slate-700 text-white'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 }`
               }
             >
@@ -132,100 +130,32 @@ export default function App() {
             </NavLink>
           ))}
         </div>
-        {/* User selector */}
-        <div className="p-3 border-t border-northstar-700">
-          {currentUser ? (
-            <button
-              onClick={() => setShowUserPicker(true)}
-              className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-northstar-800 transition-colors text-left group"
-            >
-              <div className="w-7 h-7 rounded-full bg-northstar-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                {initials(currentUser.name)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-white truncate">{currentUser.name}</div>
-                <div className="text-xs text-northstar-400 truncate">{currentUser.title}</div>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-northstar-400 shrink-0 group-hover:text-white transition-colors" />
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowUserPicker(true)}
-              className="w-full flex items-center gap-2 px-2 py-2 rounded-lg bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 transition-colors"
-            >
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="text-xs text-amber-300 font-medium">Who are you? Select name</span>
-            </button>
-          )}
+        {/* Current user */}
+        <div className="p-3 border-t border-slate-700">
+          <div className="flex items-center gap-2.5 px-2 py-2">
+            <div className="w-7 h-7 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+              {user ? initials(user.name) : '?'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium text-white truncate">{user?.name}</div>
+              <div className="text-xs text-slate-400 truncate capitalize">{user?.role}</div>
+            </div>
+          </div>
         </div>
 
         <div className="px-4 pb-3 flex items-center justify-between">
-          <span className="text-northstar-500 text-xs">MVP v1.0 · PostgreSQL</span>
+          <span className="text-slate-500 text-xs">MVP v1.0 · PostgreSQL</span>
           <button
-            onClick={() => { clearToken(); setAuthed(false); }}
-            title="Lock"
-            className="text-northstar-500 hover:text-northstar-300 transition-colors"
+            onClick={logout}
+            title="Log out"
+            className="text-slate-500 hover:text-slate-300 transition-colors"
           >
             <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
       </aside>
 
-      {/* User picker modal */}
-      {showUserPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-80">
-            <h2 className="font-bold text-slate-900 text-base mb-1">Who are you?</h2>
-            <p className="text-xs text-slate-500 mb-4">
-              Select your name so drafts and outreach logs are attributed correctly.
-            </p>
-            <div className="space-y-2">
-              {userList.map(u => (
-                <button
-                  key={u.id}
-                  onClick={() => { setCurrentUser(u); setShowUserPicker(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
-                    currentUser?.id === u.id
-                      ? 'border-northstar-400 bg-northstar-50'
-                      : 'border-slate-200 hover:border-northstar-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-full bg-northstar-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                    {initials(u.name)}
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-slate-900">{u.name}</div>
-                    <div className="text-xs text-slate-400">{u.title}</div>
-                  </div>
-                  {currentUser?.id === u.id && (
-                    <span className="ml-auto text-xs font-medium text-northstar-600">current</span>
-                  )}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setShowUserPicker(false)}
-              className="mt-4 w-full text-xs text-slate-400 hover:text-slate-600 py-1"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       <main className="flex-1 ml-60 overflow-auto min-h-screen">
-        {!currentUser && (
-          <div className="bg-amber-50 border-b border-amber-200 px-6 py-2.5 flex items-center gap-2 text-sm text-amber-800">
-            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>No user selected — outreach logs and drafts won't be attributed to anyone.</span>
-            <button
-              onClick={() => setShowUserPicker(true)}
-              className="ml-2 font-medium underline hover:text-amber-900"
-            >
-              Select your name →
-            </button>
-          </div>
-        )}
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
@@ -241,8 +171,11 @@ export default function App() {
           <Route path="/coverage" element={<CoveragePage />} />
           <Route path="/admin/publications/:id" element={<PublicationDetail />} />
           <Route path="/admin/publications" element={<AdminPublications />} />
+          <Route path="/admin/scoring-dimensions" element={<ScoringDimensions />} />
           <Route path="/admin/journalist-suggestions" element={<AdminJournalistSuggestions />} />
+          <Route path="/team" element={<TeamPage />} />
           <Route path="/system" element={<SystemInfoPage />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
     </div>

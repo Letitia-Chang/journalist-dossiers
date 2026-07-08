@@ -179,11 +179,6 @@ export default function SystemInfoPage() {
           note="Used for: LinkedIn/MuckRack/Twitter URL discovery, follower count detection from snippets, profile photos. Free trial = 100 searches total (does not refill)."
         />
         <Row
-          label="Apollo"
-          value="Credit balance shown next to 'Find emails' button"
-          note="Used for: email enrichment per journalist. Each lookup costs 1 export credit. Rate-limited to 1 request per 1.2 seconds in bulk mode."
-        />
-        <Row
           label="Anthropic Claude"
           value="Pay-per-token · no hard cap"
           note="Used for: journalist scoring, campaign draft generation, publication suggestions, press coverage text parsing. Model: Claude Opus 4.8."
@@ -199,13 +194,13 @@ export default function SystemInfoPage() {
         />
         <Row
           label="No web scraping"
-          value="Only public professional contact info via Apollo API or manual entry"
-          note="The email finder reads publication author pages via HTTP — this is standard page fetching, not scraping. Sites that block it (Cloudflare) are handled gracefully."
+          value="Only public professional contact info via manual entry"
+          note="Email enrichment via a third-party provider is not currently integrated — contact info is entered manually or sourced from a publication's own contact page."
         />
         <Row
           label="No guessed emails"
           value="Never construct email addresses from name + domain patterns"
-          note="All emails must come from Apollo enrichment, the publication's own contact page, or manual entry."
+          note="Emails must come from the publication's own contact page or manual entry."
         />
         <Row
           label="Human approval required"

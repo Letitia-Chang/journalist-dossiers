@@ -1,352 +1,273 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import * as cheerio from 'cheerio';
 import pool from '../db';
 import { discoverRssUrl } from '../services/rssDiscovery';
-import { discoverAndSaveFeeds } from '../services/categoryFeedDiscovery';
 import { discoverPublications } from '../services/blogDiscovery';
+import { discoverAndSaveFeeds } from '../services/categoryFeedDiscovery';
+import { scanAllRssFeeds } from '../services/rssService';
+import { runHealthChecks, getHealthSummary } from '../services/healthCheckService';
+import { requireRole } from '../middleware/auth';
 
 const router = Router();
+const requireEditor = requireRole('owner', 'admin');
 
-// GET all publications
-router.get('/', async (_req: Request, res: Response) => {
+function hostnameOf(url: string): string {
   try {
-    const rows = (await pool.query(`
-      SELECT p.*, COUNT(pf.id)::int as "feedCount"
-      FROM publications p
-      LEFT JOIN publication_feeds pf ON pf."publicationId" = p.id
-      GROUP BY p.id
-      ORDER BY p.active DESC, p.tier ASC, p.name ASC
-    `)).rows;
-    res.json(rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return new URL(url.startsWith('http') ? url : `https://${url}`).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return url.toLowerCase();
   }
+}
+
+router.get('/', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, name, url, tier, focus, notes, active, rss_url, rss_status, rss_status_note,
+            health_status, last_health_check, created_at, updated_at
+     FROM publications WHERE org_id = $1
+     ORDER BY name ASC`,
+    [req.orgId],
+  );
+  res.json(rows);
 });
 
-// GET single publication
-router.get('/:id', async (req: Request, res: Response) => {
-  try {
-    const row = (await pool.query('SELECT * FROM publications WHERE id = $1', [req.params.id])).rows[0];
-    if (!row) return res.status(404).json({ error: 'Not found' });
-    res.json(row);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+// ── Discovery — must come before /:id so "discover" isn't parsed as an id ──────
+
+router.post('/discover', requireEditor, async (req, res) => {
+  const { query } = req.body as { query?: string };
+  if (!query?.trim()) return res.status(400).json({ error: 'query is required' });
+
+  const { rows: existing } = await pool.query('SELECT url FROM publications WHERE org_id = $1', [req.orgId]);
+  const existingDomains = new Set(
+    existing.filter(p => p.url).map(p => {
+      try { return new URL(p.url.startsWith('http') ? p.url : `https://${p.url}`).hostname.replace(/^www\./, '').toLowerCase(); }
+      catch { return p.url.toLowerCase(); }
+    }),
+  );
+
+  const results = await discoverPublications(query.trim(), existingDomains);
+  res.json(results);
 });
 
-// POST create publication
-router.post('/', async (req: Request, res: Response) => {
+router.post('/import-opml', requireEditor, async (req, res) => {
+  const { opml } = req.body as { opml?: string };
+  if (!opml?.trim()) return res.status(400).json({ error: 'opml text is required' });
+
+  let outlines: { name: string; homepage: string; feedUrl: string }[];
   try {
-    const { name, url = '', tier = 'B', focus = '', notes = '', active = 1, rssUrl = '', rssStatus = 'unknown' } = req.body;
-    if (!name) return res.status(400).json({ error: 'Name is required' });
+    const $ = cheerio.load(opml, { xmlMode: true });
+    outlines = $('outline[xmlUrl]').toArray().map(el => {
+      const node = $(el);
+      const xmlUrl = (node.attr('xmlUrl') ?? '').trim();
+      const homepage = (node.attr('htmlUrl') ?? '').trim();
+      const name = (node.attr('title') ?? '').trim() || (node.attr('text') ?? '').trim() || hostnameOf(homepage || xmlUrl);
+      return { name, homepage, feedUrl: xmlUrl };
+    }).filter(o => o.feedUrl);
+  } catch {
+    return res.status(400).json({ error: 'Could not parse OPML file' });
+  }
+  if (outlines.length === 0) return res.status(400).json({ error: 'No feed entries found in this OPML file' });
 
-    const result = await pool.query(`
-      INSERT INTO publications (name, url, tier, focus, notes, active, "rssUrl", "rssStatus")
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id
-    `, [name, url, tier, focus, notes, active, rssUrl, rssStatus]);
+  const groups = new Map<string, typeof outlines>();
+  for (const o of outlines) {
+    const domain = hostnameOf(o.homepage || o.feedUrl);
+    if (!groups.has(domain)) groups.set(domain, []);
+    groups.get(domain)!.push(o);
+  }
 
-    const created = (await pool.query('SELECT * FROM publications WHERE id = $1', [result.rows[0].id])).rows[0];
-    res.status(201).json({ ...created, discoveringFeeds: true });
+  const { rows: existingPubs } = await pool.query(
+    'SELECT id, name, url, rss_url FROM publications WHERE org_id = $1', [req.orgId],
+  );
+  const byDomain = new Map(existingPubs.filter(p => p.url).map(p => [hostnameOf(p.url), p]));
+  const byName = new Map(existingPubs.map(p => [p.name.toLowerCase(), p]));
+  const mainFeedByPubId = new Map(existingPubs.map(p => [p.id, p.rss_url]));
 
-    // Background: auto-discover RSS URL then category feeds
-    (async () => {
-      let resolvedUrl = rssUrl;
-      if (!resolvedUrl && url) {
-        try {
-          const discovered = await discoverRssUrl(url);
-          if (discovered) {
-            resolvedUrl = discovered;
-            await pool.query(
-              'UPDATE publications SET "rssUrl"=$1, "rssStatus"=\'active\', "updatedAt"=NOW() WHERE id=$2',
-              [discovered, created.id]
-            );
-            console.log(`[RssDiscovery] Auto-filled RSS for "${name}": ${discovered}`);
-          } else {
-            await pool.query("UPDATE publications SET \"rssStatus\"='none' WHERE id=$1", [created.id]);
-          }
-        } catch (err: any) {
-          console.error(`[RssDiscovery] Failed for "${name}":`, err.message);
-        }
-      }
-      // Discover category feeds regardless
-      discoverAndSaveFeeds(created.id).catch(err =>
-        console.error(`[FeedDiscovery] Failed for "${name}":`, err.message)
+  let added = 0, feedsAdded = 0, skipped = 0;
+
+  for (const [domain, entries] of groups) {
+    const existing = byDomain.get(domain) ?? byName.get(entries[0].name.toLowerCase());
+    let pubId: number;
+    if (existing) {
+      pubId = existing.id;
+      skipped++;
+    } else {
+      const first = entries[0];
+      const { rows: [newPub] } = await pool.query(
+        `INSERT INTO publications (org_id, name, url, rss_url) VALUES ($1, $2, $3, $4) RETURNING id`,
+        [req.orgId, first.name, first.homepage || `https://${domain}`, first.feedUrl],
       );
-    })();
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// PUT update publication
-router.put('/:id', async (req: Request, res: Response) => {
-  try {
-    const existing = (await pool.query('SELECT * FROM publications WHERE id = $1', [req.params.id])).rows[0];
-    if (!existing) return res.status(404).json({ error: 'Not found' });
-
-    const {
-      name = existing.name, url = existing.url, tier = existing.tier,
-      focus = existing.focus, notes = existing.notes ?? '', active = existing.active,
-      rssUrl = existing.rssUrl ?? '', rssStatus = existing.rssStatus ?? 'unknown',
-    } = req.body;
-
-    await pool.query(`
-      UPDATE publications SET name=$1, url=$2, tier=$3, focus=$4, notes=$5, active=$6,
-        "rssUrl"=$7, "rssStatus"=$8, "updatedAt"=NOW()
-      WHERE id=$9
-    `, [name, url, tier, focus, notes, active, rssUrl, rssStatus, req.params.id]);
-
-    const updated = (await pool.query('SELECT * FROM publications WHERE id = $1', [req.params.id])).rows[0];
-    res.json(updated);
-
-    const urlChanged = url !== existing.url;
-    if ((urlChanged || !rssUrl) && url && !rssUrl) {
-      discoverRssUrl(url).then(async discovered => {
-        if (discovered) {
-          await pool.query(
-            'UPDATE publications SET "rssUrl"=$1, "rssStatus"=\'active\', "updatedAt"=NOW() WHERE id=$2',
-            [discovered, req.params.id]
-          );
-          console.log(`[RssDiscovery] Auto-filled RSS for "${name}": ${discovered}`);
-        }
-      }).catch(() => {});
+      pubId = newPub.id;
+      mainFeedByPubId.set(pubId, first.feedUrl);
+      added++;
     }
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+
+    for (const entry of entries) {
+      if (entry.feedUrl === mainFeedByPubId.get(pubId)) continue;
+      const { rows: [dupe] } = await pool.query(
+        'SELECT id FROM publication_feeds WHERE publication_id = $1 AND feed_url = $2', [pubId, entry.feedUrl],
+      );
+      if (dupe) continue;
+      await pool.query(
+        `INSERT INTO publication_feeds (org_id, publication_id, feed_url, feed_label, feed_type)
+         VALUES ($1, $2, $3, $4, 'category')`,
+        [req.orgId, pubId, entry.feedUrl, entry.name],
+      );
+      feedsAdded++;
+    }
   }
+
+  res.json({ added, feedsAdded, skipped });
 });
 
-// POST discover RSS for a specific publication
-router.post('/:id/discover-rss', async (req: Request, res: Response) => {
-  try {
-    const pub = (await pool.query('SELECT * FROM publications WHERE id = $1', [req.params.id])).rows[0];
-    if (!pub) return res.status(404).json({ error: 'Not found' });
-    if (!pub.url) return res.status(400).json({ error: 'Publication has no URL' });
-
-    res.json({ message: 'RSS discovery started' });
-
-    discoverRssUrl(pub.url).then(async discovered => {
-      if (discovered) {
-        await pool.query(
-          'UPDATE publications SET "rssUrl"=$1, "rssStatus"=\'active\', "updatedAt"=NOW() WHERE id=$2',
-          [discovered, pub.id]
-        );
-        console.log(`[RssDiscovery] Found for "${pub.name}": ${discovered}`);
-      } else {
-        await pool.query("UPDATE publications SET \"rssStatus\"='none' WHERE id=$1", [pub.id]);
-        console.log(`[RssDiscovery] No feed found for "${pub.name}"`);
-      }
-    }).catch(console.error);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.post('/check-feeds', requireEditor, async (req, res) => {
+  res.json({ message: 'Health check started — statuses will update in 1–2 minutes.' });
+  runHealthChecks(req.orgId!).catch(err => console.error('[HealthCheck]', err.message));
 });
 
-// GET journalists at a publication
-router.get('/:id/journalists', async (req: Request, res: Response) => {
-  try {
-    const pub = (await pool.query('SELECT name FROM publications WHERE id = $1', [req.params.id])).rows[0];
-    if (!pub) return res.status(404).json({ error: 'Not found' });
-
-    const journalists = (await pool.query(`
-      SELECT j.*, COUNT(ol.id)::int AS "logCount", MAX(ol.date) AS "latestContact"
-      FROM journalists j
-      LEFT JOIN outreach_logs ol ON ol."journalistId" = j.id
-      WHERE j.publication = $1
-      GROUP BY j.id
-      ORDER BY j."totalScore" DESC
-    `, [pub.name])).rows;
-
-    res.json(journalists);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET feeds for a publication
-router.get('/:id/feeds', async (req: Request, res: Response) => {
-  try {
-    const feeds = (await pool.query(
-      'SELECT * FROM publication_feeds WHERE "publicationId" = $1 ORDER BY "feedType" ASC, id ASC',
-      [req.params.id]
-    )).rows;
-    res.json(feeds);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST discover category feeds (background)
-router.post('/:id/discover-feeds', async (req: Request, res: Response) => {
-  try {
-    const pub = (await pool.query('SELECT * FROM publications WHERE id = $1', [req.params.id])).rows[0];
-    if (!pub) return res.status(404).json({ error: 'Not found' });
-    if (!pub.url) return res.status(400).json({ error: 'Publication has no homepage URL' });
-
-    res.json({ message: 'Feed discovery started', publicationName: pub.name });
-
-    discoverAndSaveFeeds(pub.id)
-      .then(r => console.log(`[FeedDiscovery] ${r.publicationName}: ${r.feedsAdded} new feeds saved`))
-      .catch(err => console.error(`[FeedDiscovery] Error for pub ${pub.id}:`, err.message));
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST add a feed URL manually
-router.post('/:id/feeds', async (req: Request, res: Response) => {
-  try {
-    const { feedUrl, feedLabel = 'Manual', feedType = 'category' } = req.body;
-    if (!feedUrl) return res.status(400).json({ error: 'feedUrl is required' });
-    const pub = (await pool.query('SELECT id FROM publications WHERE id = $1', [req.params.id])).rows[0];
-    if (!pub) return res.status(404).json({ error: 'Not found' });
-
-    const result = await pool.query(`
-      INSERT INTO publication_feeds ("publicationId", "feedUrl", "feedLabel", "feedType")
-      VALUES ($1,$2,$3,$4) RETURNING id
-    `, [req.params.id, feedUrl, feedLabel, feedType]);
-
-    const created = (await pool.query('SELECT * FROM publication_feeds WHERE id = $1', [result.rows[0].id])).rows[0];
-    res.status(201).json(created);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// DELETE a feed
-router.delete('/:id/feeds/:feedId', async (req: Request, res: Response) => {
-  try {
-    await pool.query(
-      'DELETE FROM publication_feeds WHERE id = $1 AND "publicationId" = $2',
-      [req.params.feedId, req.params.id]
+router.post('/sync-feeds', requireEditor, async (req, res) => {
+  res.json({ message: 'Syncing feeds — discovery then verification. This may take a few minutes.' });
+  (async () => {
+    const { rows: pubs } = await pool.query(
+      `SELECT id FROM publications WHERE org_id = $1 AND active = true`, [req.orgId],
     );
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+    for (const pub of pubs) {
+      await discoverAndSaveFeeds(req.orgId!, pub.id).catch(err => console.error('[SyncFeeds] discover', err.message));
+    }
+    await scanAllRssFeeds(req.orgId!).catch(err => console.error('[SyncFeeds] scan', err.message));
+  })();
 });
 
-// POST /discover — fan out to Feedly, Substack, Medium
-router.post('/discover', async (req: Request, res: Response) => {
-  try {
-    const { query } = req.body;
-    if (!query?.trim()) return res.status(400).json({ error: 'query required' });
-
-    const tracked = (await pool.query("SELECT url FROM publications WHERE url IS NOT NULL AND url != ''")).rows;
-    const existingDomains = new Set<string>(
-      tracked.map(p => {
-        try { return new URL(p.url).hostname.replace(/^www\./, '').toLowerCase(); }
-        catch { return ''; }
-      }).filter(Boolean)
-    );
-
-    const results = await discoverPublications(query.trim(), existingDomains);
-    res.json(results);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/health-summary', async (req, res) => {
+  const summary = await getHealthSummary(req.orgId!);
+  res.json(summary);
 });
 
-// DELETE publication
-router.delete('/:id', async (req: Request, res: Response) => {
-  try {
-    await pool.query('DELETE FROM publications WHERE id = $1', [req.params.id]);
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/:id', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    `SELECT id, name, url, tier, focus, notes, active, rss_url, rss_status, rss_status_note,
+            health_status, last_health_check, created_at, updated_at
+     FROM publications WHERE id = $1 AND org_id = $2`,
+    [req.params.id, req.orgId],
+  );
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(row);
 });
 
-// POST import OPML
-router.post('/import-opml', async (req: Request, res: Response) => {
-  try {
-    const { opmlContent } = req.body as { opmlContent: string };
-    if (!opmlContent || typeof opmlContent !== 'string') {
-      return res.status(400).json({ error: 'opmlContent is required' });
-    }
+router.get('/:id/journalists', async (req, res) => {
+  const { rows: [pub] } = await pool.query(
+    'SELECT id FROM publications WHERE id = $1 AND org_id = $2',
+    [req.params.id, req.orgId],
+  );
+  if (!pub) return res.status(404).json({ error: 'Not found' });
 
-    const $ = cheerio.load(opmlContent, { xmlMode: true });
+  const { rows } = await pool.query(
+    `SELECT j.id, j.name, j.email, j.twitter, j.linkedin, j.beats, j.total_score, j.is_favorite,
+            COALESCE((SELECT ol.status FROM outreach_logs ol WHERE ol.journalist_id = j.id AND ol.org_id = j.org_id
+              ORDER BY ol.logged_at DESC LIMIT 1), 'Not Started') as outreach_status
+     FROM journalists j
+     WHERE j.publication_id = $1 AND j.org_id = $2
+     ORDER BY j.total_score DESC, j.name ASC`,
+    [req.params.id, req.orgId],
+  );
+  res.json(rows);
+});
 
-    interface FeedEntry { name: string; rssUrl: string; url: string; category: string }
-    const feeds: FeedEntry[] = [];
-    $('outline[xmlUrl]').each((_i, el) => {
-      const rssUrl = $(el).attr('xmlUrl') || '';
-      const name = ($(el).attr('title') || $(el).attr('text') || '').trim();
-      const url = $(el).attr('htmlUrl') || '';
-      const parent = $(el).parent();
-      const category = (parent.attr('title') || parent.attr('text') || '').trim();
-      if (rssUrl && name) feeds.push({ name, rssUrl, url, category });
-    });
+router.get('/:id/feeds', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, feed_url, feed_label, feed_type, rss_status, rss_last_checked, created_at
+     FROM publication_feeds WHERE publication_id = $1 AND org_id = $2 ORDER BY created_at ASC`,
+    [req.params.id, req.orgId],
+  );
+  res.json(rows);
+});
 
-    if (feeds.length === 0) {
-      return res.status(400).json({ error: 'No RSS feeds found in this OPML file.' });
-    }
+router.post('/:id/feeds', requireEditor, async (req, res) => {
+  const { feedUrl, feedLabel } = req.body as { feedUrl?: string; feedLabel?: string };
+  if (!feedUrl) return res.status(400).json({ error: 'feedUrl is required' });
 
-    const existingPubs = (await pool.query('SELECT name, url, "rssUrl" FROM publications')).rows;
-    const existingUrls = new Set(existingPubs.map(p => (p.url || '').toLowerCase().replace(/\/$/, '')));
-    const existingRss = new Set(existingPubs.map(p => (p.rssUrl || '').toLowerCase()));
-    const existingNames = new Set(existingPubs.map(p => p.name.toLowerCase()));
+  const { rows: [pub] } = await pool.query('SELECT id FROM publications WHERE id = $1 AND org_id = $2', [req.params.id, req.orgId]);
+  if (!pub) return res.status(404).json({ error: 'Publication not found' });
 
-    const pendingSuggestions = (await pool.query("SELECT name, url FROM publication_suggestions WHERE status='pending'")).rows;
-    const pendingUrls = new Set(pendingSuggestions.map(p => (p.url || '').toLowerCase().replace(/\/$/, '')));
-    const pendingNames = new Set(pendingSuggestions.map(p => (p.name || '').toLowerCase()));
+  const { rows: [row] } = await pool.query(
+    `INSERT INTO publication_feeds (org_id, publication_id, feed_url, feed_label, feed_type)
+     VALUES ($1, $2, $3, $4, 'category')
+     RETURNING id, feed_url, feed_label, feed_type, rss_status, rss_last_checked, created_at`,
+    [req.orgId, req.params.id, feedUrl, feedLabel ?? 'Category'],
+  );
+  res.status(201).json(row);
+});
 
-    let added = 0;
-    let skippedDuplicate = 0;
-    let skippedPending = 0;
-    const addedNames: string[] = [];
+router.delete('/:id/feeds/:feedId', requireEditor, async (req, res) => {
+  const result = await pool.query(
+    'DELETE FROM publication_feeds WHERE id = $1 AND publication_id = $2 AND org_id = $3',
+    [req.params.feedId, req.params.id, req.orgId],
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  res.status(204).end();
+});
 
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      for (const feed of feeds) {
-        const normUrl = (feed.url || '').toLowerCase().replace(/\/$/, '');
-        const normRss = feed.rssUrl.toLowerCase();
-        const normName = feed.name.toLowerCase();
+router.post('/:id/discover-rss', requireEditor, async (req, res) => {
+  const { rows: [pub] } = await pool.query('SELECT id, url FROM publications WHERE id = $1 AND org_id = $2', [req.params.id, req.orgId]);
+  if (!pub) return res.status(404).json({ error: 'Not found' });
+  if (!pub.url) return res.status(400).json({ error: 'Publication has no homepage URL' });
 
-        if (existingUrls.has(normUrl) || existingRss.has(normRss) || existingNames.has(normName)) {
-          skippedDuplicate++; continue;
-        }
-        if (pendingUrls.has(normUrl) || pendingNames.has(normName)) {
-          skippedPending++; continue;
-        }
+  const feedUrl = await discoverRssUrl(pub.url);
+  if (!feedUrl) return res.status(404).json({ error: 'No RSS feed found' });
 
-        const cat = feed.category.toLowerCase();
-        let tier = 'C';
-        if (/techcrunch|wired|verge|venturebeat|ars technica|mit tech|bloomberg|wsj|forbes|fortune|fast company|inc\.|reuters|ap |associated press/i.test(feed.name)) {
-          tier = 'A';
-        } else if (/business|enterprise|finance|economy|market|investor/i.test(cat)) {
-          tier = 'B';
-        } else if (/major|top tier|tier a|tier 1/i.test(cat)) {
-          tier = 'A';
-        }
+  await pool.query(`UPDATE publications SET rss_url = $1, rss_status = 'active', rss_last_checked = NOW() WHERE id = $2`, [feedUrl, req.params.id]);
+  res.json({ feedUrl });
+});
 
-        const reason = `Imported from OPML${feed.category ? ` (category: ${feed.category})` : ''}. RSS: ${feed.rssUrl}`;
-        await client.query(
-          'INSERT INTO publication_suggestions (name, url, tier, focus, reason, status) VALUES ($1,$2,$3,$4,$5,\'pending\')',
-          [feed.name, feed.url || '', tier, feed.category || '', reason]
-        );
-        added++;
-        addedNames.push(feed.name);
-      }
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+router.post('/:id/discover-feeds', requireEditor, async (req, res) => {
+  res.json({ message: 'Discovering category feeds — this runs in the background (~20s).' });
+  discoverAndSaveFeeds(req.orgId!, Number(req.params.id)).catch(err => console.error('[DiscoverFeeds]', err.message));
+});
 
-    res.json({
-      total: feeds.length, added, skippedDuplicate, skippedPending,
-      message: added > 0
-        ? `${added} new publication${added !== 1 ? 's' : ''} added to your review queue.`
-        : 'All feeds already exist in your list or are pending review.',
-      preview: addedNames.slice(0, 10),
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.post('/', requireEditor, async (req, res) => {
+  const { name, url, tier, focus, notes, rssUrl } = req.body as {
+    name?: string; url?: string; tier?: string; focus?: string; notes?: string; rssUrl?: string;
+  };
+  if (!name) return res.status(400).json({ error: 'name is required' });
+
+  const { rows: [row] } = await pool.query(
+    `INSERT INTO publications (org_id, name, url, tier, focus, notes, rss_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id, name, url, tier, focus, notes, active, rss_url, rss_status, rss_status_note,
+               health_status, last_health_check, created_at, updated_at`,
+    [req.orgId, name, url ?? '', tier ?? 'B', focus ?? '', notes ?? '', rssUrl ?? ''],
+  );
+  res.status(201).json(row);
+});
+
+router.put('/:id', requireEditor, async (req, res) => {
+  const { name, url, tier, focus, notes, active, rssUrl } = req.body as {
+    name?: string; url?: string; tier?: string; focus?: string; notes?: string; active?: boolean; rssUrl?: string;
+  };
+  const { rows: [row] } = await pool.query(
+    `UPDATE publications SET
+       name = COALESCE($1, name),
+       url = COALESCE($2, url),
+       tier = COALESCE($3, tier),
+       focus = COALESCE($4, focus),
+       notes = COALESCE($5, notes),
+       active = COALESCE($6, active),
+       rss_url = COALESCE($7, rss_url),
+       updated_at = NOW()
+     WHERE id = $8 AND org_id = $9
+     RETURNING id, name, url, tier, focus, notes, active, rss_url, rss_status, rss_status_note,
+               health_status, last_health_check, created_at, updated_at`,
+    [name, url, tier, focus, notes, active, rssUrl, req.params.id, req.orgId],
+  );
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(row);
+});
+
+router.delete('/:id', requireEditor, async (req, res) => {
+  const result = await pool.query(
+    'DELETE FROM publications WHERE id = $1 AND org_id = $2',
+    [req.params.id, req.orgId],
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  res.status(204).end();
 });
 
 export default router;

@@ -9,12 +9,14 @@ function getOAuthClient() {
   );
 }
 
-export async function getAuthedGmailClient() {
-  const row = (await pool.query(`SELECT value FROM settings WHERE key = 'gmail_refresh_token'`)).rows[0];
-  if (!row?.value) throw new Error('Gmail not connected. Connect via Settings first.');
+export async function getAuthedGmailClient(orgId: string) {
+  const { rows: [conn] } = await pool.query(
+    'SELECT refresh_token FROM gmail_connections WHERE org_id = $1', [orgId],
+  );
+  if (!conn) return null;
 
   const auth = getOAuthClient();
-  auth.setCredentials({ refresh_token: row.value });
+  auth.setCredentials({ refresh_token: conn.refresh_token });
   return google.gmail({ version: 'v1', auth });
 }
 
@@ -30,8 +32,10 @@ function makeMimeMessage(to: string, subject: string, body: string): string {
   return Buffer.from(lines.join('\r\n')).toString('base64url');
 }
 
-export async function createGmailDraft(to: string, subject: string, body: string): Promise<string> {
-  const gmail = await getAuthedGmailClient();
+export async function createGmailDraft(
+  gmail: NonNullable<Awaited<ReturnType<typeof getAuthedGmailClient>>>,
+  to: string, subject: string, body: string,
+): Promise<string> {
   const raw = makeMimeMessage(to, subject, body);
   const result = await gmail.users.drafts.create({
     userId: 'me',

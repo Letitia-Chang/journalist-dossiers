@@ -14,7 +14,7 @@ Internal journalist CRM for **North Star AI Labs** — tracks AI/tech journalist
 
 ## Access
 
-**App:** https://northstar-journalist-dossiers.vercel.app
+**App:** https://journalist-dossiers.vercel.app
 
 No installation needed — the app is fully cloud-hosted and shared across the team.
 

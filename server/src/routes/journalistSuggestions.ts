@@ -1,220 +1,154 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import pool from '../db';
 import { scanPublicationRss, scanAllRssFeeds } from '../services/rssService';
 import { scanStaffPage } from '../services/staffPageScanner';
-import { analyzeJournalist } from '../services/journalistAnalysis';
-import { inferArticleTopic } from '../services/rssService';
-import { findJournalistEmail } from '../services/emailFinder';
+import { scoreJournalistWithAI } from '../services/journalistScoring';
+import { requireRole } from '../middleware/auth';
 
 const router = Router();
+const requireEditor = requireRole('owner', 'admin');
 
-// GET all pending suggestions
-router.get('/', async (_req: Request, res: Response) => {
-  try {
-    const rows = (await pool.query(
-      "SELECT * FROM journalist_suggestions WHERE status = 'pending' ORDER BY \"createdAt\" DESC"
-    )).rows;
-    res.json(rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT js.*, p.name as publication_name FROM journalist_suggestions js
+     LEFT JOIN publications p ON p.id = js.publication_id
+     WHERE js.org_id = $1 AND js.status = 'pending' ORDER BY js.created_at DESC`,
+    [req.orgId],
+  );
+  res.json(rows);
 });
 
-// GET count of pending suggestions
-router.get('/count', async (_req: Request, res: Response) => {
-  try {
-    const result = (await pool.query(
-      "SELECT COUNT(*)::int as c FROM journalist_suggestions WHERE status='pending'"
-    )).rows[0];
-    res.json({ count: result.c });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/count', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    `SELECT COUNT(*)::int as c FROM journalist_suggestions WHERE org_id = $1 AND status = 'pending'`,
+    [req.orgId],
+  );
+  res.json({ count: row.c });
 });
 
-// GET suggestion history
-router.get('/history', async (_req: Request, res: Response) => {
-  try {
-    const rows = (await pool.query(
-      "SELECT * FROM journalist_suggestions WHERE status != 'pending' ORDER BY \"createdAt\" DESC LIMIT 100"
-    )).rows;
-    res.json(rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/history', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT js.*, p.name as publication_name FROM journalist_suggestions js
+     LEFT JOIN publications p ON p.id = js.publication_id
+     WHERE js.org_id = $1 AND js.status != 'pending' ORDER BY js.created_at DESC LIMIT 100`,
+    [req.orgId],
+  );
+  res.json(rows);
 });
 
-// POST accept
-router.post('/:id/accept', async (req: Request, res: Response) => {
-  try {
-    const suggestion = (await pool.query(
-      'SELECT * FROM journalist_suggestions WHERE id=$1', [req.params.id]
-    )).rows[0];
-    if (!suggestion) return res.status(404).json({ error: 'Not found' });
+router.post('/:id/accept', async (req, res) => {
+  const { rows: [suggestion] } = await pool.query(
+    'SELECT * FROM journalist_suggestions WHERE id = $1 AND org_id = $2', [req.params.id, req.orgId],
+  );
+  if (!suggestion) return res.status(404).json({ error: 'Not found' });
 
-    const existing = (await pool.query(
-      'SELECT id FROM journalists WHERE LOWER(name)=LOWER($1) AND LOWER(publication)=LOWER($2)',
-      [suggestion.name, suggestion.publicationName || '']
-    )).rows[0];
-    if (existing) {
-      await pool.query("UPDATE journalist_suggestions SET status='accepted' WHERE id=$1", [req.params.id]);
-      return res.json({ success: true, duplicate: true, message: 'Journalist already exists — marked accepted' });
+  const { rows: [existing] } = await pool.query(
+    'SELECT id FROM journalists WHERE org_id = $1 AND publication_id = $2 AND LOWER(name) = LOWER($3)',
+    [req.orgId, suggestion.publication_id, suggestion.name],
+  );
+  if (existing) {
+    await pool.query(`UPDATE journalist_suggestions SET status = 'accepted' WHERE id = $1`, [req.params.id]);
+    return res.json({ success: true, duplicate: true, message: 'Journalist already exists — marked accepted' });
+  }
+
+  const bio = suggestion.recent_article_url
+    ? `Discovered via ${suggestion.source_type === 'staffpage' ? 'staff page scan' : 'RSS'}. Recent article: ${suggestion.recent_article_title} — ${suggestion.recent_article_url}`
+    : `Discovered via ${suggestion.source_type === 'staffpage' ? 'staff page scan' : 'RSS scan'}.`;
+
+  const { rows: [journalist] } = await pool.query(
+    `INSERT INTO journalists (org_id, name, publication_id, beats, bio)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [req.orgId, suggestion.name, suggestion.publication_id, suggestion.suggested_beat ? [suggestion.suggested_beat] : [], bio],
+  );
+
+  await pool.query(`UPDATE journalist_suggestions SET status = 'accepted' WHERE id = $1`, [req.params.id]);
+
+  // Seed articles from the suggestion's discovered article list
+  let allArticles: { title: string; url: string; date: string }[] = [];
+  try {
+    allArticles = suggestion.all_articles ? JSON.parse(suggestion.all_articles) : [];
+    if (allArticles.length === 0 && suggestion.recent_article_title && suggestion.recent_article_url) {
+      allArticles = [{ title: suggestion.recent_article_title, url: suggestion.recent_article_url, date: suggestion.recent_article_date }];
     }
-
-    const notes = suggestion.recentArticleUrl
-      ? `Discovered via ${suggestion.sourceType === 'staffpage' ? 'staff page scan' : 'RSS'}. Recent article: ${suggestion.recentArticleTitle} — ${suggestion.recentArticleUrl}`
-      : `Discovered via ${suggestion.sourceType === 'staffpage' ? 'staff page scan' : 'RSS scan'}.`;
-
-    const result = await pool.query(`
-      INSERT INTO journalists (name, publication, beat, "outreachStatus", notes)
-      VALUES ($1,$2,$3,'Not Started',$4) RETURNING id
-    `, [suggestion.name, suggestion.publicationName || '', suggestion.suggestedBeat || '', notes]);
-
-    await pool.query("UPDATE journalist_suggestions SET status='accepted' WHERE id=$1", [req.params.id]);
-    const created = (await pool.query('SELECT * FROM journalists WHERE id=$1', [result.rows[0].id])).rows[0];
-
-    // Seed articles
-    let latestDate = '';
-    let allArticles: { title: string; url: string; date: string; categories?: string[] }[] = [];
-    try {
-      allArticles =
-        suggestion.allArticles ? JSON.parse(suggestion.allArticles) : [];
-
-      if (allArticles.length > 0) {
-        for (const a of allArticles) {
-          if (!a.title || !a.url) continue;
-          // Label each article by its own topic, not the journalist's overall beat
-          const topic = inferArticleTopic(a.title, (a as any).categories || []);
-          await pool.query(`
-            INSERT INTO articles ("journalistId", title, url, publication, "publishDate", topic)
-            VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING
-          `, [created.id, a.title, a.url, suggestion.publicationName || '', a.date || '', topic]);
-          if (a.date && a.date > latestDate) latestDate = a.date;
-        }
-      } else if (suggestion.recentArticleTitle && suggestion.recentArticleUrl) {
-        const topic = inferArticleTopic(suggestion.recentArticleTitle, []);
-        await pool.query(`
-          INSERT INTO articles ("journalistId", title, url, publication, "publishDate", topic)
-          VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING
-        `, [created.id, suggestion.recentArticleTitle, suggestion.recentArticleUrl,
-            suggestion.publicationName || '', suggestion.recentArticleDate || '', topic]);
-        latestDate = suggestion.recentArticleDate || '';
-      }
-    } catch { /* ignore article seeding failures */ }
-
-    if (latestDate) {
-      await pool.query('UPDATE journalists SET "lastArticleDate" = $1 WHERE id = $2', [latestDate, created.id]);
+    for (const a of allArticles) {
+      if (!a.title) continue;
+      await pool.query(
+        `INSERT INTO articles (org_id, journalist_id, title, url, published_at) VALUES ($1, $2, $3, $4, $5)`,
+        [req.orgId, journalist.id, a.title, a.url ?? '', a.date || null],
+      );
     }
+  } catch { /* non-fatal — article seeding is best-effort */ }
 
-    res.status(201).json({ success: true, journalist: created });
+  res.status(201).json({ success: true, journalistId: journalist.id });
 
-    // Background: email finder via publication website
-    const pubForEmail = (await pool.query(
-      'SELECT url FROM publications WHERE LOWER(name)=LOWER($1)', [suggestion.publicationName]
-    )).rows[0];
-    if (pubForEmail?.url) {
-      findJournalistEmail(suggestion.name, pubForEmail.url).then(async result => {
-        if (!result) return;
-        const updates: string[] = [];
-        const values: any[] = [];
-        let i = 1;
-        if (result.email)      { updates.push(`email = $${i++}`);         values.push(result.email); }
-        if (result.contactUrl) { updates.push(`"contactUrl" = $${i++}`);  values.push(result.contactUrl); }
-        if (updates.length > 0) {
-          values.push(created.id);
-          await pool.query(
-            `UPDATE journalists SET ${updates.join(', ')}, "updatedAt" = NOW() WHERE id = $${i}`,
-            values
+  // Background: auto-score with AI using the org's own scoring dimensions, if any are defined
+  const { rows: dimensions } = await pool.query(
+    'SELECT id, name, description, weight FROM scoring_dimensions WHERE org_id = $1 ORDER BY display_order ASC, id ASC',
+    [req.orgId],
+  );
+  if (dimensions.length > 0) {
+    const { rows: [org] } = await pool.query('SELECT company_description, target_verticals FROM organizations WHERE id = $1', [req.orgId]);
+    const { rows: [pub] } = await pool.query('SELECT name FROM publications WHERE id = $1', [suggestion.publication_id]);
+
+    scoreJournalistWithAI({
+      companyDescription: org?.company_description ?? '',
+      targetVerticals: org?.target_verticals ?? [],
+      dimensions,
+      journalistName: suggestion.name,
+      publicationName: pub?.name,
+      beats: suggestion.suggested_beat ? [suggestion.suggested_beat] : [],
+      bio,
+    }).then(async result => {
+      if (!result) return;
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        for (const s of result.scores) {
+          await client.query(
+            `INSERT INTO journalist_scores (org_id, journalist_id, dimension_id, score)
+             VALUES ($1, $2, $3, $4) ON CONFLICT (journalist_id, dimension_id) DO UPDATE SET score = $4, updated_at = NOW()`,
+            [req.orgId, journalist.id, s.dimensionId, s.score],
           );
-          console.log(`[EmailFinder] ${suggestion.name} → email:${result.email || 'none'} contactUrl:${result.contactUrl || 'none'}`);
         }
-      }).catch(err => console.error('[EmailFinder] Error:', err.message));
-    }
-
-    // Background: Claude analysis
-    const pub = (await pool.query('SELECT * FROM publications WHERE LOWER(name)=LOWER($1)', [suggestion.publicationName])).rows[0];
-    const pubTier = pub?.tier || 'B';
-
-    const allArticleTitles: string[] = allArticles.length > 0
-      ? allArticles.map((a: { title: string }) => a.title).filter(Boolean)
-      : suggestion.recentArticleTitle ? [suggestion.recentArticleTitle] : [];
-
-    analyzeJournalist({
-      name: suggestion.name, publication: suggestion.publicationName || '',
-      publicationTier: pubTier,
-      recentArticleTitle: suggestion.recentArticleTitle || '',
-      recentArticleUrl: suggestion.recentArticleUrl || '',
-      suggestedBeat: suggestion.suggestedBeat || '',
-      allArticleTitles,
-    }).then(async analysis => {
-      if (!analysis) return;
-      const total =
-        analysis.scores.aiRelevanceScore + analysis.scores.startupRelevanceScore +
-        analysis.scores.northStarFitScore + analysis.scores.publicationAuthorityScore +
-        analysis.scores.audienceReachScore + analysis.scores.contactabilityScore;
-      const tier = total >= 80 ? 1 : total >= 60 ? 2 : total >= 40 ? 3 : 4;
-
-      await pool.query(`
-        UPDATE journalists SET
-          beat = $1,
-          "bestPitchAngle"=$2, "aiRelevanceScore"=$3, "startupRelevanceScore"=$4,
-          "northStarFitScore"=$5, "publicationAuthorityScore"=$6,
-          "audienceReachScore"=$7, "contactabilityScore"=$8,
-          "totalScore"=$9, "priorityTier"=$10,
-          notes = notes || $11, "updatedAt"=NOW()
-        WHERE id=$12
-      `, [
-        analysis.beat, analysis.bestPitchAngle,
-        analysis.scores.aiRelevanceScore, analysis.scores.startupRelevanceScore,
-        analysis.scores.northStarFitScore, analysis.scores.publicationAuthorityScore,
-        analysis.scores.audienceReachScore, analysis.scores.contactabilityScore,
-        total, tier,
-        `\n\n[Auto-scored by Claude] ${analysis.reasoning} (Scores are suggestions — review and adjust.)`,
-        created.id,
-      ]);
-      console.log(`[JournalistAnalysis] Scored "${suggestion.name}" → ${total} pts (Tier ${tier})`);
-    }).catch(err => {
-      console.error('[JournalistAnalysis] Error:', err.message);
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+        const { rows: [{ total }] } = await client.query(
+          `SELECT COALESCE(SUM(score), 0)::int as total FROM journalist_scores WHERE org_id = $1 AND journalist_id = $2`,
+          [req.orgId, journalist.id],
+        );
+        await client.query('UPDATE journalists SET total_score = $1, updated_at = NOW() WHERE id = $2', [total, journalist.id]);
+        await client.query('COMMIT');
+        console.log(`[JournalistSuggestions] Auto-scored "${suggestion.name}" → ${total} pts`);
+      } catch (err: any) {
+        await client.query('ROLLBACK');
+        console.error('[JournalistSuggestions] Auto-score save failed:', err.message);
+      } finally {
+        client.release();
+      }
+    }).catch(err => console.error('[JournalistSuggestions] Auto-score failed:', err.message));
   }
 });
 
-// POST reject
-router.post('/:id/reject', async (req: Request, res: Response) => {
-  try {
-    await pool.query("UPDATE journalist_suggestions SET status='rejected' WHERE id=$1", [req.params.id]);
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.post('/:id/reject', async (req, res) => {
+  const result = await pool.query(
+    `UPDATE journalist_suggestions SET status = 'rejected' WHERE id = $1 AND org_id = $2`,
+    [req.params.id, req.orgId],
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  res.json({ success: true });
 });
 
-// POST scan a single publication's RSS feed
-router.post('/scan/:publicationId', async (req: Request, res: Response) => {
-  try {
-    res.json({ message: 'RSS scan started' });
-    await scanPublicationRss(Number(req.params.publicationId));
-  } catch (err: any) {
-    console.error('[RSS scan error]', err.message);
-  }
+router.post('/scan/:publicationId', requireEditor, async (req, res) => {
+  res.json({ message: 'RSS scan started' });
+  scanPublicationRss(req.orgId!, Number(req.params.publicationId)).catch(err => console.error('[RSS scan]', err.message));
 });
 
-// POST deep-scan a publication's staff page
-router.post('/staff-scan/:publicationId', async (req: Request, res: Response) => {
-  try {
-    const result = await scanStaffPage(Number(req.params.publicationId));
-    res.json(result);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.post('/staff-scan/:publicationId', requireEditor, async (req, res) => {
+  const result = await scanStaffPage(req.orgId!, Number(req.params.publicationId));
+  res.json(result);
 });
 
-// POST scan all feeds
-router.post('/scan-all', async (_req: Request, res: Response) => {
+router.post('/scan-all', requireEditor, async (req, res) => {
   res.json({ message: 'Full RSS scan started' });
-  scanAllRssFeeds().catch(console.error);
+  scanAllRssFeeds(req.orgId!).catch(err => console.error('[RSS scan-all]', err.message));
 });
 
 export default router;

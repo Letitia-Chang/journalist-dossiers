@@ -5,6 +5,7 @@ import {
   ChevronLeft, FileText, History, Info, AlertTriangle, ChevronDown,
 } from 'lucide-react';
 import { journalistSuggestions as api } from '../api';
+import { useAuth } from '../context/AuthContext';
 import type { JournalistSuggestion } from '../types';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -23,15 +24,15 @@ function parseArticles(raw: string | undefined): ArticleItem[] {
 
 function ArticleCell({ suggestion }: { suggestion: import('../types').JournalistSuggestion }) {
   const [expanded, setExpanded] = useState(false);
-  const articles = parseArticles(suggestion.allArticles);
+  const articles = parseArticles(suggestion.all_articles);
 
   if (articles.length === 0) {
     // Fallback to recentArticleUrl
-    return suggestion.recentArticleUrl
-      ? <a href={suggestion.recentArticleUrl} target="_blank" rel="noopener noreferrer"
+    return suggestion.recent_article_url
+      ? <a href={suggestion.recent_article_url} target="_blank" rel="noopener noreferrer"
           className="inline-flex items-start gap-1.5 text-xs text-slate-500 hover:text-indigo-600 transition-colors group/link">
           <FileText className="w-3.5 h-3.5 shrink-0 mt-0.5 group-hover/link:text-indigo-500" />
-          <span className="line-clamp-2">{suggestion.recentArticleTitle || suggestion.recentArticleUrl}</span>
+          <span className="line-clamp-2">{suggestion.recent_article_title || suggestion.recent_article_url}</span>
         </a>
       : <span className="text-slate-300 text-xs">—</span>;
   }
@@ -82,6 +83,8 @@ function RelevanceBadge({ score }: { score: number }) {
 type FilterTab = 'all' | 'high' | 'mid' | 'low';
 
 export default function AdminJournalistSuggestions() {
+  const { user } = useAuth();
+  const canEdit = user?.role === 'owner' || user?.role === 'admin';
   const [suggestions, setSuggestions] = useState<JournalistSuggestion[]>([]);
   const [history, setHistory] = useState<JournalistSuggestion[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -98,7 +101,7 @@ export default function AdminJournalistSuggestions() {
   const handleAccept = async (s: JournalistSuggestion) => {
     setAcceptingId(s.id);
     const res = await api.accept(s.id);
-    if (res.data.journalist) setAcceptedJournalistId(res.data.journalist.id);
+    if (res.data.journalistId) setAcceptedJournalistId(res.data.journalistId);
     await load();
     setAcceptingId(null);
   };
@@ -132,7 +135,7 @@ export default function AdminJournalistSuggestions() {
 
   // Apply filter
   const filtered = suggestions.filter(s => {
-    const score = s.relevanceScore ?? 0;
+    const score = s.relevance_score ?? 0;
     if (filterTab === 'high') return score >= 6;
     if (filterTab === 'mid') return score >= 3 && score < 6;
     if (filterTab === 'low') return score < 3;
@@ -141,7 +144,7 @@ export default function AdminJournalistSuggestions() {
 
   // Group by publication, sorted by avg relevance score descending
   const grouped = filtered.reduce<Record<string, JournalistSuggestion[]>>((acc, s) => {
-    const key = s.publicationName || 'Unknown';
+    const key = s.publication_name || 'Unknown';
     if (!acc[key]) acc[key] = [];
     acc[key].push(s);
     return acc;
@@ -149,20 +152,20 @@ export default function AdminJournalistSuggestions() {
 
   // Sort within each group by score descending
   for (const key of Object.keys(grouped)) {
-    grouped[key].sort((a, b) => (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0));
+    grouped[key].sort((a, b) => (b.relevance_score ?? 0) - (a.relevance_score ?? 0));
   }
 
   // Sort publication groups by their highest score
   const sortedGroups = Object.entries(grouped).sort(([, a], [, b]) => {
-    const maxA = Math.max(...a.map(s => s.relevanceScore ?? 0));
-    const maxB = Math.max(...b.map(s => s.relevanceScore ?? 0));
+    const maxA = Math.max(...a.map(s => s.relevance_score ?? 0));
+    const maxB = Math.max(...b.map(s => s.relevance_score ?? 0));
     return maxB - maxA;
   });
 
-  const highCount = suggestions.filter(s => (s.relevanceScore ?? 0) >= 6).length;
-  const midCount  = suggestions.filter(s => (s.relevanceScore ?? 0) >= 3 && (s.relevanceScore ?? 0) < 6).length;
-  const lowCount  = suggestions.filter(s => (s.relevanceScore ?? 0) < 3).length;
-  const lowIds    = suggestions.filter(s => (s.relevanceScore ?? 0) < 3).map(s => s.id);
+  const highCount = suggestions.filter(s => (s.relevance_score ?? 0) >= 6).length;
+  const midCount  = suggestions.filter(s => (s.relevance_score ?? 0) >= 3 && (s.relevance_score ?? 0) < 6).length;
+  const lowCount  = suggestions.filter(s => (s.relevance_score ?? 0) < 3).length;
+  const lowIds    = suggestions.filter(s => (s.relevance_score ?? 0) < 3).map(s => s.id);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -185,11 +188,13 @@ export default function AdminJournalistSuggestions() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:border-slate-300 transition-all shadow-sm">
               <History className="w-3.5 h-3.5" /> History
             </button>
-            <button onClick={handleScanAll} disabled={scanningAll}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm">
-              <RefreshCw className={`w-3.5 h-3.5 ${scanningAll ? 'animate-spin' : ''}`} />
-              {scanningAll ? 'Scanning…' : 'Scan All Feeds Now'}
-            </button>
+            {canEdit && (
+              <button onClick={handleScanAll} disabled={scanningAll}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm">
+                <RefreshCw className={`w-3.5 h-3.5 ${scanningAll ? 'animate-spin' : ''}`} />
+                {scanningAll ? 'Scanning…' : 'Scan All Feeds Now'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -301,11 +306,13 @@ export default function AdminJournalistSuggestions() {
             <p className="text-slate-400 text-sm mb-5">
               Run an RSS scan to discover journalists from your active publication feeds.
             </p>
-            <button onClick={handleScanAll} disabled={scanningAll}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors">
-              <RefreshCw className={`w-4 h-4 ${scanningAll ? 'animate-spin' : ''}`} />
-              {scanningAll ? 'Scanning feeds…' : 'Scan All Feeds Now'}
-            </button>
+            {canEdit && (
+              <button onClick={handleScanAll} disabled={scanningAll}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors">
+                <RefreshCw className={`w-4 h-4 ${scanningAll ? 'animate-spin' : ''}`} />
+                {scanningAll ? 'Scanning feeds…' : 'Scan All Feeds Now'}
+              </button>
+            )}
           </div>
         )}
 
@@ -337,8 +344,8 @@ export default function AdminJournalistSuggestions() {
                 </thead>
                 <tbody>
                   {items.map(s => {
-                    const tags = parseTags(s.matchedTags);
-                    const score = s.relevanceScore ?? 0;
+                    const tags = parseTags(s.matched_tags);
+                    const score = s.relevance_score ?? 0;
                     return (
                       <tr key={s.id}
                         className={`border-b border-slate-50 last:border-0 hover:bg-slate-50/60 transition-colors ${
@@ -346,8 +353,8 @@ export default function AdminJournalistSuggestions() {
                         }`}>
                         <td className="px-5 py-3.5">
                           <div className="font-semibold text-slate-900">{s.name}</div>
-                          {(s.articleCount ?? 1) > 1 && (
-                            <div className="text-xs text-slate-400 mt-0.5">{s.articleCount} articles scanned</div>
+                          {(s.article_count ?? 1) > 1 && (
+                            <div className="text-xs text-slate-400 mt-0.5">{s.article_count} articles scanned</div>
                           )}
                         </td>
                         <td className="px-5 py-3.5">
@@ -423,9 +430,9 @@ export default function AdminJournalistSuggestions() {
                         {history.map(h => (
                           <tr key={h.id} className="border-b border-slate-50 last:border-0">
                             <td className="px-5 py-3 font-medium text-slate-800">{h.name}</td>
-                            <td className="px-5 py-3 text-slate-500 text-xs">{h.publicationName}</td>
+                            <td className="px-5 py-3 text-slate-500 text-xs">{h.publication_name}</td>
                             <td className="px-5 py-3">
-                              {h.relevanceScore != null && <RelevanceBadge score={h.relevanceScore} />}
+                              {h.relevance_score != null && <RelevanceBadge score={h.relevance_score} />}
                             </td>
                             <td className="px-5 py-3">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ${

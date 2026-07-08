@@ -88,8 +88,8 @@ export interface StaffScanResult {
   error?: string;
 }
 
-export async function scanStaffPage(publicationId: number): Promise<StaffScanResult> {
-  const pub = (await pool.query('SELECT * FROM publications WHERE id = $1', [publicationId])).rows[0];
+export async function scanStaffPage(orgId: string, publicationId: number): Promise<StaffScanResult> {
+  const pub = (await pool.query('SELECT * FROM publications WHERE id = $1 AND org_id = $2', [publicationId, orgId])).rows[0];
   if (!pub) return { found: 0, added: 0, skipped: 0, names: [], pageScanned: null, error: 'Publication not found' };
   if (!pub.url) return { found: 0, added: 0, skipped: 0, names: [], pageScanned: null, error: 'Publication has no URL' };
 
@@ -115,28 +115,30 @@ export async function scanStaffPage(publicationId: number): Promise<StaffScanRes
 
   for (const name of names) {
     const existingJournalist = (await pool.query(
-      'SELECT id FROM journalists WHERE LOWER(name)=LOWER($1) AND LOWER(publication)=LOWER($2)',
-      [name, pub.name]
+      'SELECT id FROM journalists WHERE org_id = $1 AND publication_id = $2 AND LOWER(name) = LOWER($3)',
+      [orgId, publicationId, name]
     )).rows[0];
     if (existingJournalist) { skipped++; continue; }
 
     const existingSuggestion = (await pool.query(
-      "SELECT id FROM journalist_suggestions WHERE LOWER(name)=LOWER($1) AND \"publicationId\"=$2 AND status='pending'",
-      [name, publicationId]
+      `SELECT id FROM journalist_suggestions WHERE org_id = $1 AND publication_id = $2 AND LOWER(name) = LOWER($3) AND status = 'pending'`,
+      [orgId, publicationId, name]
     )).rows[0];
     if (existingSuggestion) { skipped++; continue; }
 
     const recentReject = (await pool.query(
-      "SELECT id FROM journalist_suggestions WHERE LOWER(name)=LOWER($1) AND \"publicationId\"=$2 AND status='rejected' AND \"createdAt\" > NOW() - INTERVAL '30 days'",
-      [name, publicationId]
+      `SELECT id FROM journalist_suggestions WHERE org_id = $1 AND publication_id = $2 AND LOWER(name) = LOWER($3)
+       AND status = 'rejected' AND created_at > NOW() - INTERVAL '30 days'`,
+      [orgId, publicationId, name]
     )).rows[0];
     if (recentReject) { skipped++; continue; }
 
-    await pool.query(`
-      INSERT INTO journalist_suggestions
-        (name, "publicationId", "publicationName", "sourceType", "recentArticleTitle", "recentArticleUrl", "recentArticleDate", "suggestedBeat", status)
-      VALUES ($1,$2,$3,'staffpage',$4,'','','','pending')
-    `, [name, publicationId, pub.name, `Found on staff page: ${pageScanned}`]);
+    await pool.query(
+      `INSERT INTO journalist_suggestions
+         (org_id, name, publication_id, source_type, source_url, status)
+       VALUES ($1, $2, $3, 'staffpage', $4, 'pending')`,
+      [orgId, name, publicationId, pageScanned],
+    );
     added++;
   }
 

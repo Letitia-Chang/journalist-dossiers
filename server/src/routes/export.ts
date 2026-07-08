@@ -1,52 +1,61 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import pool from '../db';
 
 const router = Router();
 
-function toCSV(rows: any[]): string {
-  if (!rows.length) return '';
+function toCsv(rows: Record<string, any>[]): string {
+  if (rows.length === 0) return '';
   const headers = Object.keys(rows[0]);
+  const escape = (v: any) => {
+    if (v === null || v === undefined) return '';
+    const s = Array.isArray(v) ? v.join('; ') : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
   const lines = [headers.join(',')];
-  for (const row of rows) {
-    lines.push(headers.map(h => {
-      const v = row[h] ?? '';
-      return `"${String(v).replace(/"/g, '""')}"`;
-    }).join(','));
-  }
+  for (const row of rows) lines.push(headers.map(h => escape(row[h])).join(','));
   return lines.join('\n');
 }
 
-router.get('/journalists', async (_req: Request, res: Response) => {
-  try {
-    const rows = (await pool.query('SELECT * FROM journalists ORDER BY "totalScore" DESC')).rows;
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="journalists.csv"');
-    res.send(toCSV(rows));
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+function sendCsv(res: any, filename: string, rows: Record<string, any>[]) {
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(toCsv(rows));
+}
+
+router.get('/journalists', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT j.id, j.name, p.name as publication, j.email, j.twitter, j.linkedin,
+            array_to_string(j.beats, '; ') as beats, j.total_score, j.is_favorite,
+            COALESCE((SELECT ol.status FROM outreach_logs ol WHERE ol.journalist_id = j.id AND ol.org_id = j.org_id
+              ORDER BY ol.logged_at DESC LIMIT 1), 'Not Started') as outreach_status,
+            j.created_at
+     FROM journalists j LEFT JOIN publications p ON p.id = j.publication_id
+     WHERE j.org_id = $1 ORDER BY j.name ASC`,
+    [req.orgId],
+  );
+  sendCsv(res, 'journalists.csv', rows);
 });
 
-router.get('/articles', async (_req: Request, res: Response) => {
-  try {
-    const rows = (await pool.query('SELECT * FROM articles ORDER BY "publishDate" DESC')).rows;
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="articles.csv"');
-    res.send(toCSV(rows));
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/articles', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT a.id, j.name as journalist, a.title, a.url, a.summary, a.published_at
+     FROM articles a JOIN journalists j ON j.id = a.journalist_id
+     WHERE a.org_id = $1 ORDER BY a.published_at DESC NULLS LAST`,
+    [req.orgId],
+  );
+  sendCsv(res, 'articles.csv', rows);
 });
 
-router.get('/outreach', async (_req: Request, res: Response) => {
-  try {
-    const rows = (await pool.query('SELECT * FROM outreach_logs ORDER BY date DESC')).rows;
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="outreach_logs.csv"');
-    res.send(toCSV(rows));
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/outreach', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT ol.id, j.name as journalist, ol.type, ol.status, ol.notes, ol.logged_at, u.name as logged_by
+     FROM outreach_logs ol
+     JOIN journalists j ON j.id = ol.journalist_id
+     LEFT JOIN users u ON u.id = ol.logged_by
+     WHERE ol.org_id = $1 ORDER BY ol.logged_at DESC`,
+    [req.orgId],
+  );
+  sendCsv(res, 'outreach_logs.csv', rows);
 });
 
 export default router;

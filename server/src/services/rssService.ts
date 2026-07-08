@@ -136,34 +136,37 @@ function extractAuthor(item: any): string | null {
 async function scanFeedUrl(feedUrl: string, feedId: number): Promise<{ items: any[]; error?: string }> {
   try {
     const feed = await parser.parseURL(feedUrl);
-    await pool.query("UPDATE publication_feeds SET \"rssStatus\"='active', \"rssLastChecked\"=NOW()::TEXT WHERE id=$1", [feedId]);
+    await pool.query(`UPDATE publication_feeds SET rss_status = 'active', rss_last_checked = NOW() WHERE id = $1`, [feedId]);
     return { items: feed.items ?? [] };
   } catch (err: any) {
-    await pool.query("UPDATE publication_feeds SET \"rssStatus\"='inactive', \"rssLastChecked\"=NOW()::TEXT WHERE id=$1", [feedId]);
+    await pool.query(`UPDATE publication_feeds SET rss_status = 'inactive', rss_last_checked = NOW() WHERE id = $1`, [feedId]);
     return { items: [], error: err.message };
   }
 }
 
-export async function scanPublicationRss(publicationId: number): Promise<RssScanResult> {
-  const pub = (await pool.query('SELECT * FROM publications WHERE id = $1', [publicationId])).rows[0];
+export async function scanPublicationRss(orgId: string, publicationId: number): Promise<RssScanResult> {
+  const pub = (await pool.query('SELECT * FROM publications WHERE id = $1 AND org_id = $2', [publicationId, orgId])).rows[0];
   if (!pub) throw new Error(`Publication ${publicationId} not found`);
 
-  const feeds = (await pool.query(
-    'SELECT * FROM publication_feeds WHERE "publicationId" = $1', [publicationId]
+  let feeds = (await pool.query(
+    'SELECT * FROM publication_feeds WHERE publication_id = $1 AND org_id = $2', [publicationId, orgId]
   )).rows;
 
-  if (feeds.length === 0 && pub.rssUrl) {
+  if (feeds.length === 0 && pub.rss_url) {
     await pool.query(
-      'INSERT INTO publication_feeds ("publicationId", "feedUrl", "feedLabel", "feedType") VALUES ($1,$2,\'Main\',\'main\') ON CONFLICT DO NOTHING',
-      [publicationId, pub.rssUrl]
+      `INSERT INTO publication_feeds (org_id, publication_id, feed_url, feed_label, feed_type)
+       VALUES ($1, $2, $3, 'Main', 'main')`,
+      [orgId, publicationId, pub.rss_url]
     );
-    feeds.push({ id: (await pool.query('SELECT id FROM publication_feeds WHERE "publicationId"=$1 AND "feedUrl"=$2', [publicationId, pub.rssUrl])).rows[0]?.id, feedUrl: pub.rssUrl });
+    feeds = (await pool.query(
+      'SELECT * FROM publication_feeds WHERE publication_id = $1 AND org_id = $2', [publicationId, orgId]
+    )).rows;
   }
 
   if (feeds.length === 0) {
     await pool.query(
-      `UPDATE publications SET "rssStatus"='none', "rssStatusNote"='No feeds have been added — run auto-discovery or add a feed URL manually', "rssLastChecked"=NOW()::TEXT WHERE id=$1`,
-      [publicationId]
+      `UPDATE publications SET rss_status = 'none', rss_status_note = 'No feeds have been added — run auto-discovery or add a feed URL manually', rss_last_checked = NOW() WHERE id = $1 AND org_id = $2`,
+      [publicationId, orgId]
     );
     return { publicationId, publicationName: pub.name, newSuggestions: 0, status: 'none' };
   }
@@ -172,7 +175,7 @@ export async function scanPublicationRss(publicationId: number): Promise<RssScan
   let anyActive = false;
 
   for (const feed of feeds) {
-    const { items, error } = await scanFeedUrl(feed.feedUrl, feed.id);
+    const { items, error } = await scanFeedUrl(feed.feed_url, feed.id);
     if (!error) anyActive = true;
     allItems.push(...items);
     if (feeds.length > 1) await new Promise(r => setTimeout(r, 300));
@@ -183,14 +186,14 @@ export async function scanPublicationRss(publicationId: number): Promise<RssScan
     ? `${feeds.length} feed${feeds.length !== 1 ? 's' : ''} active and returning articles`
     : `All ${feeds.length} feed${feeds.length !== 1 ? 's' : ''} failed to parse — URLs may be outdated or blocked`;
   await pool.query(
-    `UPDATE publications SET "rssStatus"=$1, "rssStatusNote"=$2, "rssLastChecked"=NOW()::TEXT WHERE id=$3`,
-    [pubStatus, pubNote, publicationId]
+    `UPDATE publications SET rss_status = $1, rss_status_note = $2, rss_last_checked = NOW() WHERE id = $3 AND org_id = $4`,
+    [pubStatus, pubNote, publicationId, orgId]
   );
 
   // If all feeds failed, ask Claude to diagnose why and suggest an action
   if (!anyActive) {
-    const failedUrls = feeds.map((f: any) => f.feedUrl);
-    generateRssDiagnosticNote(publicationId, pub.name, pub.url, {
+    const failedUrls = feeds.map((f: any) => f.feed_url);
+    generateRssDiagnosticNote(orgId, publicationId, pub.name, pub.url, {
       failureType: 'feeds_failed',
       feedUrls: failedUrls,
     }).catch(() => {});
@@ -200,13 +203,13 @@ export async function scanPublicationRss(publicationId: number): Promise<RssScan
 
   try {
     const existingNames = new Set(
-      (await pool.query('SELECT LOWER(name) as n FROM journalists WHERE LOWER(publication)=LOWER($1)', [pub.name])).rows.map((j: any) => j.n)
+      (await pool.query('SELECT LOWER(name) as n FROM journalists WHERE org_id = $1 AND publication_id = $2', [orgId, publicationId])).rows.map((j: any) => j.n)
     );
     const pendingNames = new Set(
-      (await pool.query("SELECT LOWER(name) as n FROM journalist_suggestions WHERE \"publicationId\"=$1 AND status='pending'", [publicationId])).rows.map((j: any) => j.n)
+      (await pool.query(`SELECT LOWER(name) as n FROM journalist_suggestions WHERE org_id = $1 AND publication_id = $2 AND status = 'pending'`, [orgId, publicationId])).rows.map((j: any) => j.n)
     );
     const rejectedNames = new Set(
-      (await pool.query("SELECT LOWER(name) as n FROM journalist_suggestions WHERE \"publicationId\"=$1 AND status='rejected' AND \"createdAt\" >= NOW() - INTERVAL '30 days'", [publicationId])).rows.map((j: any) => j.n)
+      (await pool.query(`SELECT LOWER(name) as n FROM journalist_suggestions WHERE org_id = $1 AND publication_id = $2 AND status = 'rejected' AND created_at >= NOW() - INTERVAL '30 days'`, [orgId, publicationId])).rows.map((j: any) => j.n)
     );
 
     const cutoff = new Date();
@@ -237,17 +240,18 @@ export async function scanPublicationRss(publicationId: number): Promise<RssScan
       const { relevanceScore, matchedTags, bestArticle, articleCount } = scoreAuthor(articles);
       const beat = inferBeat(articles);
 
-      await pool.query(`
-        INSERT INTO journalist_suggestions
-          (name, "publicationId", "publicationName", "sourceType",
-           "recentArticleTitle", "recentArticleUrl", "recentArticleDate",
-           "suggestedBeat", "relevanceScore", "matchedTags", "articleCount", "allArticles", status)
-        VALUES ($1,$2,$3,'rss',$4,$5,$6,$7,$8,$9,$10,$11,'pending')
-      `, [
-        author, publicationId, pub.name,
-        bestArticle.title, bestArticle.url, bestArticle.date,
-        beat, relevanceScore, JSON.stringify(matchedTags), articleCount, JSON.stringify(articles),
-      ]);
+      await pool.query(
+        `INSERT INTO journalist_suggestions
+           (org_id, name, publication_id, source_type,
+            recent_article_title, recent_article_url, recent_article_date,
+            suggested_beat, relevance_score, matched_tags, article_count, all_articles, status)
+         VALUES ($1,$2,$3,'rss',$4,$5,$6,$7,$8,$9,$10,$11,'pending')`,
+        [
+          orgId, author, publicationId,
+          bestArticle.title, bestArticle.url, bestArticle.date,
+          beat, relevanceScore, JSON.stringify(matchedTags), articleCount, JSON.stringify(articles),
+        ],
+      );
       added++;
     }
 
@@ -259,17 +263,18 @@ export async function scanPublicationRss(publicationId: number): Promise<RssScan
   }
 }
 
-export async function scanAllRssFeeds(): Promise<RssScanResult[]> {
-  const pubs = (await pool.query(`
-    SELECT DISTINCT p.id FROM publications p
-    INNER JOIN publication_feeds pf ON pf."publicationId" = p.id
-    WHERE p.active = 1
-  `)).rows as { id: number }[];
+export async function scanAllRssFeeds(orgId: string): Promise<RssScanResult[]> {
+  const pubs = (await pool.query(
+    `SELECT DISTINCT p.id FROM publications p
+     INNER JOIN publication_feeds pf ON pf.publication_id = p.id
+     WHERE p.org_id = $1 AND p.active = true`,
+    [orgId],
+  )).rows as { id: number }[];
 
-  console.log(`[RSS] Starting scan of ${pubs.length} publications...`);
+  console.log(`[RSS] Starting scan of ${pubs.length} publications for org ${orgId}...`);
   const results: RssScanResult[] = [];
   for (const pub of pubs) {
-    const result = await scanPublicationRss(pub.id);
+    const result = await scanPublicationRss(orgId, pub.id);
     results.push(result);
     await new Promise(r => setTimeout(r, 500));
   }

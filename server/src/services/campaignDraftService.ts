@@ -1,133 +1,123 @@
-/**
- * Campaign draft generation using Claude Opus 4.8.
- */
-
 import Anthropic from '@anthropic-ai/sdk';
 import pool from '../db';
 
-const client = new Anthropic();
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-export type CampaignType = 'cold_intro' | 'event' | 'hackathon' | 'founder_promo';
+interface DraftResult {
+  subject: string;
+  body: string;
+}
 
-interface DraftResult { subject: string; body: string }
-
-function buildRelationshipContext(logs: any[]): string {
+function buildRelationshipContext(logs: { type: string; status: string; notes: string; logged_at: string }[]): string {
   if (logs.length === 0) return 'No previous contact. This is a cold outreach.';
-  const sentLogs = logs.filter(l => l.status !== 'Draft');
-  if (sentLogs.length === 0) return 'No previous contact. This is a cold outreach.';
-  const latest = sentLogs[0];
-  const count = sentLogs.length;
-  const hasResponse = sentLogs.some(l => l.response && l.response.trim().length > 0);
-  const hasCovered = sentLogs.some(l => l.status === 'Covered');
+  const hasCovered = logs.some(l => l.status === 'Covered');
   if (hasCovered) {
-    const coveredLog = sentLogs.find(l => l.status === 'Covered');
-    return `This journalist has covered North Star AI Labs before (${coveredLog?.date || 'previously'}). This is a warm follow-up — skip introductions and reference the previous coverage if relevant.`;
+    return 'This journalist has covered us before. This is a warm follow-up — skip introductions and reference the previous coverage if relevant.';
   }
-  if (hasResponse) {
-    const responseLog = sentLogs.find(l => l.response);
-    return `${count} previous contact${count !== 1 ? 's' : ''}. They have responded before. Last contact: ${latest.date}. Their response: "${responseLog?.response}". Use a peer-to-peer tone — they know who you are.`;
+  const hasResponded = logs.some(l => l.status === 'Responded');
+  if (hasResponded) {
+    return `${logs.length} previous interaction${logs.length !== 1 ? 's' : ''}, and they have responded before. Use a peer-to-peer tone — they already know who we are.`;
   }
-  return `${count} previous pitch${count !== 1 ? 'es' : ''} with no response. Last contact: ${latest.date}. Keep it brief — reference a fresh hook and don't re-pitch the same angle.`;
+  return `${logs.length} previous pitch${logs.length !== 1 ? 'es' : ''} with no response yet. Keep it brief — reference a fresh hook, don't re-pitch the same angle.`;
 }
 
-function buildTypeInstructions(type: CampaignType, brief: string): string {
-  switch (type) {
-    case 'cold_intro': return `CAMPAIGN TYPE: Cold Introduction\nGOAL: Introduce North Star AI Labs and express genuine interest in the journalist's coverage. Plant a seed — this is not a hard ask, just an opening.\nBRIEF: ${brief}`;
-    case 'event': return `CAMPAIGN TYPE: Event Coverage Pitch\nGOAL: Invite the journalist to cover or attend an upcoming event.\nEVENT DETAILS: ${brief}`;
-    case 'hackathon': return `CAMPAIGN TYPE: Hackathon Promotion\nGOAL: Get the journalist interested in covering a hackathon.\nHACKATHON DETAILS: ${brief}`;
-    case 'founder_promo': return `CAMPAIGN TYPE: Founder / Startup Spotlight\nGOAL: Pitch a specific founder or startup story.\nSTORY DETAILS: ${brief}`;
-  }
-}
-
-export async function generateDraft(
-  journalistId: number,
-  campaignType: CampaignType,
-  campaignBrief: string,
-  signerName = '',
-  signerTitle = '',
-  additionalInstructions = '',
-  assets?: { pressKitUrl?: string; photoFolderUrl?: string; demoUrl?: string; boilerplate?: string },
-): Promise<DraftResult | null> {
+export async function generateCampaignDraft(params: {
+  orgId: string;
+  journalistId: number;
+  campaignBrief: string;
+  campaignType: string;
+  extraInstructions?: string;
+}): Promise<DraftResult | null> {
   if (!process.env.ANTHROPIC_API_KEY) return null;
 
-  const journalist = (await pool.query('SELECT * FROM journalists WHERE id = $1', [journalistId])).rows[0];
+  const { orgId, journalistId, campaignBrief, campaignType, extraInstructions } = params;
+
+  const { rows: [org] } = await pool.query(
+    'SELECT company_description, target_verticals FROM organizations WHERE id = $1',
+    [orgId],
+  );
+
+  const { rows: [journalist] } = await pool.query(
+    `SELECT j.name, j.beats, j.bio, p.name as publication_name
+     FROM journalists j LEFT JOIN publications p ON p.id = j.publication_id
+     WHERE j.id = $1 AND j.org_id = $2`,
+    [journalistId, orgId],
+  );
   if (!journalist) return null;
 
-  const articles = (await pool.query(
-    'SELECT title, url, "publishDate" FROM articles WHERE "journalistId" = $1 ORDER BY "publishDate" DESC LIMIT 5',
-    [journalistId]
-  )).rows;
+  const { rows: articles } = await pool.query(
+    'SELECT title FROM articles WHERE org_id = $1 AND journalist_id = $2 ORDER BY published_at DESC NULLS LAST LIMIT 5',
+    [orgId, journalistId],
+  );
 
-  const outreachLogs = (await pool.query(
-    'SELECT date, status, "subjectLine", response FROM outreach_logs WHERE "journalistId" = $1 ORDER BY date DESC LIMIT 10',
-    [journalistId]
-  )).rows;
+  const { rows: outreachLogs } = await pool.query(
+    'SELECT type, status, notes, logged_at FROM outreach_logs WHERE org_id = $1 AND journalist_id = $2 ORDER BY logged_at DESC LIMIT 10',
+    [orgId, journalistId],
+  );
+
+  const { rows: [style] } = await pool.query(
+    'SELECT instructions FROM campaign_type_styles WHERE org_id = $1 AND campaign_type = $2',
+    [orgId, campaignType],
+  );
 
   const articlesText = articles.length > 0
-    ? articles.map((a: any, i: number) => `  ${i + 1}. "${a.title}"${a.url ? ` (${a.url})` : ''}${a.publishDate ? ` — ${a.publishDate}` : ''}`).join('\n')
+    ? articles.map((a, i) => `  ${i + 1}. "${a.title}"`).join('\n')
     : '  No articles on record.';
 
-  const relationshipContext = buildRelationshipContext(outreachLogs);
-  const typeInstructions = buildTypeInstructions(campaignType, campaignBrief);
+  const prompt = `You are writing a personalized PR pitch email on behalf of a company, to a specific journalist.
 
-  const styleRow = (await pool.query(
-    'SELECT instructions FROM campaign_type_styles WHERE type = $1', [campaignType]
-  )).rows[0];
-  const houseStyle = styleRow?.instructions?.trim() || '';
+OUR COMPANY:
+${org.company_description || 'No company description provided.'}
+${(org.target_verticals ?? []).length > 0 ? `Target verticals: ${org.target_verticals.join(', ')}` : ''}
 
-  const assetLines: string[] = [];
-  if (assets?.boilerplate) assetLines.push(`Company boilerplate: ${assets.boilerplate}`);
-  if (assets?.pressKitUrl) assetLines.push(`Press kit: ${assets.pressKitUrl}`);
-  if (assets?.photoFolderUrl) assetLines.push(`Photos/media: ${assets.photoFolderUrl}`);
-  if (assets?.demoUrl) assetLines.push(`Demo / product link: ${assets.demoUrl}`);
+CAMPAIGN TYPE: ${campaignType}
+CAMPAIGN BRIEF:
+${campaignBrief}
 
-  const prompt = `You are a communications specialist at North Star AI Labs writing a pitch email to a journalist.
-
-ABOUT NORTH STAR AI LABS:
-North Star AI Labs is an AI startup accelerator and applied research lab based in Atlanta, Georgia. We support early-stage AI founders, run community hackathons, publish applied AI research, and connect the Southeast US tech ecosystem.
-${assetLines.length > 0 ? `\nCAMPAIGN ASSETS (include relevant links naturally in the email where appropriate):\n${assetLines.join('\n')}` : ''}
-${typeInstructions}
-
-JOURNALIST PROFILE:
+JOURNALIST:
 - Name: ${journalist.name}
-- Publication: ${journalist.publication}
-- Beat: ${journalist.beat || 'Technology'}
-- Role: ${journalist.roleTitle || 'Journalist'}
-${journalist.bestPitchAngle ? `- Best pitch angle (from prior research): ${journalist.bestPitchAngle}` : ''}
+${journalist.publication_name ? `- Publication: ${journalist.publication_name}` : ''}
+${(journalist.beats ?? []).length > 0 ? `- Beats: ${journalist.beats.join(', ')}` : ''}
+${journalist.bio ? `- Bio: ${journalist.bio}` : ''}
 
 THEIR RECENT ARTICLES:
 ${articlesText}
 
 RELATIONSHIP HISTORY:
-${relationshipContext}
+${buildRelationshipContext(outreachLogs)}
 
+${style?.instructions ? `HOUSE STYLE — ALWAYS FOLLOW THESE INSTRUCTIONS:\n${style.instructions}\n` : ''}${extraInstructions ? `\nADDITIONAL INSTRUCTIONS FOR THIS DRAFT:\n${extraInstructions}\n` : ''}
 WRITING GUIDELINES:
-- Reference something specific from their actual recent work using ONLY article titles listed above — do not invent, paraphrase, or guess at articles not listed. If no articles are on record, reference their beat or publication instead.
-- Keep the email to 3–4 short paragraphs, under 200 words total
-- Subject line under 8 words, no clickbait
-- No "I hope this email finds you well", no "I'm reaching out because"
-- End with one clear, low-pressure ask
-- Sign off as: ${signerName ? `${signerName}${signerTitle ? `, ${signerTitle}` : ''}, North Star AI Labs` : '[Your name], North Star AI Labs'}
-${houseStyle ? `\nHOUSE STYLE — ALWAYS FOLLOW THESE ADDITIONAL INSTRUCTIONS:\n${houseStyle}` : ''}
-${additionalInstructions ? `\nREGENERATION INSTRUCTIONS — apply these specific changes to the draft:\n${additionalInstructions}` : ''}
-Return ONLY valid JSON: {"subject": "...", "body": "..."}`;
+- Reference something specific from their actual recent work using ONLY the article titles listed above — do not invent or guess at articles not listed. If none are on record, reference their beat or publication instead.
+- Keep the email to 3–4 short paragraphs, under 200 words total.
+- Subject line under 8 words, no clickbait.
+- No "I hope this email finds you well", no "I'm reaching out because".
+- End with one clear, low-pressure ask.
+
+Return ONLY valid JSON — no prose before or after:
+{"subject": "...", "body": "..."}`;
 
   try {
-    const response = await client.messages.create({
+    const message = await anthropic.messages.create({
       model: 'claude-opus-4-8',
       max_tokens: 1024,
       thinking: { type: 'adaptive' },
       messages: [{ role: 'user', content: prompt }],
     });
-    const textBlock = response.content.find(b => b.type === 'text');
-    if (!textBlock || textBlock.type !== 'text') return null;
-    const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
+
+    const text = message.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
+
     const parsed = JSON.parse(jsonMatch[0]);
     if (!parsed.subject || !parsed.body) return null;
     return { subject: parsed.subject, body: parsed.body };
   } catch (err: any) {
-    console.error(`[CampaignDraft] Error for journalist ${journalistId}:`, err.message);
+    console.error(`[CampaignDraftService] Error for journalist ${journalistId}:`, err.message);
     return null;
   }
 }

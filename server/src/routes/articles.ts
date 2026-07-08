@@ -1,56 +1,66 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import pool from '../db';
 
 const router = Router();
 
-router.get('/journalist/:journalistId', async (req: Request, res: Response) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM articles WHERE "journalistId" = $1 ORDER BY "publishDate" DESC',
-      [req.params.journalistId]
-    );
-    res.json(result.rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/journalist/:journalistId', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, journalist_id, title, url, summary, published_at, created_at
+     FROM articles WHERE org_id = $1 AND journalist_id = $2
+     ORDER BY published_at DESC NULLS LAST, created_at DESC`,
+    [req.orgId, req.params.journalistId],
+  );
+  res.json(rows);
 });
 
-router.post('/', async (req: Request, res: Response) => {
-  try {
-    const b = req.body;
-    const result = await pool.query(`
-      INSERT INTO articles ("journalistId", title, url, publication, "publishDate", topic, "storyType", summary, "relevanceToNorthStar", "usefulAngle")
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
-    `, [b.journalistId, b.title, b.url, b.publication, b.publishDate, b.topic, b.storyType, b.summary, b.relevanceToNorthStar, b.usefulAngle]);
-    const created = (await pool.query('SELECT * FROM articles WHERE id = $1', [result.rows[0].id])).rows[0];
-    res.status(201).json(created);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+router.post('/', async (req, res) => {
+  const { journalistId, title, url, summary, publishedAt } = req.body as {
+    journalistId?: number; title?: string; url?: string; summary?: string; publishedAt?: string;
+  };
+  if (!journalistId || !title) {
+    return res.status(400).json({ error: 'journalistId and title are required' });
   }
+
+  const { rows: [journalist] } = await pool.query(
+    'SELECT id FROM journalists WHERE id = $1 AND org_id = $2',
+    [journalistId, req.orgId],
+  );
+  if (!journalist) return res.status(404).json({ error: 'Journalist not found' });
+
+  const { rows: [row] } = await pool.query(
+    `INSERT INTO articles (org_id, journalist_id, title, url, summary, published_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, journalist_id, title, url, summary, published_at, created_at`,
+    [req.orgId, journalistId, title, url ?? '', summary ?? '', publishedAt ?? null],
+  );
+  res.status(201).json(row);
 });
 
-router.put('/:id', async (req: Request, res: Response) => {
-  try {
-    const b = req.body;
-    await pool.query(`
-      UPDATE articles SET title=$1, url=$2, publication=$3, "publishDate"=$4,
-      topic=$5, "storyType"=$6, summary=$7, "relevanceToNorthStar"=$8,
-      "usefulAngle"=$9, "updatedAt"=NOW() WHERE id=$10
-    `, [b.title, b.url, b.publication, b.publishDate, b.topic, b.storyType, b.summary, b.relevanceToNorthStar, b.usefulAngle, req.params.id]);
-    const updated = (await pool.query('SELECT * FROM articles WHERE id = $1', [req.params.id])).rows[0];
-    res.json(updated);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.put('/:id', async (req, res) => {
+  const { title, url, summary, publishedAt } = req.body as {
+    title?: string; url?: string; summary?: string; publishedAt?: string;
+  };
+  const { rows: [row] } = await pool.query(
+    `UPDATE articles SET
+       title = COALESCE($1, title),
+       url = COALESCE($2, url),
+       summary = COALESCE($3, summary),
+       published_at = COALESCE($4, published_at)
+     WHERE id = $5 AND org_id = $6
+     RETURNING id, journalist_id, title, url, summary, published_at, created_at`,
+    [title, url, summary, publishedAt, req.params.id, req.orgId],
+  );
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(row);
 });
 
-router.delete('/:id', async (req: Request, res: Response) => {
-  try {
-    await pool.query('DELETE FROM articles WHERE id = $1', [req.params.id]);
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.delete('/:id', async (req, res) => {
+  const result = await pool.query(
+    'DELETE FROM articles WHERE id = $1 AND org_id = $2',
+    [req.params.id, req.orgId],
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  res.status(204).end();
 });
 
 export default router;

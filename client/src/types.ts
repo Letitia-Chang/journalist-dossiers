@@ -5,78 +5,74 @@ export interface User {
   email: string;
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'owner' | 'admin' | 'member';
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  company_description?: string;
+  target_verticals?: string[];
+}
+
+export interface JournalistScore {
+  dimensionId: number;
+  score: number;
+}
+
 export interface Journalist {
   id: number;
+  publication_id: number | null;
   name: string;
-  publication: string;
-  roleTitle: string;
-  beat: string;
-  location: string;
-  publicationType: string;
-  aiRelevanceScore: number;
-  startupRelevanceScore: number;
-  northStarFitScore: number;
-  publicationAuthorityScore: number;
-  audienceReachScore: number;
-  contactabilityScore: number;
-  totalScore: number;
-  priorityTier: number;
   email: string;
-  contactUrl: string;
-  linkedinUrl: string;
-  twitterUrl: string;
-  personalWebsite: string;
-  muckRackUrl: string;
-  bestPitchAngle: string;
-  notes: string;
-  isFavorite: number;
-  staleFlag: number;
-  lastArticleDate: string;
-  outreachStatus: string;
-  lastContactedDate: string;
-  nextFollowUpDate: string;
-  photoUrl: string;
-  socialFollowing: string;
-  preferredContact: string; // JSON array e.g. '["email","twitter_dm"]'
-  topicsToAvoid: string;
-  bestTimeToReach: string;
-  coveredCompetitor: number;
-  adminNotes: string;
-  followerCount?: number;
-  serpSearchedAt?: string;
-  createdAt: string;
-  updatedAt: string;
+  twitter: string;
+  linkedin: string;
+  bio: string;
+  beats: string[];
+  total_score: number;
+  is_favorite: boolean;
+  photo_url: string;
+  scores: JournalistScore[];
+  outreach_status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScoringDimension {
+  id: number;
+  name: string;
+  description: string;
+  weight: number;
+  display_order: number;
 }
 
 export interface Article {
   id: number;
-  journalistId: number;
+  journalist_id: number;
   title: string;
   url: string;
-  publication: string;
-  publishDate: string;
-  topic: string;
-  storyType: string;
   summary: string;
-  relevanceToNorthStar: string;
-  usefulAngle: string;
-  createdAt: string;
-  updatedAt: string;
+  published_at: string | null;
+  created_at: string;
 }
+
+export const OUTREACH_TYPES = ['pitch', 'follow_up', 'response', 'note'] as const;
+export const OUTREACH_STATUSES = ['Ready to Pitch', 'Pitched', 'Responded', 'No Response', 'Covered', 'Declined'] as const;
 
 export interface OutreachLog {
   id: number;
-  journalistId: number;
-  date: string;
-  channel: string;
-  messageType: string;
-  subjectLine: string;
-  messageBody: string;
-  response: string;
+  journalist_id: number;
+  campaign_id: number | null;
+  type: string;
   status: string;
-  nextStep: string;
-  createdAt: string;
-  updatedAt: string;
+  notes: string;
+  logged_at: string;
+  logged_by_name?: string;
 }
 
 export interface Publication {
@@ -86,46 +82,43 @@ export interface Publication {
   tier: 'A' | 'B' | 'C';
   focus: string;
   notes: string;
-  rssUrl: string;
-  rssStatus: 'unknown' | 'active' | 'inactive' | 'none';
-  rssStatusNote: string;
-  rssLastChecked: string;
-  healthStatus: 'unknown' | 'healthy' | 'unreachable';
-  lastHealthCheck: string;
-  isVirtual: number;
-  active: number;
-  feedCount: number;
-  createdAt: string;
-  updatedAt: string;
+  active: boolean;
+  rss_url: string;
+  rss_status: 'unknown' | 'active' | 'inactive' | 'none';
+  rss_status_note?: string;
+  health_status: 'unknown' | 'healthy' | 'unreachable';
+  last_health_check: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PublicationFeed {
   id: number;
-  publicationId: number;
-  feedUrl: string;
-  feedLabel: string;
-  feedType: 'main' | 'category';
-  rssStatus: 'unknown' | 'active' | 'inactive';
-  rssLastChecked: string;
-  discoveredAt: string;
+  feed_url: string;
+  feed_label: string;
+  feed_type: 'main' | 'category';
+  rss_status: 'unknown' | 'active' | 'inactive';
+  rss_last_checked: string | null;
+  created_at: string;
 }
 
 export interface JournalistSuggestion {
   id: number;
   name: string;
-  publicationId: number;
-  publicationName: string;
-  sourceType: 'rss' | 'staffpage' | 'firecrawl';
-  recentArticleTitle: string;
-  recentArticleUrl: string;
-  recentArticleDate: string;
-  suggestedBeat: string;
-  relevanceScore: number;       // 0–10
-  matchedTags: string;          // JSON string array
-  articleCount: number;         // articles found for this author
-  allArticles: string;          // JSON string: { title, url, date }[]
+  publication_id: number | null;
+  publication_name: string | null;
+  source_type: 'rss' | 'staffpage';
+  source_url: string;
+  recent_article_title: string;
+  recent_article_url: string;
+  recent_article_date: string;
+  suggested_beat: string;
+  relevance_score: number;       // 0–10
+  matched_tags: string;          // JSON string array
+  article_count: number;         // articles found for this author
+  all_articles: string;          // JSON string: { title, url, date }[]
   status: 'pending' | 'accepted' | 'rejected';
-  createdAt: string;
+  created_at: string;
 }
 
 export interface PublicationSuggestion {
@@ -134,96 +127,86 @@ export interface PublicationSuggestion {
   url: string;
   tier: 'A' | 'B' | 'C';
   focus: string;
-  reason: string;
+  rationale: string;
   status: 'pending' | 'accepted' | 'rejected';
-  createdAt: string;
+  created_at: string;
 }
 
-export type CampaignType = 'cold_intro' | 'event' | 'hackathon' | 'founder_promo';
+export const CAMPAIGN_TYPES = ['cold_intro', 'event', 'hackathon', 'founder_promo'] as const;
+export type CampaignType = typeof CAMPAIGN_TYPES[number];
 export type CampaignStatus = 'draft' | 'active' | 'completed' | 'archived';
-export type DraftStatus = 'pending' | 'ready' | 'approved' | 'sent' | 'skipped' | 'failed';
+export type DraftStatus = 'not_started' | 'ready' | 'sent' | 'failed';
 
 export interface Campaign {
   id: number;
   name: string;
-  type: CampaignType;
+  campaign_type: string;
   brief: string;
   status: CampaignStatus;
-  pressKitUrl: string;
-  photoFolderUrl: string;
-  demoUrl: string;
-  boilerplate: string;
-  journalistCount: number;
-  approvedCount: number;
-  sentCount: number;
-  createdAt: string;
-  updatedAt: string;
+  journalist_count: number;
+  sent_count: number;
+  drafted_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CampaignJournalist {
   id: number;
-  campaignId: number;
-  journalistId: number;
-  draftSubject: string;
-  draftBody: string;
-  draftStatus: DraftStatus;
-  sentAt: string;
-  createdAt: string;
+  campaign_id: number;
+  journalist_id: number;
+  draft_subject: string;
+  draft_body: string;
+  status: DraftStatus;
+  sent_at: string | null;
+  gmail_draft_id: string | null;
   // joined journalist fields
-  name: string;
-  publication: string;
-  beat: string;
-  roleTitle: string;
-  email: string;
-  outreachStatus: string;
-  totalScore: number;
-  priorityTier: number;
-  bestPitchAngle: string;
-  isFavorite: number;
-  staleFlag: number;
+  journalist_name: string;
+  journalist_email: string;
+  journalist_beats: string[];
+  publication_name: string | null;
 }
-
-export type CoverageType = 'mention' | 'feature' | 'interview' | 'quote' | 'review' | 'op-ed';
-export type CoverageSentiment = 'positive' | 'neutral' | 'mixed' | 'negative';
 
 export interface CoverageItem {
   id: number;
   title: string;
   url: string;
-  publication: string;
-  publishDate: string;
-  journalistId: number | null;
-  journalistName: string;
-  linkedJournalistName: string;
-  linkedPublication: string;
-  coverageType: CoverageType;
-  sentiment: CoverageSentiment;
-  summary: string;
   notes: string;
-  campaignId: number | null;
-  createdAt: string;
-  updatedAt: string;
+  published_at: string | null;
+  created_at: string;
+  campaign_id: number | null;
+  journalist_id: number | null;
+  // joined fields (list view only)
+  journalist_name?: string | null;
+  publication_name?: string | null;
+  campaign_name?: string | null;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: 'owner' | 'admin' | 'member';
+  created_at: string;
+}
+
+export interface Invite {
+  id: string;
+  email: string;
+  role: 'owner' | 'admin' | 'member';
+  status: 'pending' | 'accepted' | 'revoked';
+  expires_at: string;
+  created_at: string;
+  link: string;
 }
 
 export interface DashboardData {
-  total: number;
+  totalJournalists: number;
   avgScore: number;
-  followUps: Journalist[];
-  recentOutreach: (OutreachLog & { journalistName: string; publication: string })[];
-  staleJournalists: number;
-  unreachablePubs: number;
-  overdueFollowUps: number;
-  needsReSearch: number;
   activeCampaigns: number;
   draftsReady: number;
-  approvedWaiting: number;
   sentThisWeek: number;
-  sentLastWeek: number;
-  recentCampaigns: {
-    id: number; name: string; type: string; status: string;
-    journalistCount: number; sentCount: number; readyCount: number;
-    approvedCount: number; coverageCount: number;
-  }[];
-  warmContacts: { id: number; name: string; publication: string; outreachStatus: string; totalScore: number; lastContactedDate: string }[];
-  recentCoverage: { id: number; title: string; url: string; publication: string; publishDate: string; coverageType: string; sentiment: string }[];
+  recentOutreach: (OutreachLog & { journalist_name: string })[];
+  recentCampaigns: { id: number; name: string; campaign_type: string; status: string; journalist_count: number; sent_count: number }[];
+  recentCoverage: { id: number; title: string; url: string; published_at: string | null }[];
+  warmContacts: { id: number; name: string; total_score: number; outreach_status: string }[];
 }

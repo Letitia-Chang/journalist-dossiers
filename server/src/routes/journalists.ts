@@ -1,361 +1,223 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import pool from '../db';
-import { analyzeJournalist } from '../services/journalistAnalysis';
+import { scoreJournalistWithAI } from '../services/journalistScoring';
 
 const router = Router();
 
-function calcScore(body: any) {
-  const ai = Math.min(Number(body.aiRelevanceScore) || 0, 25);
-  const startup = Math.min(Number(body.startupRelevanceScore) || 0, 20);
-  const ns = Math.min(Number(body.northStarFitScore) || 0, 20);
-  const pub = Math.min(Number(body.publicationAuthorityScore) || 0, 15);
-  const reach = Math.min(Number(body.audienceReachScore) || 0, 10);
-  const contact = Math.min(Number(body.contactabilityScore) || 0, 10);
-  const total = ai + startup + ns + pub + reach + contact;
-  const tier = total >= 80 ? 1 : total >= 60 ? 2 : total >= 40 ? 3 : 4;
-  return { total, tier };
+async function attachScores(orgId: string, journalistIds: number[]) {
+  if (journalistIds.length === 0) return new Map<number, { dimensionId: number; score: number }[]>();
+  const { rows } = await pool.query(
+    `SELECT journalist_id, dimension_id, score FROM journalist_scores
+     WHERE org_id = $1 AND journalist_id = ANY($2::int[])`,
+    [orgId, journalistIds],
+  );
+  const map = new Map<number, { dimensionId: number; score: number }[]>();
+  for (const r of rows) {
+    const list = map.get(r.journalist_id) ?? [];
+    list.push({ dimensionId: r.dimension_id, score: r.score });
+    map.set(r.journalist_id, list);
+  }
+  return map;
 }
 
-// GET all journalists
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const { search, tier, publicationType, beat, outreachStatus, sortBy } = req.query;
-    let query = 'SELECT * FROM journalists WHERE 1=1';
-    const params: any[] = [];
-    let n = 1;
+// outreach_status is derived from the latest outreach_logs row, never stored —
+// avoids the sync-bug class the old app had with a separately-maintained status column.
+const OUTREACH_STATUS_SELECT = `COALESCE((
+  SELECT ol.status FROM outreach_logs ol
+  WHERE ol.journalist_id = j.id AND ol.org_id = j.org_id
+  ORDER BY ol.logged_at DESC LIMIT 1
+), 'Not Started') as outreach_status`;
 
-    if (search) {
-      query += ` AND (name ILIKE $${n} OR publication ILIKE $${n + 1} OR beat ILIKE $${n + 2})`;
-      const s = `%${search}%`;
-      params.push(s, s, s);
-      n += 3;
-    }
-    if (tier) { query += ` AND "priorityTier" = $${n++}`; params.push(tier); }
-    if (publicationType) { query += ` AND "publicationType" = $${n++}`; params.push(publicationType); }
-    if (beat) { query += ` AND beat ILIKE $${n++}`; params.push(`%${beat}%`); }
-    if (outreachStatus) { query += ` AND "outreachStatus" = $${n++}`; params.push(outreachStatus); }
-
-    const allowed = ['totalScore', 'name', 'publication', 'priorityTier', 'createdAt'];
-    const col = allowed.includes(String(sortBy)) ? `"${sortBy}"` : '"totalScore"';
-    query += ` ORDER BY ${col} DESC`;
-
-    const result = await pool.query(query, params);
-    res.json(result.rows);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT j.id, j.publication_id, j.name, j.email, j.twitter, j.linkedin, j.bio, j.beats, j.total_score,
+            j.is_favorite, j.photo_url, j.created_at, j.updated_at, ${OUTREACH_STATUS_SELECT}
+     FROM journalists j WHERE j.org_id = $1
+     ORDER BY j.total_score DESC, j.name ASC`,
+    [req.orgId],
+  );
+  const scoresByJournalist = await attachScores(req.orgId!, rows.map(r => r.id));
+  res.json(rows.map(r => ({ ...r, scores: scoresByJournalist.get(r.id) ?? [] })));
 });
 
-// GET single journalist
-router.get('/:id', async (req: Request, res: Response) => {
-  try {
-    const result = await pool.query('SELECT * FROM journalists WHERE id = $1', [req.params.id]);
-    if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
-    res.json(result.rows[0]);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/:id', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    `SELECT j.id, j.publication_id, j.name, j.email, j.twitter, j.linkedin, j.bio, j.beats, j.total_score,
+            j.is_favorite, j.photo_url, j.created_at, j.updated_at, ${OUTREACH_STATUS_SELECT}
+     FROM journalists j WHERE j.id = $1 AND j.org_id = $2`,
+    [req.params.id, req.orgId],
+  );
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  const scoresByJournalist = await attachScores(req.orgId!, [row.id]);
+  res.json({ ...row, scores: scoresByJournalist.get(row.id) ?? [] });
 });
 
-const defaults = {
-  publication: '', roleTitle: '', beat: '', location: '', publicationType: '',
-  aiRelevanceScore: 0, startupRelevanceScore: 0, northStarFitScore: 0,
-  publicationAuthorityScore: 0, audienceReachScore: 0, contactabilityScore: 0,
-  email: '', contactUrl: '', linkedinUrl: '', twitterUrl: '',
-  personalWebsite: '', muckRackUrl: '', bestPitchAngle: '', notes: '', adminNotes: '',
-  outreachStatus: 'Not Started', lastContactedDate: '', nextFollowUpDate: '',
-};
-
-// POST create journalist
-router.post('/', async (req: Request, res: Response) => {
-  try {
-    const b = { ...defaults, ...req.body };
-    const { total, tier } = calcScore(b);
-    const result = await pool.query(`
-      INSERT INTO journalists (
-        name, publication, "roleTitle", beat, location, "publicationType",
-        "aiRelevanceScore", "startupRelevanceScore", "northStarFitScore",
-        "publicationAuthorityScore", "audienceReachScore", "contactabilityScore",
-        "totalScore", "priorityTier", email, "contactUrl", "linkedinUrl", "twitterUrl",
-        "personalWebsite", "muckRackUrl", "bestPitchAngle", notes, "adminNotes", "outreachStatus",
-        "lastContactedDate", "nextFollowUpDate"
-      ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26
-      ) RETURNING id
-    `, [
-      b.name, b.publication, b.roleTitle, b.beat, b.location, b.publicationType,
-      b.aiRelevanceScore, b.startupRelevanceScore, b.northStarFitScore,
-      b.publicationAuthorityScore, b.audienceReachScore, b.contactabilityScore,
-      total, tier, b.email, b.contactUrl, b.linkedinUrl, b.twitterUrl,
-      b.personalWebsite, b.muckRackUrl, b.bestPitchAngle, b.notes, b.adminNotes, b.outreachStatus,
-      b.lastContactedDate, b.nextFollowUpDate,
-    ]);
-    const newId = result.rows[0].id;
-    const created = (await pool.query('SELECT * FROM journalists WHERE id = $1', [newId])).rows[0];
-    res.status(201).json(created);
-
-    // Auto-score with Claude in the background (only if no manual scores entered)
-    if (!b.aiRelevanceScore && !b.startupRelevanceScore) {
-      setTimeout(async () => {
-        try {
-          const pub = (await pool.query('SELECT * FROM publications WHERE LOWER(name) = LOWER($1)', [b.publication])).rows[0];
-          const analysis = await analyzeJournalist({
-            name: b.name, publication: b.publication || '',
-            publicationTier: pub?.tier || 'B', suggestedBeat: b.beat || '',
-            recentArticleTitle: '', recentArticleUrl: '',
-            socialFollowing: b.socialFollowing,
-          });
-          if (!analysis) return;
-          const total = analysis.scores.aiRelevanceScore + analysis.scores.startupRelevanceScore +
-            analysis.scores.northStarFitScore + analysis.scores.publicationAuthorityScore +
-            analysis.scores.audienceReachScore + analysis.scores.contactabilityScore;
-          const tier = total >= 80 ? 1 : total >= 60 ? 2 : total >= 40 ? 3 : 4;
-          await pool.query(`
-            UPDATE journalists SET
-              beat = CASE WHEN beat = '' OR beat IS NULL THEN $1 ELSE beat END,
-              "bestPitchAngle"=$2, notes=$3,
-              "aiRelevanceScore"=$4, "startupRelevanceScore"=$5, "northStarFitScore"=$6,
-              "publicationAuthorityScore"=$7, "audienceReachScore"=$8, "contactabilityScore"=$9,
-              "totalScore"=$10, "priorityTier"=$11, "updatedAt"=NOW()
-            WHERE id=$12
-          `, [
-            analysis.beat, analysis.bestPitchAngle, analysis.reasoning,
-            analysis.scores.aiRelevanceScore, analysis.scores.startupRelevanceScore,
-            analysis.scores.northStarFitScore, analysis.scores.publicationAuthorityScore,
-            analysis.scores.audienceReachScore, analysis.scores.contactabilityScore,
-            total, tier, newId,
-          ]);
-          console.log(`[AutoScore] ✓ ${b.name} → score ${total}, tier ${tier}`);
-        } catch (err: any) {
-          console.error(`[AutoScore] ✗ ${b.name}:`, err.message);
-        }
-      }, 1000);
-    }
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// PUT update journalist
-router.put('/:id', async (req: Request, res: Response) => {
-  try {
-    const b = { ...defaults, ...req.body };
-    const { total, tier } = calcScore(b);
-    await pool.query(`
-      UPDATE journalists SET
-        name=$1, publication=$2, "roleTitle"=$3, beat=$4, location=$5, "publicationType"=$6,
-        "aiRelevanceScore"=$7, "startupRelevanceScore"=$8, "northStarFitScore"=$9,
-        "publicationAuthorityScore"=$10, "audienceReachScore"=$11, "contactabilityScore"=$12,
-        "totalScore"=$13, "priorityTier"=$14, email=$15, "contactUrl"=$16,
-        "linkedinUrl"=$17, "twitterUrl"=$18, "personalWebsite"=$19, "muckRackUrl"=$20,
-        "bestPitchAngle"=$21, notes=$22, "adminNotes"=$23, "outreachStatus"=$24,
-        "lastContactedDate"=$25, "nextFollowUpDate"=$26, "updatedAt"=NOW()
-      WHERE id=$27
-    `, [
-      b.name, b.publication, b.roleTitle, b.beat, b.location, b.publicationType,
-      b.aiRelevanceScore, b.startupRelevanceScore, b.northStarFitScore,
-      b.publicationAuthorityScore, b.audienceReachScore, b.contactabilityScore,
-      total, tier, b.email, b.contactUrl, b.linkedinUrl, b.twitterUrl,
-      b.personalWebsite, b.muckRackUrl, b.bestPitchAngle, b.notes, b.adminNotes, b.outreachStatus,
-      b.lastContactedDate, b.nextFollowUpDate, req.params.id,
-    ]);
-    const updated = (await pool.query('SELECT * FROM journalists WHERE id = $1', [req.params.id])).rows[0];
-    res.json(updated);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// PATCH toggle favourite
-router.patch('/:id/favorite', async (req: Request, res: Response) => {
-  try {
-    const r = await pool.query('SELECT "isFavorite" FROM journalists WHERE id = $1', [req.params.id]);
-    if (!r.rows[0]) return res.status(404).json({ error: 'Not found' });
-    const newVal = r.rows[0].isFavorite ? 0 : 1;
-    await pool.query('UPDATE journalists SET "isFavorite" = $1, "updatedAt" = NOW() WHERE id = $2', [newVal, req.params.id]);
-    res.json({ isFavorite: newVal });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// DELETE journalist
-router.delete('/:id', async (req: Request, res: Response) => {
-  try {
-    await pool.query('DELETE FROM journalists WHERE id = $1', [req.params.id]);
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST backfill articles from journalist notes field
-router.post('/backfill-articles', async (_req: Request, res: Response) => {
-  try {
-    const journalists = (await pool.query(
-      "SELECT id, name, publication, beat, notes FROM journalists WHERE notes LIKE '%Recent article:%'"
-    )).rows;
-    let seeded = 0;
-    for (const j of journalists) {
-      const existing = (await pool.query('SELECT id FROM articles WHERE "journalistId" = $1', [j.id])).rows[0];
-      if (existing) continue;
-      const match = (j.notes || '').match(/Recent article: (.+?) — (https?:\/\/\S+)/);
-      if (!match) continue;
-      await pool.query(`
-        INSERT INTO articles ("journalistId", title, url, publication, topic)
-        VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING
-      `, [j.id, match[1].trim(), match[2].trim(), j.publication || '', j.beat || '']);
-      seeded++;
-    }
-    res.json({ seeded, message: `Seeded articles for ${seeded} journalist${seeded !== 1 ? 's' : ''}.` });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST bulk re-score with Claude (background)
-router.post('/bulk-rescore', async (_req: Request, res: Response) => {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(400).json({ error: 'ANTHROPIC_API_KEY is not set on the server' });
-  }
-  try {
-    const unscored = (await pool.query(
-      'SELECT * FROM journalists WHERE "totalScore" = 0 OR "totalScore" IS NULL'
-    )).rows;
-    if (unscored.length === 0) return res.json({ count: 0, message: 'All journalists already have scores.' });
-
-    res.json({
-      count: unscored.length,
-      message: `Re-scoring ${unscored.length} journalist${unscored.length !== 1 ? 's' : ''} with Claude in the background.`,
-    });
-
-    (async () => {
-      for (const j of unscored) {
-        try {
-          const pub = (await pool.query('SELECT * FROM publications WHERE LOWER(name) = LOWER($1)', [j.publication])).rows[0];
-          const pubTier = pub?.tier || 'B';
-          let articleTitle = '';
-          let articleUrl = '';
-          const noteMatch = (j.notes || '').match(/Recent article: (.+?) — (https?:\/\/\S+)/);
-          if (noteMatch) { articleTitle = noteMatch[1]; articleUrl = noteMatch[2]; }
-
-          const analysis = await analyzeJournalist({
-            name: j.name, publication: j.publication || '', publicationTier: pubTier,
-            recentArticleTitle: articleTitle, recentArticleUrl: articleUrl, suggestedBeat: j.beat || '',
-          });
-          if (!analysis) continue;
-
-          const total = analysis.scores.aiRelevanceScore + analysis.scores.startupRelevanceScore +
-            analysis.scores.northStarFitScore + analysis.scores.publicationAuthorityScore +
-            analysis.scores.audienceReachScore + analysis.scores.contactabilityScore;
-          const tier = total >= 80 ? 1 : total >= 60 ? 2 : total >= 40 ? 3 : 4;
-
-          await pool.query(`
-            UPDATE journalists SET
-              beat = CASE WHEN beat = '' OR beat IS NULL THEN $1 ELSE beat END,
-              "bestPitchAngle"=$2, "aiRelevanceScore"=$3, "startupRelevanceScore"=$4,
-              "northStarFitScore"=$5, "publicationAuthorityScore"=$6,
-              "audienceReachScore"=$7, "contactabilityScore"=$8,
-              "totalScore"=$9, "priorityTier"=$10, "updatedAt"=NOW()
-            WHERE id=$11
-          `, [
-            analysis.beat, analysis.bestPitchAngle,
-            analysis.scores.aiRelevanceScore, analysis.scores.startupRelevanceScore,
-            analysis.scores.northStarFitScore, analysis.scores.publicationAuthorityScore,
-            analysis.scores.audienceReachScore, analysis.scores.contactabilityScore,
-            total, tier, j.id,
-          ]);
-          console.log(`[BulkRescore] ✓ ${j.name} → score ${total}, tier ${tier}`);
-        } catch (err: any) {
-          console.error(`[BulkRescore] ✗ ${j.name}:`, err.message);
-        }
-        await new Promise(r => setTimeout(r, 2000));
-      }
-      console.log(`[BulkRescore] Done — processed ${unscored.length} journalists.`);
-    })();
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/journalists/:id/rescore — re-run Claude analysis for a single journalist
-router.post('/:id/rescore', async (req: Request, res: Response) => {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(400).json({ error: 'ANTHROPIC_API_KEY is not set on the server' });
-  }
-  try {
-    const j = (await pool.query('SELECT * FROM journalists WHERE id = $1', [req.params.id])).rows[0];
-    if (!j) return res.status(404).json({ error: 'Not found' });
-
-    res.json({ message: `Re-scoring ${j.name} with Claude in the background…` });
-
-    (async () => {
-      const pub = (await pool.query('SELECT * FROM publications WHERE LOWER(name) = LOWER($1)', [j.publication])).rows[0];
-      const pubTier = pub?.tier || 'B';
-      const articleRows = (await pool.query(
-        'SELECT title, url FROM articles WHERE "journalistId" = $1 ORDER BY "publishDate" DESC LIMIT 10', [j.id]
-      )).rows;
-
-      let articleTitle = '';
-      let articleUrl = '';
-      const noteMatch = (j.notes || '').match(/Recent article: (.+?) — (https?:\/\/\S+)/);
-      if (noteMatch) { articleTitle = noteMatch[1]; articleUrl = noteMatch[2]; }
-      if (articleRows.length > 0) { articleTitle = articleRows[0].title; articleUrl = articleRows[0].url; }
-
-      const analysis = await analyzeJournalist({
-        name: j.name, publication: j.publication || '', publicationTier: pubTier,
-        recentArticleTitle: articleTitle, recentArticleUrl: articleUrl, suggestedBeat: j.beat || '',
-        allArticleTitles: articleRows.map((a: any) => a.title),
-        socialFollowing: j.socialFollowing || '',
-        followerCount: j.followerCount,
-      });
-      if (!analysis) { console.error(`[Rescore] Claude returned null for ${j.name}`); return; }
-
-      const total = analysis.scores.aiRelevanceScore + analysis.scores.startupRelevanceScore +
-        analysis.scores.northStarFitScore + analysis.scores.publicationAuthorityScore +
-        analysis.scores.audienceReachScore + analysis.scores.contactabilityScore;
-      const tier = total >= 80 ? 1 : total >= 60 ? 2 : total >= 40 ? 3 : 4;
-
-      await pool.query(`
-        UPDATE journalists SET
-          "bestPitchAngle"=$1, "aiRelevanceScore"=$2, "startupRelevanceScore"=$3,
-          "northStarFitScore"=$4, "publicationAuthorityScore"=$5,
-          "audienceReachScore"=$6, "contactabilityScore"=$7,
-          "totalScore"=$8, "priorityTier"=$9, "updatedAt"=NOW()
-        WHERE id=$10
-      `, [
-        analysis.bestPitchAngle,
-        analysis.scores.aiRelevanceScore, analysis.scores.startupRelevanceScore,
-        analysis.scores.northStarFitScore, analysis.scores.publicationAuthorityScore,
-        analysis.scores.audienceReachScore, analysis.scores.contactabilityScore,
-        total, tier, j.id,
-      ]);
-      console.log(`[Rescore] ✓ ${j.name} → score ${total}, tier ${tier}`);
-    })().catch(err => console.error(`[Rescore] ✗ ${j.name}:`, err.message));
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/journalists/:id/photo — upload a profile photo (base64 data URL)
-router.post('/:id/photo', async (req: Request, res: Response) => {
-  const { photoUrl } = req.body;
-  if (!photoUrl || typeof photoUrl !== 'string') {
-    return res.status(400).json({ error: 'photoUrl (base64 data URL) is required' });
-  }
-  // Accept data URLs or https URLs
-  if (!photoUrl.startsWith('data:image/') && !photoUrl.startsWith('https://')) {
-    return res.status(400).json({ error: 'Must be a data URL or https URL' });
-  }
-  try {
-    await pool.query(
-      'UPDATE journalists SET "photoUrl" = $1, "updatedAt" = NOW() WHERE id = $2',
-      [photoUrl, req.params.id]
+async function upsertScoresAndRecompute(
+  client: import('pg').PoolClient,
+  orgId: string,
+  journalistId: number,
+  scores: { dimensionId: number; score: number }[],
+) {
+  for (const s of scores) {
+    await client.query(
+      `INSERT INTO journalist_scores (org_id, journalist_id, dimension_id, score)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (journalist_id, dimension_id)
+       DO UPDATE SET score = $4, updated_at = NOW()`,
+      [orgId, journalistId, s.dimensionId, s.score],
     );
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
   }
+  const { rows: [{ total }] } = await client.query(
+    `SELECT COALESCE(SUM(score), 0)::int as total FROM journalist_scores
+     WHERE org_id = $1 AND journalist_id = $2`,
+    [orgId, journalistId],
+  );
+  await client.query('UPDATE journalists SET total_score = $1, updated_at = NOW() WHERE id = $2', [total, journalistId]);
+  return total;
+}
+
+router.post('/', async (req, res) => {
+  const { name, publicationId, email, twitter, linkedin, bio, beats, photoUrl, scores } = req.body as {
+    name?: string; publicationId?: number; email?: string; twitter?: string; linkedin?: string;
+    bio?: string; beats?: string[]; photoUrl?: string; scores?: { dimensionId: number; score: number }[];
+  };
+  if (!name) return res.status(400).json({ error: 'name is required' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [row] } = await client.query(
+      `INSERT INTO journalists (org_id, publication_id, name, email, twitter, linkedin, bio, beats, photo_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, publication_id, name, email, twitter, linkedin, bio, beats, total_score, is_favorite, photo_url, created_at, updated_at`,
+      [req.orgId, publicationId ?? null, name, email ?? '', twitter ?? '', linkedin ?? '', bio ?? '', beats ?? [], photoUrl ?? ''],
+    );
+    let totalScore = 0;
+    if (scores?.length) {
+      totalScore = await upsertScoresAndRecompute(client, req.orgId!, row.id, scores);
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ ...row, total_score: totalScore, scores: scores ?? [] });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[journalists] create failed', err);
+    res.status(500).json({ error: 'Failed to create journalist' });
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/:id', async (req, res) => {
+  const { name, publicationId, email, twitter, linkedin, bio, beats, photoUrl, isFavorite, scores } = req.body as {
+    name?: string; publicationId?: number; email?: string; twitter?: string; linkedin?: string;
+    bio?: string; beats?: string[]; photoUrl?: string; isFavorite?: boolean;
+    scores?: { dimensionId: number; score: number }[];
+  };
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [row] } = await client.query(
+      `UPDATE journalists SET
+         publication_id = COALESCE($1, publication_id),
+         name = COALESCE($2, name),
+         email = COALESCE($3, email),
+         twitter = COALESCE($4, twitter),
+         linkedin = COALESCE($5, linkedin),
+         bio = COALESCE($6, bio),
+         beats = COALESCE($7, beats),
+         photo_url = COALESCE($8, photo_url),
+         is_favorite = COALESCE($9, is_favorite),
+         updated_at = NOW()
+       WHERE id = $10 AND org_id = $11
+       RETURNING id, publication_id, name, email, twitter, linkedin, bio, beats, total_score, is_favorite, photo_url, created_at, updated_at`,
+      [publicationId, name, email, twitter, linkedin, bio, beats, photoUrl, isFavorite, req.params.id, req.orgId],
+    );
+    if (!row) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Not found' });
+    }
+    let totalScore = row.total_score;
+    if (scores?.length) {
+      totalScore = await upsertScoresAndRecompute(client, req.orgId!, row.id, scores);
+    }
+    await client.query('COMMIT');
+    const scoresByJournalist = await attachScores(req.orgId!, [row.id]);
+    res.json({ ...row, total_score: totalScore, scores: scoresByJournalist.get(row.id) ?? [] });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[journalists] update failed', err);
+    res.status(500).json({ error: 'Failed to update journalist' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/:id/score', async (req, res) => {
+  const { rows: [journalist] } = await pool.query(
+    `SELECT j.id, j.name, j.beats, j.bio, p.name as publication_name
+     FROM journalists j
+     LEFT JOIN publications p ON p.id = j.publication_id
+     WHERE j.id = $1 AND j.org_id = $2`,
+    [req.params.id, req.orgId],
+  );
+  if (!journalist) return res.status(404).json({ error: 'Not found' });
+
+  const { rows: [org] } = await pool.query(
+    'SELECT company_description, target_verticals FROM organizations WHERE id = $1',
+    [req.orgId],
+  );
+
+  const { rows: dimensions } = await pool.query(
+    'SELECT id, name, description, weight FROM scoring_dimensions WHERE org_id = $1 ORDER BY display_order ASC, id ASC',
+    [req.orgId],
+  );
+  if (dimensions.length === 0) {
+    return res.status(400).json({ error: 'Define at least one scoring dimension before scoring with AI.' });
+  }
+
+  const result = await scoreJournalistWithAI({
+    companyDescription: org.company_description ?? '',
+    targetVerticals: org.target_verticals ?? [],
+    dimensions,
+    journalistName: journalist.name,
+    publicationName: journalist.publication_name ?? undefined,
+    beats: journalist.beats ?? [],
+    bio: journalist.bio ?? '',
+  });
+
+  if (!result) {
+    return res.status(502).json({ error: 'AI scoring failed. Check ANTHROPIC_API_KEY and server logs.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const totalScore = await upsertScoresAndRecompute(client, req.orgId!, journalist.id, result.scores);
+    await client.query('COMMIT');
+    const scoresByJournalist = await attachScores(req.orgId!, [journalist.id]);
+    res.json({
+      id: journalist.id,
+      total_score: totalScore,
+      scores: scoresByJournalist.get(journalist.id) ?? [],
+      reasoning: result.reasoning,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[journalists] AI scoring save failed', err);
+    res.status(500).json({ error: 'Failed to save AI scores' });
+  } finally {
+    client.release();
+  }
+});
+
+router.delete('/:id', async (req, res) => {
+  const result = await pool.query(
+    'DELETE FROM journalists WHERE id = $1 AND org_id = $2',
+    [req.params.id, req.orgId],
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  res.status(204).end();
 });
 
 export default router;

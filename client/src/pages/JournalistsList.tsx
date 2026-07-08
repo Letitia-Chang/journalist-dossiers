@@ -1,46 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, ChevronRight, SortDesc, Sparkles, Star, LayoutList, Columns, Circle, Link2, Info, Copy, Check } from 'lucide-react';
+import { Search, ChevronRight, SortDesc, Star, Circle, Copy, Check, Trash2, LayoutList, Columns } from 'lucide-react';
 
-import { journalists as api, enrichment as enrichApi } from '../api';
-import type { Journalist } from '../types';
+import { journalists as api, publications as pubApi, outreach as oApi } from '../api';
+import type { Journalist, Publication } from '../types';
+import { OUTREACH_STATUSES } from '../types';
 import StatusBadge from '../components/StatusBadge';
 
-const STATUSES = ['Not Started', 'Researching', 'Ready to Pitch', 'Pitched', 'Responded', 'In Conversation', 'Covered', 'Not a Fit', 'On Hold'];
+const PIPELINE_COLS = ['Not Started', ...OUTREACH_STATUSES];
 
-const STATUS_DESCRIPTIONS: Record<string, string> = {
-  'Not Started':     'Added to the list — no outreach decision made yet.',
-  'Researching':     'Actively reading their work to decide if they\'re worth pitching.',
-  'Ready to Pitch':  'Research done, decided to reach out — draft ready to send.',
-  'Pitched':         'First outreach email sent, awaiting reply.',
-  'Responded':       'They replied — positive, neutral, or asking for more info.',
-  'In Conversation': 'Ongoing back-and-forth; relationship actively developing.',
-  'Covered':         'They published an article about North Star AI Labs.',
-  'Not a Fit':       'Decided not to pitch, or they declined.',
-  'On Hold':         'Paused — waiting on timing, news cycle, or internal decision.',
-};
-
-// Pipeline columns — subset of statuses that form the main funnel
-const PIPELINE_COLS: { key: string; label: string; color: string; dot: string }[] = [
-  { key: 'Not Started',     label: 'Not Started',     color: 'bg-slate-50  border-slate-200',  dot: 'bg-slate-400'   },
-  { key: 'Researching',     label: 'Researching',     color: 'bg-blue-50   border-blue-200',   dot: 'bg-blue-400'    },
-  { key: 'Ready to Pitch',  label: 'Ready to Pitch',  color: 'bg-violet-50 border-violet-200', dot: 'bg-violet-500'  },
-  { key: 'Pitched',         label: 'Pitched',         color: 'bg-amber-50  border-amber-200',  dot: 'bg-amber-400'   },
-  { key: 'Responded',       label: 'Responded',       color: 'bg-green-50  border-green-200',  dot: 'bg-green-500'   },
-  { key: 'In Conversation', label: 'In Conversation', color: 'bg-teal-50   border-teal-200',   dot: 'bg-teal-500'    },
-  { key: 'Covered',         label: 'Covered',         color: 'bg-northstar-50 border-northstar-200', dot: 'bg-northstar-500' },
-];
-
-
-// ── Pipeline card ─────────────────────────────────────────────────────────────
-
-function PipelineCard({
-  journalist,
-  onDragStart,
-}: {
-  journalist: Journalist;
-  onDragStart: (e: React.DragEvent, j: Journalist) => void;
-}) {
+function PipelineCard({ journalist, onDragStart }: { journalist: Journalist; onDragStart: (e: React.DragEvent, j: Journalist) => void }) {
   return (
     <Link
       to={`/journalists/${journalist.id}`}
@@ -49,91 +18,57 @@ function PipelineCard({
       className="block bg-white border border-slate-200 rounded-lg p-3 shadow-sm hover:shadow-md hover:border-northstar-300 transition-all cursor-grab active:cursor-grabbing group"
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-medium text-slate-900 text-sm truncate group-hover:text-northstar-700">
-            {journalist.name}
-          </p>
-          <p className="text-xs text-slate-500 truncate mt-0.5">{journalist.publication}</p>
-        </div>
+        <p className="font-medium text-slate-900 text-sm truncate group-hover:text-northstar-700">{journalist.name}</p>
+        {journalist.is_favorite && <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />}
       </div>
-      {journalist.beat && (
-        <p className="text-xs text-slate-400 mt-1.5 truncate">{journalist.beat}</p>
-      )}
       <div className="flex items-center gap-1.5 mt-2">
         <div className="flex-1 bg-slate-100 rounded-full h-1">
-          <div className="bg-northstar-400 h-1 rounded-full" style={{ width: `${journalist.totalScore}%` }} />
+          <div className="bg-northstar-400 h-1 rounded-full" style={{ width: `${Math.min(100, journalist.total_score)}%` }} />
         </div>
-        <span className="text-xs font-mono text-slate-500">{journalist.totalScore}</span>
-        {journalist.isFavorite && <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />}
+        <span className="text-xs font-mono text-slate-500">{journalist.total_score}</span>
       </div>
     </Link>
   );
 }
 
-// ── Pipeline column ───────────────────────────────────────────────────────────
-
-function PipelineColumn({
-  col,
-  journalists,
-  onDragStart,
-  onDrop,
-  onDragOver,
-}: {
-  col: typeof PIPELINE_COLS[number];
-  journalists: Journalist[];
+function PipelineColumn({ status, journalists, onDragStart, onDrop, onDragOver }: {
+  status: string; journalists: Journalist[];
   onDragStart: (e: React.DragEvent, j: Journalist) => void;
   onDrop: (e: React.DragEvent, status: string) => void;
   onDragOver: (e: React.DragEvent) => void;
 }) {
   const [over, setOver] = useState(false);
-
   return (
     <div
-      className={`flex flex-col min-w-[220px] w-[220px] rounded-xl border-2 ${col.color} ${over ? 'ring-2 ring-northstar-400 ring-offset-1' : ''} transition-all`}
+      className={`flex flex-col min-w-[220px] w-[220px] rounded-xl border-2 bg-slate-50 border-slate-200 ${over ? 'ring-2 ring-northstar-400 ring-offset-1' : ''} transition-all`}
       onDragOver={e => { onDragOver(e); setOver(true); }}
       onDragLeave={() => setOver(false)}
-      onDrop={e => { setOver(false); onDrop(e, col.key); }}
+      onDrop={e => { setOver(false); onDrop(e, status); }}
     >
-      {/* Column header */}
-      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-inherit">
-        <span className={`w-2 h-2 rounded-full shrink-0 ${col.dot}`} />
-        <span className="text-xs font-semibold text-slate-700 flex-1">{col.label}</span>
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-200">
+        <span className="text-xs font-semibold text-slate-700 flex-1 truncate">{status}</span>
         <span className="text-xs font-mono text-slate-400">{journalists.length}</span>
       </div>
-      {/* Cards */}
       <div className="flex flex-col gap-2 p-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 260px)' }}>
-        {journalists.map(j => (
-          <PipelineCard key={j.id} journalist={j} onDragStart={onDragStart} />
-        ))}
-        {journalists.length === 0 && (
-          <p className="text-xs text-slate-400 text-center py-6 italic">Drop here</p>
-        )}
+        {journalists.map(j => <PipelineCard key={j.id} journalist={j} onDragStart={onDragStart} />)}
+        {journalists.length === 0 && <p className="text-xs text-slate-400 text-center py-6 italic">Drop here</p>}
       </div>
     </div>
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
-
 export default function JournalistsList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [list, setList] = useState<Journalist[]>([]);
+  const [pubsById, setPubsById] = useState<Record<number, Publication>>({});
   const [loading, setLoading] = useState(true);
-  const [rescoring, setRescoring] = useState(false);
-  const [rescoreMsg, setRescoreMsg] = useState('');
-  const [findingProfiles, setFindingProfiles] = useState(false);
-  const [serpCredits, setSerpCredits] = useState<{ searches_left: number; searches_limit: number } | null>(null);
   const [copiedEmail, setCopiedEmail] = useState<number | null>(null);
   const [view, setView] = useState<'list' | 'pipeline'>('list');
   const dragJournalist = useRef<Journalist | null>(null);
 
   const search = searchParams.get('search') || '';
-  const outreachStatus = searchParams.get('outreachStatus') || '';
-  const sortBy = searchParams.get('sortBy') || 'totalScore';
   const favOnly = searchParams.get('favOnly') === '1';
-
-  const unscoredCount = list.filter(j => j.totalScore === 0).length;
-  const missingProfileCount = list.filter(j => !j.linkedinUrl && !j.muckRackUrl).length;
+  const sortBy = searchParams.get('sortBy') || 'total_score';
 
   const copyEmail = (e: React.MouseEvent, j: Journalist) => {
     e.preventDefault();
@@ -144,46 +79,19 @@ export default function JournalistsList() {
     });
   };
 
-  const reload = () =>
-    api.list({ search, outreachStatus, sortBy })
-      .then(r => setList(r.data));
-
-  const handleBulkProfiles = async () => {
-    setFindingProfiles(true);
-    setRescoreMsg('');
-    try {
-      const res = await enrichApi.bulkProfiles();
-      setRescoreMsg(res.data.message);
-      setTimeout(reload, 60_000);
-    } catch (err: any) {
-      setRescoreMsg(err.response?.data?.error || 'Profile search failed.');
-    } finally {
-      setFindingProfiles(false);
-    }
-  };
-
-  const handleBulkRescore = async () => {
-    setRescoring(true);
-    setRescoreMsg('');
-    try {
-      const res = await api.bulkRescore();
-      setRescoreMsg(res.data.message);
-      setTimeout(reload, 8000);
-    } catch (err: any) {
-      setRescoreMsg(err.response?.data?.error || 'Re-score failed. Check server logs.');
-    } finally {
-      setRescoring(false);
-    }
-  };
-
-
   const handleToggleFavorite = async (e: React.MouseEvent, j: Journalist) => {
     e.preventDefault();
     e.stopPropagation();
-    try {
-      const res = await api.toggleFavorite(j.id);
-      setList(prev => prev.map(x => x.id === j.id ? { ...x, isFavorite: res.data.isFavorite } : x));
-    } catch { /* silent */ }
+    const updated = await api.update(j.id, { isFavorite: !j.is_favorite });
+    setList(prev => prev.map(x => x.id === j.id ? { ...x, is_favorite: updated.data.is_favorite } : x));
+  };
+
+  const handleDelete = async (e: React.MouseEvent, j: Journalist) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Delete ${j.name}?`)) return;
+    await api.delete(j.id);
+    setList(prev => prev.filter(x => x.id !== j.id));
   };
 
   const update = (key: string, value: string) => {
@@ -192,7 +100,8 @@ export default function JournalistsList() {
     setSearchParams(p);
   };
 
-  // Drag-and-drop handlers
+  const reload = () => api.list().then(r => setList(r.data));
+
   const handleDragStart = (e: React.DragEvent, j: Journalist) => {
     dragJournalist.current = j;
     e.dataTransfer.effectAllowed = 'move';
@@ -206,36 +115,45 @@ export default function JournalistsList() {
   const handleDrop = async (e: React.DragEvent, newStatus: string) => {
     e.preventDefault();
     const j = dragJournalist.current;
-    if (!j || j.outreachStatus === newStatus) return;
-    // Optimistic update
-    setList(prev => prev.map(x => x.id === j.id ? { ...x, outreachStatus: newStatus } : x));
-    try {
-      await api.update(j.id, { outreachStatus: newStatus });
-    } catch {
-      // Revert on failure
-      setList(prev => prev.map(x => x.id === j.id ? { ...x, outreachStatus: j.outreachStatus } : x));
-    }
     dragJournalist.current = null;
+    if (!j || j.outreach_status === newStatus || newStatus === 'Not Started') return;
+    // Optimistic update
+    setList(prev => prev.map(x => x.id === j.id ? { ...x, outreach_status: newStatus } : x));
+    try {
+      await oApi.create({ journalistId: j.id, type: 'note', status: newStatus, notes: `Moved to ${newStatus}` });
+    } catch {
+      setList(prev => prev.map(x => x.id === j.id ? { ...x, outreach_status: j.outreach_status } : x));
+    }
   };
 
   useEffect(() => {
     setLoading(true);
-    api.list({ search, outreachStatus, sortBy })
-      .then(r => setList(r.data))
-      .finally(() => setLoading(false));
-  }, [search, outreachStatus, sortBy]);
-
-  useEffect(() => {
-    enrichApi.credits().then(r => setSerpCredits(r.data)).catch(() => {});
+    reload().finally(() => setLoading(false));
+    pubApi.list().then(r => {
+      const map: Record<number, Publication> = {};
+      for (const p of r.data as Publication[]) map[p.id] = p;
+      setPubsById(map);
+    });
   }, []);
 
-  const displayed = favOnly ? list.filter(j => j.isFavorite) : list;
+  const filtered = list
+    .filter(j => !favOnly || j.is_favorite)
+    .filter(j => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      const pubName = j.publication_id ? pubsById[j.publication_id]?.name ?? '' : '';
+      return j.name.toLowerCase().includes(q)
+        || pubName.toLowerCase().includes(q)
+        || j.beats.some(b => b.toLowerCase().includes(q));
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'created_at') return b.created_at.localeCompare(a.created_at);
+      return b.total_score - a.total_score;
+    });
 
-  // Group for pipeline view (use full `list`, not filtered, so all cols visible)
-  const pipelineSource = favOnly ? list.filter(j => j.isFavorite) : list;
-  const grouped = Object.fromEntries(
-    PIPELINE_COLS.map(col => [col.key, pipelineSource.filter(j => j.outreachStatus === col.key)])
-  );
+  const pipelineSource = favOnly ? list.filter(j => j.is_favorite) : list;
+  const grouped = Object.fromEntries(PIPELINE_COLS.map(s => [s, pipelineSource.filter(j => j.outreach_status === s)]));
 
   return (
     <div className={`p-8 ${view === 'pipeline' ? 'max-w-none' : 'max-w-6xl'} mx-auto`}>
@@ -243,12 +161,11 @@ export default function JournalistsList() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Journalists</h1>
           <p className="text-slate-500 mt-1">
-            {displayed.length} journalist{displayed.length !== 1 ? 's' : ''}
+            {filtered.length} journalist{filtered.length !== 1 ? 's' : ''}
             {favOnly && <span className="ml-2 text-amber-600 font-medium">★ Favourites</span>}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* View toggle */}
           <div className="flex items-center bg-slate-100 rounded-lg p-1 gap-1">
             <button
               onClick={() => setView('list')}
@@ -263,44 +180,9 @@ export default function JournalistsList() {
               <Columns className="w-4 h-4" /> Pipeline
             </button>
           </div>
-
-          <button
-            onClick={handleBulkProfiles}
-            disabled={findingProfiles}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200 text-teal-700 text-sm font-medium hover:bg-teal-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title={missingProfileCount > 0 ? `${missingProfileCount} journalist${missingProfileCount !== 1 ? 's' : ''} missing LinkedIn/MuckRack` : 'All profiles enriched — re-run to refresh'}
-          >
-            <Link2 className="w-4 h-4" />
-            {findingProfiles ? 'Finding profiles…' : missingProfileCount > 0 ? `Find profiles (${missingProfileCount} missing)` : 'Find profiles'}
-            {serpCredits && (
-              <span className={`text-xs font-normal border-l border-teal-200 pl-2 ml-1 ${
-                serpCredits.searches_left < 20 ? 'text-rose-500' :
-                serpCredits.searches_left < 100 ? 'text-amber-500' : 'text-teal-500/70'
-              }`}>
-                {serpCredits.searches_left} left
-              </span>
-            )}
-          </button>
-          {unscoredCount > 0 && (
-            <button
-              onClick={handleBulkRescore}
-              disabled={rescoring}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-50 border border-violet-200 text-violet-700 text-sm font-medium hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title="Run Claude analysis on all journalists with score 0"
-            >
-              <Sparkles className="w-4 h-4" />
-              {rescoring ? 'Sending to Claude…' : `Re-score with Claude (${unscoredCount})`}
-            </button>
-          )}
           <Link to="/journalists/new" className="btn-primary">+ Add Journalist</Link>
         </div>
       </div>
-
-      {rescoreMsg && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-violet-50 border border-violet-200 text-violet-800 text-sm">
-          ✨ {rescoreMsg}
-        </div>
-      )}
 
       {/* Filters */}
       <div className="card p-4 mb-5 flex flex-wrap gap-3">
@@ -325,17 +207,10 @@ export default function JournalistsList() {
           Favourites
         </button>
         {view === 'list' && (
-          <select className="form-select w-auto" value={outreachStatus} onChange={e => update('outreachStatus', e.target.value)}>
-            <option value="">All Statuses</option>
-            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        )}
-        {view === 'list' && (
           <select className="form-select w-auto" value={sortBy} onChange={e => update('sortBy', e.target.value)}>
-            <option value="totalScore">Sort: Score</option>
+            <option value="total_score">Sort: Score</option>
             <option value="name">Sort: Name</option>
-            <option value="publication">Sort: Publication</option>
-            <option value="createdAt">Sort: Added</option>
+            <option value="created_at">Sort: Added</option>
           </select>
         )}
       </div>
@@ -345,7 +220,7 @@ export default function JournalistsList() {
         <div className="card overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-slate-400">Loading...</div>
-          ) : displayed.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="p-8 text-center text-slate-400">
               {favOnly
                 ? <span>No favourites yet — click the ★ on any journalist to add them.</span>
@@ -359,87 +234,53 @@ export default function JournalistsList() {
                   <th className="w-8 px-3 py-3"></th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Name</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Publication</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Beat</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600">Beats</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600 flex items-center gap-1">
                     <SortDesc className="w-3 h-3" /> Score
                   </th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600">Status</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Email</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">
-                    <div className="flex items-center gap-1.5">
-                      Status
-                      <div className="relative group">
-                        <Info className="w-3.5 h-3.5 text-slate-400 cursor-default hover:text-slate-600" />
-                        <div className="absolute top-full right-0 mt-2 hidden group-hover:block z-20 w-80">
-                          <div className="bg-slate-800 text-white text-xs rounded-xl px-4 py-3 shadow-xl space-y-2">
-                            <div className="font-semibold text-slate-200 mb-1">Outreach status guide</div>
-                            {STATUSES.map(s => (
-                              <div key={s} className="flex gap-2">
-                                <span className="text-slate-300 font-medium shrink-0 w-32">{s}</span>
-                                <span className="text-slate-400">{STATUS_DESCRIPTIONS[s]}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {displayed.map(j => (
-                  <tr key={j.id} className={`hover:bg-slate-50 transition-colors ${j.staleFlag ? 'opacity-70' : ''}`}>
+                {filtered.map(j => (
+                  <tr key={j.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-3 py-3 w-8">
                       <button
                         onClick={e => handleToggleFavorite(e, j)}
                         className="text-slate-300 hover:text-amber-400 transition-colors"
-                        title={j.isFavorite ? 'Remove from favourites' : 'Add to favourites'}
+                        title={j.is_favorite ? 'Remove from favourites' : 'Add to favourites'}
                       >
-                        <Star className={`w-4 h-4 ${j.isFavorite ? 'fill-amber-400 text-amber-400' : ''}`} />
+                        <Star className={`w-4 h-4 ${j.is_favorite ? 'fill-amber-400 text-amber-400' : ''}`} />
                       </button>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900 flex items-center gap-2">
-                        {j.name}
-                        {j.staleFlag ? (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200" title="No articles found in the last 30 days">
-                            stale
-                          </span>
-                        ) : null}
-                      </div>
-                      {j.roleTitle && <div className="text-xs text-slate-500">{j.roleTitle}</div>}
+                      <div className="font-medium text-slate-900">{j.name}</div>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{j.publication}</td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{j.beat}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {j.publication_id ? pubsById[j.publication_id]?.name ?? '—' : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-slate-500 text-xs">{j.beats.join(', ')}</td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-16 bg-slate-100 rounded-full h-1.5">
-                            <div className="bg-northstar-500 h-1.5 rounded-full" style={{ width: `${j.totalScore}%` }} />
-                          </div>
-                          <span className="font-mono text-xs font-medium text-slate-700">{j.totalScore}</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-16 bg-slate-100 rounded-full h-1.5">
+                          <div className="bg-northstar-500 h-1.5 rounded-full" style={{ width: `${Math.min(100, j.total_score)}%` }} />
                         </div>
-                        {j.followerCount && (
-                          <span className="text-xs text-slate-400" title="Detected follower count">
-                            {j.followerCount >= 1_000_000
-                              ? `${(j.followerCount / 1_000_000).toFixed(1)}M followers`
-                              : j.followerCount >= 1_000
-                              ? `${(j.followerCount / 1_000).toFixed(1)}K followers`
-                              : `${j.followerCount} followers`}
-                          </span>
-                        )}
+                        <span className="font-mono text-xs font-medium text-slate-700">{j.total_score}</span>
                       </div>
                     </td>
+                    <td className="px-4 py-3"><StatusBadge status={j.outreach_status} /></td>
                     <td className="px-4 py-3">
                       {j.email ? (
                         <button
                           onClick={e => copyEmail(e, j)}
-                          className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 group"
+                          className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 group/copy"
                           title="Click to copy email"
                         >
                           {copiedEmail === j.id
                             ? <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                            : <Copy className="w-3.5 h-3.5 text-emerald-500 shrink-0 group-hover:text-emerald-700" />}
+                            : <Copy className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
                           <span className="truncate max-w-[160px]">
                             {copiedEmail === j.id ? 'Copied!' : j.email}
                           </span>
@@ -451,11 +292,19 @@ export default function JournalistsList() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={j.outreachStatus} /></td>
                     <td className="px-4 py-3">
-                      <Link to={`/journalists/${j.id}`} className="text-northstar-600 hover:text-northstar-800 flex items-center">
-                        <ChevronRight className="w-4 h-4" />
-                      </Link>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={e => handleDelete(e, j)}
+                          className="p-1 rounded text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <Link to={`/journalists/${j.id}`} className="text-northstar-600 hover:text-northstar-800 flex items-center">
+                          <ChevronRight className="w-4 h-4" />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -472,13 +321,13 @@ export default function JournalistsList() {
             <div className="p-8 text-center text-slate-400">Loading...</div>
           ) : (
             <>
-              <p className="text-xs text-slate-400 mb-3">Drag cards between columns to update outreach status</p>
+              <p className="text-xs text-slate-400 mb-3">Drag cards between columns to log a status update</p>
               <div className="flex gap-3 overflow-x-auto pb-4">
-                {PIPELINE_COLS.map(col => (
+                {PIPELINE_COLS.map(status => (
                   <PipelineColumn
-                    key={col.key}
-                    col={col}
-                    journalists={grouped[col.key] ?? []}
+                    key={status}
+                    status={status}
+                    journalists={grouped[status] ?? []}
                     onDragStart={handleDragStart}
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
