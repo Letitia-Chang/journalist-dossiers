@@ -203,13 +203,26 @@ router.post('/:id/generate-drafts', async (req: Request, res: Response) => {
 router.put('/:id/journalists/:journalistId/draft', async (req: Request, res: Response) => {
   try {
     const { draftSubject, draftBody, draftStatus } = req.body;
+
+    // If content is being saved without an explicit status, promote out of
+    // 'pending' so it isn't re-targeted (and overwritten) by generate-drafts,
+    // and so it shows up in the Review Drafts tab instead of looking untouched.
+    let nextStatus = draftStatus ?? null;
+    if (!nextStatus && (draftSubject || draftBody)) {
+      const current = (await pool.query(
+        'SELECT "draftStatus" FROM campaign_journalists WHERE "campaignId" = $1 AND "journalistId" = $2',
+        [req.params.id, req.params.journalistId]
+      )).rows[0];
+      if (current?.draftStatus === 'pending') nextStatus = 'ready';
+    }
+
     await pool.query(`
       UPDATE campaign_journalists
       SET "draftSubject" = COALESCE($1, "draftSubject"),
           "draftBody"    = COALESCE($2, "draftBody"),
           "draftStatus"  = COALESCE($3, "draftStatus")
       WHERE "campaignId" = $4 AND "journalistId" = $5
-    `, [draftSubject ?? null, draftBody ?? null, draftStatus ?? null, req.params.id, req.params.journalistId]);
+    `, [draftSubject ?? null, draftBody ?? null, nextStatus, req.params.id, req.params.journalistId]);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
