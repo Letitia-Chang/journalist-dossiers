@@ -1,4 +1,4 @@
-import { Clock, Zap, ShieldAlert, Bell, RefreshCw, Users, Star, BookOpen } from 'lucide-react';
+import { Clock, Zap, ShieldAlert, Bell, RefreshCw, Users, Star, BookOpen, UserCog } from 'lucide-react';
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 
@@ -54,60 +54,82 @@ export default function SystemInfoPage() {
           <BookOpen className="w-5 h-5 text-northstar-600" /> System Rules & Behaviour
         </h1>
         <p className="text-slate-500 mt-1 text-sm">
-          How the system works — automated jobs, triggers, restrictions, and maintenance reminders.
+          How the system works — discovery jobs, triggers, restrictions, and maintenance reminders.
         </p>
       </div>
 
-      {/* Cron jobs */}
-      <Section icon={Clock} title="Automated Jobs (Cron)" color="text-northstar-500">
+      {/* Discovery & automation jobs */}
+      <Section icon={Clock} title="Discovery & Automation Jobs" color="text-northstar-500">
+        <p className="text-xs text-slate-500 mb-3">
+          Nothing here runs on a schedule — there is no cron in this app. Every job below is kicked off by clicking a button, and each responds immediately with a status message while the work continues in the background.
+        </p>
         <Row
-          label="RSS article refresh"
-          value="Fridays at 7am"
-          note="Fetches new articles from all active publication feeds. Updates 'last published' dates and sets the stale flag on journalists with no articles in 30+ days."
+          label="RSS scan — all publications"
+          value="Manual · RSS Suggestions page"
+          note="Scans every active feed for bylines, adds new candidates to journalist suggestions. POST /api/journalist-suggestions/scan-all."
+        />
+        <Row
+          label="RSS scan / staff-page scan — one publication"
+          value="Manual · Publication detail page"
+          note="Scans a single publication's feeds or staff/about page for journalists. POST /api/journalist-suggestions/scan/:id or /staff-scan/:id."
+        />
+        <Row
+          label="Sync Feeds"
+          value="Manual · Publications admin"
+          note="Discovers RSS feeds for all publications, then verifies every feed URL in one step. POST /api/publications/sync-feeds."
         />
         <Row
           label="Publication health check"
-          value="Weekly (Mondays)"
-          note="Checks whether each publication's RSS feed URL is reachable. Marks feeds as active / failed / unreachable."
+          value="Manual · Publications admin"
+          note="Checks whether each publication's URL is reachable and updates its health status. POST /api/publications/check-feeds."
         />
         <Row
           label="AI publication suggestions"
-          value="Weekly (Mondays)"
-          note="Claude suggests new publications to track based on the current list. Suggestions appear in Publications admin for human review — nothing is added automatically."
+          value="Manual · Publications admin"
+          note="Claude suggests new publications based on the org's company description and target verticals. Pending review — nothing is added automatically. POST /api/suggestions/run-now."
+        />
+        <Row
+          label="Blog/publication search & OPML import"
+          value="Manual · Publications admin"
+          note="Searches Feedly/Substack/Medium for new publications, or imports an OPML feed list. POST /api/publications/discover and /import-opml."
         />
       </Section>
 
       {/* Auto-triggers */}
       <Section icon={Zap} title="Automatic Triggers" color="text-amber-500">
+        <p className="text-xs text-slate-500 mb-3">
+          These aren't scheduled either — they fire in direct response to a specific action you take, not on a timer.
+        </p>
         <Row
-          label="Journalist accepted from RSS"
-          value="→ Claude scores immediately"
-          note="When you accept a journalist suggestion, Claude Opus 4.8 runs in the background to assign scores across 6 dimensions, set the beat, and write the pitch angle and system notes."
+          label="Journalist suggestion accepted"
+          value="→ AI scores in the background, if dimensions exist"
+          note="If the org has defined at least one scoring dimension, Claude Opus 4.8 scores the new journalist against them using the org's company description and target verticals. If no dimensions are defined yet, scoring is silently skipped."
         />
         <Row
-          label="Journalist added manually"
-          value="→ Claude scores automatically"
-          note="Fires ~1 second after saving. Only runs if no manual scores were entered. Same scoring process as RSS-accepted journalists."
-        />
-        <Row
-          label="'Find Profiles' detects follower count"
-          value="→ Claude re-scores automatically"
-          note="If a follower count is parsed from Google search snippets (e.g. '3K followers' in a LinkedIn result), the Audience Reach score is recalculated in the background. Fires 2 seconds after the profile search completes."
+          label="Publication suggestion accepted"
+          value="→ Feed discovery kicks off"
+          note="Creates the publication, then automatically starts discovering its RSS feeds."
         />
         <Row
           label="Outreach logged"
-          value="→ Outreach status auto-updates"
-          note="Every time an outreach log entry is saved, the journalist's status is synced to reflect the latest activity (e.g. logging a pitch sets status to 'Pitched')."
+          value="→ Journalist's status updates instantly"
+          note="A journalist's outreach status is always just whatever 'Resulting status' was picked on their most recent outreach log entry — there's no separate sync step to reconcile."
+        />
+        <Row
+          label="Invite accepted"
+          value="→ User account created"
+          note="Accepting an invite link creates the user under the inviting org with the role the owner assigned, and logs them in immediately."
         />
       </Section>
 
       {/* Outreach status flow */}
       <Section icon={RefreshCw} title="Outreach Status Flow" color="text-blue-500">
-        <p className="text-xs text-slate-500 mb-3">Status changes are manual except where noted. The flow represents the intended progression.</p>
+        <p className="text-xs text-slate-500 mb-3">
+          Every status here is set manually by picking a "Resulting status" when logging any outreach entry (type: pitch, follow-up, response, or note). There's no automatic promotion between them.
+        </p>
         <div className="flex flex-wrap items-center gap-2 mb-4">
           {[
             ['Not Started', 'slate'],
-            ['Researching', 'blue'],
             ['Ready to Pitch', 'violet'],
             ['Pitched', 'amber'],
             ['Responded', 'green'],
@@ -118,70 +140,63 @@ export default function SystemInfoPage() {
             <Tag key={label} color={color as string}>{label}</Tag>
           ))}
         </div>
-        <Row label="Not Started" value="Default status for all new journalists" />
-        <Row
-          label="Researching"
-          value="Set manually when actively evaluating"
-          note="SerpAPI searches do NOT automatically set this. It's a deliberate human signal."
-        />
-        <Row label="Ready to Pitch" value="Set manually when you've decided to pitch and the draft is ready" />
-        <Row label="Pitched" value="Auto-set when an outreach log entry of type 'Pitch' is saved" />
-        <Row label="Responded" value="Auto-set when a response is logged" />
-        <Row label="No Response" value="Set manually after a reasonable waiting period" />
-        <Row label="Covered / Declined" value="Set manually after outcome is confirmed" />
+        <Row label="Not Started" value="Default when a journalist has no outreach log entries yet" />
+        <Row label="Ready to Pitch, Pitched, Responded, No Response, Covered, Declined" value="Chosen manually every time you log an outreach entry" note="Whatever you pick becomes the journalist's status immediately — it's read live from the most recent log row, not stored separately." />
       </Section>
 
       {/* Scoring */}
       <Section icon={Star} title="Scoring System" color="text-yellow-500">
-        <Row label="Total score" value="Out of 100 — sum of 6 dimensions" />
-        <Row label="AI Relevance" value="0–25 pts · How closely their beat matches AI/ML/LLM topics" />
-        <Row label="Startup Relevance" value="0–20 pts · Coverage of startups, funding rounds, founders" />
-        <Row label="North Star Fit" value="0–20 pts · Likelihood they'd cover an AI enterprise startup like ours" />
-        <Row label="Publication Authority" value="0–15 pts · Reach and prestige of their outlet" />
-        <Row label="Audience Reach" value="0–10 pts · Estimated readership and social following" />
-        <Row label="Contactability" value="0–10 pts · Whether verified contact info is available" />
+        <p className="text-xs text-slate-500 mb-3">
+          Scoring dimensions are fully configurable per organization — there is no fixed set of dimensions or point values. Manage them on the Scoring Dimensions admin page.
+        </p>
+        <Row label="Dimensions" value="Each org defines its own name, description, and point weight per dimension" note="The admin UI shows a running total and nudges you to make weights sum to 100 (so scores read as a percentage), but this isn't enforced — you can save any total." />
+        <Row label="Total score" value="Sum of a journalist's saved score on each dimension" />
         <Row
-          label="When scores run"
-          value="On accept, on manual add, and when follower count is detected"
-          note="Scores don't update automatically when you edit a journalist's fields. Run 'Find Profiles' to trigger a re-score with fresh follower data."
+          label="When AI scoring runs"
+          value="On accepting a suggestion (if dimensions exist), or on demand via 'Score with AI'"
+          note="Claude Opus 4.8 scores using the org's company description, target verticals, and the journalist's beats/bio. Scores don't change when you just edit a journalist's fields — re-run 'Score with AI' to refresh them."
         />
+        <Row label="Manual entry" value="Scores can always be entered or overridden by hand per dimension" />
+      </Section>
+
+      {/* Team & roles */}
+      <Section icon={UserCog} title="Team & Roles" color="text-indigo-500">
+        <Row label="Owner" value="Full access, plus team management and Gmail connection" note="Only the owner can invite/remove teammates, change roles, and connect or disconnect the org's Gmail integration." />
+        <Row label="Admin" value="Can manage publications, scoring dimensions, and discovery jobs" note="Same edit access as owner everywhere except team management and Gmail." />
+        <Row label="Member" value="Read access; cannot edit publications, scoring dimensions, or run discovery jobs" />
+        <Row label="Invites" value="Owner generates a shareable link, valid 7 days" note="No email is sent automatically — the owner shares the invite link themselves. Accepting it creates the account." />
       </Section>
 
       {/* Dashboard alerts */}
       <Section icon={Bell} title="Dashboard Alert Conditions" color="text-rose-500">
         <Row
           label="Overdue follow-ups"
-          value="Status is 'Pitched' or 'Responded' and next follow-up date has passed"
-          note="Check the journalist's Outreach tab and log your next action."
-        />
-        <Row
-          label="Stale journalists"
-          value="No new articles in 30+ days (staleFlag = 1)"
-          note="Set by the Friday RSS cron. Check if the journalist has changed beats, gone quiet, or left the publication."
-        />
-        <Row
-          label="Needs re-search"
-          value="'Find Profiles' hasn't been run in 90+ days"
-          note="Social profiles and follower counts can change. Re-running refreshes the data freshness strip and may trigger a re-score."
+          value="Status is 'Pitched' and no newer log entry has been made in a while"
+          note="Check the journalist's Outreach History and log your next action."
         />
         <Row
           label="Unreachable publications"
-          value="RSS feed returning 404, 403, or timeout"
-          note="Click 'Sync Feeds' in Publications admin or fix the feed URL manually."
+          value="Health check marked the publication's URL as unreachable"
+          note="Run 'Sync Feeds' or the health check in Publications admin, or fix the URL manually."
+        />
+        <Row
+          label="Pending suggestions"
+          value="Unreviewed journalist or publication suggestions"
+          note="Shown as badge counts next to Publications and RSS Suggestions in the sidebar — nothing is added to the database until you accept or reject each one."
         />
       </Section>
 
       {/* API usage */}
       <Section icon={Users} title="API Usage & Limits" color="text-teal-500">
         <Row
-          label="SerpAPI"
-          value="Pay-per-search · current balance shown next to 'Find Profiles'"
-          note="Used for: LinkedIn/MuckRack/Twitter URL discovery, follower count detection from snippets, profile photos. Free trial = 100 searches total (does not refill)."
-        />
-        <Row
           label="Anthropic Claude"
           value="Pay-per-token · no hard cap"
-          note="Used for: journalist scoring, campaign draft generation, publication suggestions, press coverage text parsing. Model: Claude Opus 4.8."
+          note="Used for: journalist scoring (per-org dimensions), campaign draft generation, publication suggestions. Model: Claude Opus 4.8."
+        />
+        <Row
+          label="Google (Gmail API)"
+          value="Free within normal usage quotas"
+          note="Used for: per-org OAuth connection to create Gmail drafts from campaign copy. Scope is gmail.compose only — this app cannot send mail through it."
         />
       </Section>
 
@@ -189,23 +204,23 @@ export default function SystemInfoPage() {
       <Section icon={ShieldAlert} title="Restrictions (Non-Negotiable)" color="text-red-500">
         <Row
           label="No automated outreach"
-          value="All emails must be reviewed and sent manually"
-          note="The system generates drafts and marks campaigns as sent, but never sends email autonomously."
+          value="Emails are never sent by the system"
+          note="Campaign drafts can be pushed into Gmail as drafts (gmail.compose scope), but every send is a manual action taken by a human in their own inbox."
         />
         <Row
-          label="No web scraping"
-          value="Only public professional contact info via manual entry"
-          note="Email enrichment via a third-party provider is not currently integrated — contact info is entered manually or sourced from a publication's own contact page."
+          label="No web scraping, no third-party enrichment"
+          value="Contact info is entered manually or discovered via RSS/staff-page scans"
+          note="There is no Apollo, SerpAPI, or other contact-enrichment integration in this app — that was explicitly ruled out and isn't planned."
         />
         <Row
           label="No guessed emails"
           value="Never construct email addresses from name + domain patterns"
-          note="Emails must come from the publication's own contact page or manual entry."
+          note="Emails must come from a publication's own public pages or manual entry."
         />
         <Row
           label="Human approval required"
           value="All AI/RSS suggestions (journalists, publications) require explicit accept/reject"
-          note="Nothing is added to the main database automatically from discovery jobs."
+          note="Nothing is added to the database automatically from a discovery job — a human reviews every candidate first."
         />
       </Section>
     </div>
