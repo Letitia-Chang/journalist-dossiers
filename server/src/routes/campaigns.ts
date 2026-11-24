@@ -3,6 +3,7 @@ import pool from '../db';
 import { generateCampaignDraft } from '../services/campaignDraftService';
 import { getAuthedGmailClient, createGmailDraft } from '../services/gmailService';
 import { isDemo, limitMessage, liveAiStatus, takeLiveAi } from '../demo/limits';
+import { clientIp } from '../lib/clientIp';
 
 const router = Router();
 
@@ -132,9 +133,9 @@ router.post('/:id/generate-drafts', async (req, res) => {
   );
 
   // Demo safeguard: each draft is one live Claude call; only run as many as this visitor has left.
-  const granted = targets.length > 0 ? takeLiveAi(req.ip ?? 'local', targets.length) : 0;
+  const granted = targets.length > 0 ? takeLiveAi(clientIp(req), targets.length) : 0;
   if (targets.length > 0 && granted === 0) {
-    return res.status(429).json({ error: limitMessage(liveAiStatus(req.ip ?? 'local')) });
+    return res.status(429).json({ error: limitMessage(liveAiStatus(clientIp(req))) });
   }
   const runnable = targets.slice(0, granted);
   const skipped = targets.length - runnable.length;
@@ -175,8 +176,8 @@ router.post('/:id/journalists/:journalistId/regenerate', async (req, res) => {
   );
   if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
-  if (takeLiveAi(req.ip ?? 'local', 1) === 0) {
-    return res.status(429).json({ error: limitMessage(liveAiStatus(req.ip ?? 'local')) });
+  if (takeLiveAi(clientIp(req), 1) === 0) {
+    return res.status(429).json({ error: limitMessage(liveAiStatus(clientIp(req))) });
   }
   const draft = await generateCampaignDraft({
     orgId: req.orgId!,

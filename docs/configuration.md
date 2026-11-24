@@ -60,6 +60,7 @@ See `server/.env.example` for the full annotated list.
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | – | Gmail drafts |
 | `BOT_NAME`, `BOT_CONTACT_URL`, `BOT_USER_AGENT` | `PressDossierBot` | How the crawler identifies itself |
 | `TRUST_PROXY` | – | `true` behind a reverse proxy |
+| `CLIENT_IP_HEADER` | – | Header holding the real client address, for the demo's per-visitor limits when a CDN sits in front of the proxy (Render: `cf-connecting-ip`). Only set it if every request passes through that CDN, or clients could spoof it |
 | `DEMO_MODE`, `DEMO_AI_PER_HOUR`, `DEMO_AI_PER_DAY`, `DEMO_RESET_HOURS` | – | See [demo-mode.md](demo-mode.md) |
 
 Client: `VITE_API_URL` (default `http://localhost:3001/api`).
