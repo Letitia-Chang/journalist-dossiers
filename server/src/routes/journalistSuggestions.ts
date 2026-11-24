@@ -5,6 +5,7 @@ import { scanStaffPage } from '../services/staffPageScanner';
 import { runAiScoring } from '../services/scoringRunner';
 import { requireRole } from '../middleware/auth';
 import { blockInDemo } from '../middleware/demo';
+import { clientIp } from '../lib/clientIp';
 
 const router = Router();
 const requireEditor = requireRole('owner', 'admin');
@@ -82,7 +83,7 @@ router.post('/:id/accept', async (req, res) => {
   res.status(201).json({ success: true, journalistId: journalist.id });
 
   // Background: auto-score with AI against the org's scoring dimensions (no-ops when none exist)
-  runAiScoring(req.orgId!, journalist.id, req.ip)
+  runAiScoring(req.orgId!, journalist.id, clientIp(req))
     .then(outcome => {
       if (outcome.ok) console.log(`[JournalistSuggestions] Auto-scored "${suggestion.name}" → ${outcome.total} pts`);
     })

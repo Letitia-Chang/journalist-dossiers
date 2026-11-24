@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db';
 import { runAiScoring } from '../services/scoringRunner';
+import { clientIp } from '../lib/clientIp';
 
 const router = Router();
 
@@ -156,7 +157,7 @@ router.put('/:id', async (req, res) => {
 });
 
 router.post('/:id/score', async (req, res) => {
-  const outcome = await runAiScoring(req.orgId!, Number(req.params.id), req.ip);
+  const outcome = await runAiScoring(req.orgId!, Number(req.params.id), clientIp(req));
   if (!outcome.ok) return res.status(outcome.status).json({ error: outcome.error });
 
   const scoresByJournalist = await attachScores(req.orgId!, [Number(req.params.id)]);
