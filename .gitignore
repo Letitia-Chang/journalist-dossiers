@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment variables — NEVER commit these
+.env
+.env.local
+.env.production
+server/.env
+
+# Database — contains real data, keep local only
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Build outputs
+dist/
+client/dist/
+server/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Local tooling / agent config
+.claude/
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Deployment-specific company config (copy company.config.example.json)
+company.config.json

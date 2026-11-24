@@ -1,0 +1,33 @@
+{
+  "company": {
+    "name": "Example Co",
+    "website": "https://example.com",
+    "one_liner": "We help small manufacturers cut energy costs with off-the-shelf analytics.",
+    "industry": "Industrial software",
+    "products": "A dashboard and weekly report that find wasted energy on the factory floor.",
+    "target_audience": "Plant managers and operations leads at small and mid-size manufacturers.",
+    "regions": ["US Midwest", "Canada"],
+    "key_messages": [
+      "Small manufacturers get no benefit from enterprise energy tools",
+      "Most savings come from schedules, not new equipment"
+    ],
+    "newsworthy_items": [
+      { "type": "research", "title": "Survey of 300 plant managers on energy waste", "date": "2026-09", "description": "Findings on where energy is lost.", "url": "" }
+    ],
+    "competitors": ["Acme Energy", "Widgetron"],
+    "press_coverage": [],
+    "spokespeople": [
+      { "name": "Alex Rivera", "title": "CEO", "topics": ["manufacturing", "energy costs"] }
+    ],
+    "pitch_tone": "Plain-spoken and specific. No buzzwords. Short.",
+    "email_signature": "Alex Rivera\nCEO, Example Co\nhttps://example.com",
+    "app_name": "Press Dossier",
+    "logo_url": "",
+    "brand_color": "#4f46e5"
+  },
+  "scoringDimensions": [
+    { "name": "Beat relevance", "description": "How closely their beat matches our industry and story angles.", "weight": 40 },
+    { "name": "Audience match", "description": "Do the outlet's readers match our target audience?", "weight": 30 },
+    { "name": "Recent coverage of similar companies", "description": "Have they covered competitors or similar topics lately?", "weight": 30 }
+  ]
+}

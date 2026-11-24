@@ -1,0 +1,11 @@
+title = "Press Dossier gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholder values in example files"
+paths = [
+  '''server/\.env\.example''',
+  '''company\.config\.example\.json''',
+]

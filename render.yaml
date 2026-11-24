@@ -1,0 +1,33 @@
+# Render Blueprint for the public demo API.
+# Dashboard → New → Blueprint → pick this repo. Values marked `sync: false` are secrets or
+# per-deployment URLs that you enter in the dashboard; they are never stored in git.
+services:
+  - type: web
+    name: press-dossier-api
+    runtime: node
+    plan: free            # 512 MB RAM; sleeps after 15 minutes idle (the client retries while it wakes)
+    region: oregon
+    rootDir: server
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run start:prod     # applies migrations, then starts the API
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: DEMO_MODE
+        value: "true"
+      - key: DEMO_AI_PER_HOUR
+        value: "5"
+      - key: DEMO_AI_PER_DAY
+        value: "100"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATABASE_URL        # Neon (or any Postgres) direct connection string
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: FRONTEND_URL        # your Vercel URL, e.g. https://press-dossier.vercel.app
+        sync: false
