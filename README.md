@@ -2,7 +2,7 @@
 
 An open-source PR research tool. Give it your company profile, and it helps you find journalists who cover your space, builds a dossier on each one, scores how well they fit *your* company with evidence you can click through, and drafts a personalized pitch you review and send yourself.
 
-**Live demo:** _link added after deployment_ · uses a fictional company and fictional journalists
+**Live demo:** [press-dossier.vercel.app](https://press-dossier.vercel.app) · fictional company and journalists, live AI runs are rate-limited. The API sleeps when idle, so the first load can take up to a minute.
 
 ![Dashboard](docs/images/dashboard.jpg)
 
