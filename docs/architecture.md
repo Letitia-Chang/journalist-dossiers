@@ -24,7 +24,7 @@ server/   Express + TypeScript, PostgreSQL via `pg`, migrations via node-pg-migr
 
 ## One company per deployment
 
-There is a single `organizations` row, created on boot. Rows in every table still carry `org_id` (so queries are explicitly scoped and the schema stays simple to reason about), but the app never creates a second organization. The first signup becomes the owner; everyone else joins by invite.
+There is a single real `organizations` row, created on boot. Rows in every table still carry `org_id` (so queries are explicitly scoped and the schema stays simple to reason about), but the app never creates a second one. (In [demo mode](demo-mode.md) there is none: each visitor gets a temporary sandbox organization instead.) The first signup becomes the owner; everyone else joins by invite.
 
 ## The company profile drives every AI step
 
@@ -61,7 +61,7 @@ flowchart TD
 
 - Email + password (bcrypt), JWT (HS256, 7 days) sent as `Authorization: Bearer`.
 - Roles: **member** works with journalists, campaigns, outreach and coverage. **admin** also manages publications, scoring dimensions, house style, the company profile, and discovery. **owner** also manages the team and the Gmail connection.
-- A role change takes effect on the user's next login (the role is in the token).
+- The role is read from the database on every request, so removing or demoting someone takes effect at once.
 - Signup is open only until the first account exists.
 
 ## Discovery and polite crawling

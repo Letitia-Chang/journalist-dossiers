@@ -100,8 +100,11 @@ export default function CampaignStyles() {
 
   const handleSave = async (type: CampaignType) => {
     setSaving(type);
-    await api.update(type, styles[type]);
-    setSaving(null);
+    try {
+      await api.update(type, styles[type]);
+    } finally {
+      setSaving(null);
+    }
     setJustSaved(type);
     setSavedAt(prev => ({ ...prev, [type]: new Date().toISOString() }));
     setTimeout(() => setJustSaved(null), 2000);

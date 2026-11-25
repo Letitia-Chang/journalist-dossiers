@@ -18,6 +18,15 @@ describe.skipIf(!hasDb)('authentication', () => {
     expect((await login('owner@example.com', 'wrong-password')).status).toBe(401);
   });
 
+  it('signs in to an account stored with capitals, and prefers an exact match', async () => {
+    const bcrypt = (await import('bcrypt')).default;
+    const u = await makeUser(ctx, 'admin');
+    await ctx.pool.query('UPDATE users SET email = $1, password_hash = $2 WHERE id = $3', ['Bob@Example.com', await bcrypt.hash(PASSWORD, 4), u.id]);
+    expect((await login('bob@example.com')).body.user?.id).toBe(u.id);
+    const owner = await makeUser(ctx, 'owner', u.orgId);
+    expect((await request(ctx.app).post('/api/team/invites').set(owner.auth).send({ email: 'bob@example.com' })).status).toBe(409);
+  });
+
   it('a removed member loses access at once', async () => {
     const owner = await makeUser(ctx, 'owner');
     const admin = await makeUser(ctx, 'admin', owner.orgId);
@@ -48,6 +57,42 @@ describe.skipIf(!hasDb)('authentication', () => {
     }
     expect((await request(ctx.app).delete(`/api/team/members/${owner.id}`).set(owner.auth)).status).toBe(400);
     expect((await request(ctx.app).put(`/api/team/members/${owner.id}/role`).set(owner.auth).send({ role: 'member' })).status).toBe(400);
+  });
+
+  it('two owners cannot demote or remove each other at the same time', async () => {
+    for (const path of ['role', 'remove'] as const) {
+      for (let i = 0; i < 8; i++) {
+        const a = await makeUser(ctx, 'owner');
+        const b = await makeUser(ctx, 'owner', a.orgId);
+        const act = (who: typeof a, target: typeof a) => path === 'role'
+          ? request(ctx.app).put(`/api/team/members/${target.id}/role`).set(who.auth).send({ role: 'member' })
+          : request(ctx.app).delete(`/api/team/members/${target.id}`).set(who.auth);
+        await Promise.all([act(a, b), act(b, a)]);
+        expect((await ctx.pool.query(`SELECT 1 FROM users WHERE org_id = $1 AND role = 'owner'`, [a.orgId])).rowCount).toBe(1);
+      }
+    }
+  });
+
+  it('removing or demoting someone revokes the invites they sent or were sent', async () => {
+    for (const how of ['remove', 'demote'] as const) {
+      const owner = await makeUser(ctx, 'owner');
+      const bad = await makeUser(ctx, 'owner', owner.orgId);
+      const { body } = await request(ctx.app).post('/api/team/invites').set(bad.auth).send({ email: `${how}@example.com`, role: 'owner' });
+      if (how === 'remove') await request(ctx.app).delete(`/api/team/members/${bad.id}`).set(owner.auth);
+      else await request(ctx.app).put(`/api/team/members/${bad.id}/role`).set(owner.auth).send({ role: 'member' });
+      expect((await request(ctx.app).post('/api/auth/accept-invite').send({ token: body.token, name: 'x', password: PASSWORD })).status).toBe(404);
+    }
+  });
+
+  it('keeps one open invite per email, even when several are sent at once', async () => {
+    const owner = await makeUser(ctx, 'owner');
+    await Promise.all(Array.from({ length: 6 }, () => request(ctx.app).post('/api/team/invites').set(owner.auth).send({ email: 'dup@example.com' })));
+    expect((await request(ctx.app).get('/api/team/invites').set(owner.auth)).body).toHaveLength(1);
+  });
+
+  it('first-run sign-up under a burst makes exactly one owner and no errors', async () => {
+    const res = await Promise.all(Array.from({ length: 25 }, (_, i) => signup(`o${i}@example.com`)));
+    expect(res.map(r => r.status).sort()).toEqual([201, ...Array(24).fill(403)]);
   });
 
   it('an invite works once', async () => {
@@ -87,7 +132,13 @@ describe.skipIf(!hasDb)('authentication', () => {
       for (let i = 0; i < 12; i++) codes.push((await from('203.0.113.1', 'wrong-password')).status);
       expect(codes).toEqual([...Array(10).fill(401), 429, 429]);
       expect((await from('203.0.113.1', PASSWORD)).status).toBe(429);
-      expect((await from('198.51.100.7', PASSWORD)).status).toBe(200);
+      for (let i = 0; i < 12; i++) expect((await from('198.51.100.7', PASSWORD)).status).toBe(200); // successes don't count
+      // Guessing across many accounts from one address is limited too.
+      await ctx.pool.query(`UPDATE rate_limits SET count = 50 WHERE bucket = $1`, [(await import('../../src/lib/rateLimit')).bucketFor('login-ip', '198.51.100.7')]);
+      expect((await request(ctx.app).post('/api/auth/login').set('x-test-ip', '198.51.100.7').send({ email: 'other@example.com', password: 'x' })).status).toBe(429);
+      // And one account from many addresses, far more loosely.
+      await ctx.pool.query(`UPDATE rate_limits SET count = 1000 WHERE bucket = $1`, [(await import('../../src/lib/rateLimit')).bucketFor('login-account', 'owner@example.com')]);
+      expect((await from('192.0.2.55', 'wrong-password')).status).toBe(429);
     } finally { delete process.env.CLIENT_IP_HEADER; delete process.env.TRUST_PROXY; }
   });
 

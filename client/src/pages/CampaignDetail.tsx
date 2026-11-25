@@ -267,9 +267,9 @@ export default function CampaignDetail() {
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${DRAFT_STATUS_STYLE[cj.status] ?? DRAFT_STATUS_STYLE.not_started}`}>
                       {cj.status.replace('_', ' ')}
                     </span>
-                    <button onClick={() => handleRemove(cj.journalist_id)} className="p-1 rounded text-slate-300 hover:text-red-500" title="Remove">
+                    {cj.status !== 'sent' && <button onClick={() => handleRemove(cj.journalist_id)} className="p-1 rounded text-slate-300 hover:text-red-500" title="Remove">
                       <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    </button>}
                   </div>
                 </div>
 

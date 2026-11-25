@@ -40,8 +40,11 @@ export default function CampaignList() {
   const handleCreate = async () => {
     if (!form.name.trim() || !form.brief.trim()) return;
     setSaving(true);
-    await api.create({ name: form.name, brief: form.brief, campaignType: form.type });
-    setSaving(false);
+    try {
+      await api.create({ name: form.name, brief: form.brief, campaignType: form.type });
+    } finally {
+      setSaving(false);
+    }
     setShowForm(false);
     setForm({ name: '', type: 'cold_intro', brief: '' });
     load();

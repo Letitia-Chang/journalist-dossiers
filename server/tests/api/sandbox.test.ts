@@ -51,6 +51,7 @@ describe.skipIf(!hasDb)('demo sandboxes', () => {
     const aCov = (await call(a, 'get', '/api/coverage')).body[0];
     const bJ = (await call(b, 'get', '/api/journalists')).body[0];
     const bC = (await call(b, 'get', '/api/campaigns')).body[0];
+    const bCov = (await call(b, 'get', '/api/coverage')).body[0];
     const before = await ctx.pool.query('SELECT name, bio, total_score FROM journalists WHERE org_id = $1 ORDER BY id', [a.orgId]);
 
     const denied: [Method, string, object?][] = [
@@ -68,6 +69,7 @@ describe.skipIf(!hasDb)('demo sandboxes', () => {
       ['put', `/api/journalists/${bJ.id}`, { publicationId: aP.id }], ['post', '/api/coverage', { title: 'x', journalistId: aJ.id }],
       ['post', '/api/coverage', { title: 'x', campaignId: aC.id }], ['post', '/api/outreach', { journalistId: aJ.id, type: 'note', status: 'Pitched' }],
       ['post', '/api/outreach', { journalistId: bJ.id, campaignId: aC.id, type: 'note', status: 'Pitched' }], ['post', '/api/articles', { journalistId: aJ.id, title: 'x' }],
+      ['put', `/api/coverage/${bCov.id}`, { campaignId: aC.id }], ['put', `/api/coverage/${bCov.id}`, { journalistId: aJ.id }],
       ['put', `/api/journalists/${bJ.id}`, { scores: [{ dimensionId: aJ.scores[0].dimensionId, score: 1 }] }],
     ];
     for (const [method, path, body] of denied) {
@@ -115,30 +117,94 @@ describe.skipIf(!hasDb)('demo sandboxes', () => {
     const res = await request(ctx.app).post('/api/auth/demo-login');
     expect([res.status, typeof res.body.error]).toEqual([429, 'string']);
 
+    // Rotating through one /48 shares a network limit.
+    process.env.CLIENT_IP_HEADER = 'x-test-ip';
+    try {
+      await ctx.pool.query('DELETE FROM rate_limits');
+      const codes = [];
+      for (let i = 0; i < 22; i++) codes.push((await request(ctx.app).post('/api/auth/demo-login').set('x-test-ip', `2001:db8:1:${i}::1`)).status);
+      expect(codes).toEqual([...Array(20).fill(200), 429, 429]);
+    } finally { delete process.env.CLIENT_IP_HEADER; }
+
     await ctx.pool.query('DELETE FROM rate_limits');
     const a = await enter();
-    await ctx.pool.query(`UPDATE rate_limits SET count = 300 WHERE bucket LIKE 'write:%'`);
-    const first = await call(a, 'post', '/api/campaigns', { name: 'c' });
-    expect(first.status).toBe(201);
-    await ctx.pool.query(`UPDATE rate_limits SET count = 300 WHERE bucket LIKE 'write:%'`);
-    expect((await call(a, 'post', '/api/campaigns', { name: 'c' })).status).toBe(429);
+    for (const bucket of ['write:%', 'write-org:%', 'write-all']) {
+      expect((await call(a, 'post', '/api/campaigns', { name: 'c' })).status).toBe(201);
+      await ctx.pool.query(`UPDATE rate_limits SET count = 1000000 WHERE bucket LIKE $1`, [bucket]);
+      expect((await call(a, 'post', '/api/campaigns', { name: 'c' })).status).toBe(429);
+      await ctx.pool.query(`DELETE FROM rate_limits`);
+    }
     expect((await call(a, 'get', '/api/campaigns')).status).toBe(200); // reading still works
   });
 
-  it('sweeps expired and surplus sandboxes but never a real organization', async () => {
+  it('sweeps expired sandboxes but never a real organization', async () => {
     const a = await enter();
     const b = await enter();
     await ctx.pool.query(`UPDATE organizations SET demo_expires_at = NOW() - INTERVAL '1 minute' WHERE id = $1`, [a.orgId]);
     process.env.DEMO_MODE = 'false';
     const real = await makeUser(ctx);
     await seed.sweepSandboxes();
-    const left = (await ctx.pool.query('SELECT id FROM organizations')).rows.map(r => r.id);
-    expect(left.sort()).toEqual([b.orgId, real.orgId].sort());
-    await ctx.pool.query(`INSERT INTO organizations (name, slug, demo_expires_at) SELECT 'x', 's' || g, NOW() + INTERVAL '1 hour' FROM generate_series(1, $1) g`, [seed.MAX_SANDBOXES + 5]);
-    await seed.sweepSandboxes();
-    const { rows: [{ c }] } = await ctx.pool.query('SELECT COUNT(*)::int AS c FROM organizations WHERE demo_expires_at IS NOT NULL');
-    expect(c).toBe(seed.MAX_SANDBOXES);
+    expect((await ctx.pool.query('SELECT id FROM organizations')).rows.map(r => r.id).sort()).toEqual([b.orgId, real.orgId].sort());
+  });
+
+  it('when full, drops the oldest sandboxes, but never recent ones or a real organization', async () => {
+    process.env.DEMO_MODE = 'false';
+    const real = await makeUser(ctx);
+    await ctx.pool.query(`UPDATE organizations SET created_at = NOW() - INTERVAL '1 year' WHERE id = $1`, [real.orgId]);
+    process.env.DEMO_MODE = 'true';
+    const fill = (n: number, age: string, tag: string) => ctx.pool.query(
+      `INSERT INTO organizations (name, slug, demo_expires_at, created_at) SELECT 'x', $3 || g, NOW() + INTERVAL '1 hour', NOW() - $2::interval FROM generate_series(1, $1) g`, [n, age, tag]);
+    await fill(seed.MAX_SANDBOXES - 1, '10 minutes', 'new');
+    await fill(5, '5 hours', 'old');
+    expect(await seed.makeRoomForSandbox()).toBe(true);
+    const left = (await ctx.pool.query('SELECT slug FROM organizations WHERE demo_expires_at IS NOT NULL')).rows.map(r => r.slug as string);
+    expect(left).toHaveLength(seed.MAX_SANDBOXES - 1);
+    expect(left.every(s => s.startsWith('new'))).toBe(true);
+
+    await fill(1, '10 minutes', 'last'); // now full, and everyone is active
+    expect((await request(ctx.app).post('/api/auth/demo-login')).status).toBe(503);
+    expect((await ctx.pool.query('SELECT 1 FROM organizations WHERE demo_expires_at IS NOT NULL')).rowCount).toBe(seed.MAX_SANDBOXES);
     expect((await ctx.pool.query('SELECT 1 FROM organizations WHERE id = $1', [real.orgId])).rowCount).toBe(1);
+  });
+
+  it('a sandbox token stops working when the sandbox expires or demo mode is turned off', async () => {
+    const a = await enter();
+    process.env.DEMO_MODE = 'false';
+    expect((await call(a, 'get', '/api/journalists')).status).toBe(401);
+    process.env.DEMO_MODE = 'true';
+    expect((await call(a, 'get', '/api/journalists')).status).toBe(200);
+    await ctx.pool.query(`UPDATE organizations SET demo_expires_at = NOW() - INTERVAL '1 second' WHERE id = $1`, [a.orgId]);
+    expect((await call(a, 'get', '/api/journalists')).status).toBe(401);
+  });
+
+  it('demo:reset deletes sandboxes and only sandboxes', async () => {
+    await enter();
+    await seed.resetDemo();
+    expect((await ctx.pool.query('SELECT 1 FROM organizations')).rowCount).toBe(0);
+    // Even if the safety check were bypassed, the delete itself is limited to sandboxes.
+    await enter();
+    const real = await makeUser(ctx);
+    await seed.deleteAllSandboxes();
+    expect((await ctx.pool.query('SELECT id FROM organizations')).rows).toEqual([{ id: real.orgId }]);
+  });
+
+  it('keeps an old shared demo company that someone put to real use', async () => {
+    const legacy = '00000000-0000-4000-8000-0000000000d1';
+    await ctx.pool.query(`INSERT INTO organizations (id, name, slug) VALUES ($1, 'Lumen Grid', 'lumen-grid')`, [legacy]);
+    const owner = await makeUser(ctx, 'owner', legacy);
+    await expect(seed.prepareDemo()).rejects.toThrow(/real organization/);
+    expect((await ctx.pool.query('SELECT 1 FROM users WHERE id = $1', [owner.id])).rowCount).toBe(1);
+  });
+
+  it('web discovery and paid research stay off in the demo, whatever the role', async () => {
+    const a = await enter();
+    await ctx.pool.query(`UPDATE users SET role = 'owner' WHERE id = $1`, [a.id]);
+    const pub = (await call(a, 'get', '/api/publications')).body[0].id;
+    for (const p of ['/api/suggestions/run-now', '/api/journalist-suggestions/scan-all', `/api/journalist-suggestions/scan/${pub}`, `/api/journalist-suggestions/staff-scan/${pub}`,
+      '/api/publications/discover', '/api/publications/check-feeds', '/api/publications/sync-feeds', `/api/publications/${pub}/discover-rss`, `/api/publications/${pub}/discover-feeds`]) {
+      const res = await call(a, 'post', p, { query: 'x' });
+      expect([p, res.status, res.body.error]).toEqual([p, 403, expect.stringMatching(/disabled in the demo/)]);
+    }
   });
 
   it('refuses to start, or reset, on a database with a real organization', async () => {

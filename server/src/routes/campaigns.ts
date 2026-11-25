@@ -10,7 +10,11 @@ import { assertOwned } from '../lib/owned';
 import * as schemas from '../lib/schemas';
 import { parseBody, validateParams } from '../lib/validate';
 
-const ALREADY_SENT = 'This pitch was already sent, so its text is kept as a record.';
+const ALREADY_SENT = 'This pitch was already sent, so it is kept as a record.';
+
+const CLAIM = 'creating';
+/** No Gmail draft yet, or one whose creation was interrupted. */
+const UNCLAIMED = `(cj.gmail_draft_id IS NULL OR (cj.gmail_draft_id = '${CLAIM}' AND cj.updated_at < NOW() - INTERVAL '10 minutes'))`;
 
 const router = Router();
 validateParams(router, { id: 'int', journalistId: 'int' });
@@ -78,7 +82,7 @@ router.delete('/:id', async (req, res) => {
 
 router.get('/:id/journalists', async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT cj.id, cj.campaign_id, cj.journalist_id, cj.draft_subject, cj.draft_body, cj.status, cj.sent_at, cj.gmail_draft_id,
+    `SELECT cj.id, cj.campaign_id, cj.journalist_id, cj.draft_subject, cj.draft_body, cj.status, cj.sent_at, NULLIF(cj.gmail_draft_id, '${CLAIM}') AS gmail_draft_id,
             j.name as journalist_name, j.email as journalist_email, j.beats as journalist_beats,
             p.name as publication_name
      FROM campaign_journalists cj
@@ -115,10 +119,10 @@ router.post('/:id/journalists', async (req, res) => {
 
 router.delete('/:id/journalists/:journalistId', async (req, res) => {
   const result = await pool.query(
-    'DELETE FROM campaign_journalists WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3',
+    `DELETE FROM campaign_journalists WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3 AND status <> 'sent'`,
     [req.params.id, req.params.journalistId, req.orgId],
   );
-  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  if (result.rowCount === 0) throw await notFoundOrSent(pool, req.params.id, req.params.journalistId, req.orgId!);
   res.status(204).end();
 });
 
@@ -173,6 +177,7 @@ router.post('/:id/generate-drafts', async (req, res) => {
       }
     } catch (err) {
       console.error(`[campaigns] draft for campaign_journalist ${target.id} failed`, err);
+      await pool.query(`UPDATE campaign_journalists SET status = 'failed', updated_at = NOW() WHERE id = $1 AND status <> 'sent'`, [target.id]).catch(() => {});
     }
   }
 });
@@ -289,7 +294,7 @@ router.post('/:id/create-gmail-drafts', async (req, res) => {
      FROM campaign_journalists cj
      JOIN journalists j ON j.id = cj.journalist_id
      WHERE cj.campaign_id = $1 AND cj.org_id = $2
-       AND cj.draft_subject != '' AND cj.gmail_draft_id IS NULL AND cj.status <> 'sent'`,
+       AND cj.draft_subject != '' AND cj.status <> 'sent' AND ${UNCLAIMED}`,
     [req.params.id, req.orgId],
   );
 
@@ -297,12 +302,17 @@ router.post('/:id/create-gmail-drafts', async (req, res) => {
   let skippedNoEmail = 0;
   for (const t of targets) {
     if (!t.journalist_email) { skippedNoEmail++; continue; }
+    // Claim the row first, so a double click can't create the same draft twice.
+    const { rowCount: claimed } = await pool.query(
+      `UPDATE campaign_journalists cj SET gmail_draft_id = '${CLAIM}', updated_at = NOW() WHERE cj.id = $1 AND cj.status <> 'sent' AND ${UNCLAIMED}`, [t.id]);
+    if (!claimed) continue;
     try {
       const draftId = await createGmailDraft(gmail, t.journalist_email, t.draft_subject, t.draft_body);
       await pool.query(`UPDATE campaign_journalists SET gmail_draft_id = $1, updated_at = NOW() WHERE id = $2`, [draftId, t.id]);
       created++;
     } catch (err: any) {
       console.error(`[Gmail] Draft creation failed for campaign_journalist ${t.id}:`, err.message);
+      await pool.query(`UPDATE campaign_journalists SET gmail_draft_id = NULL WHERE id = $1 AND gmail_draft_id = '${CLAIM}'`, [t.id]);
     }
   }
 

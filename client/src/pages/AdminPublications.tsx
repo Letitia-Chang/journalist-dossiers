@@ -186,16 +186,22 @@ export default function AdminPublications() {
 
   const handleAccept = async (s: PublicationSuggestion) => {
     setAcceptingId(s.id);
-    await suggestApi.accept(s.id);
-    await Promise.all([loadPubs(), loadSuggestions()]);
-    setAcceptingId(null);
+    try {
+      await suggestApi.accept(s.id);
+      await Promise.all([loadPubs(), loadSuggestions()]);
+    } finally {
+      setAcceptingId(null);
+    }
   };
 
   const handleReject = async (s: PublicationSuggestion) => {
     setRejectingId(s.id);
-    await suggestApi.reject(s.id);
-    await loadSuggestions();
-    setRejectingId(null);
+    try {
+      await suggestApi.reject(s.id);
+      await loadSuggestions();
+    } finally {
+      setRejectingId(null);
+    }
   };
 
   const handleStaffScan = async (p: Publication) => {

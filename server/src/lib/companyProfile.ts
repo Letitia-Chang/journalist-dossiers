@@ -26,7 +26,7 @@ export const newsworthyItemSchema = z.object({
 export const spokespersonSchema = z.object({
   name: str(100).min(1, 'Name is required'),
   title: str(100).default(''),
-  topics: stringList,
+  topics: z.array(str(80).min(1)).max(10, 'At most 10 topics').default([]),
 });
 
 export const pressCoverageSchema = z.object({

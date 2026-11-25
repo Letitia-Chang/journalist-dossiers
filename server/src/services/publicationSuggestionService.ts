@@ -1,9 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import pool from '../db';
+import { clip, clipUrl } from '../lib/clip';
 import { loadProfile, profileToPrompt } from '../lib/companyProfile';
-import { assertPromptSize, CLAUDE_MODEL } from '../lib/claude';
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { assertPromptSize, claudeClient, CLAUDE_MODEL } from '../lib/claude';
 
 export interface PublicationSuggestionResult {
   added: number;
@@ -56,7 +55,7 @@ Respond with ONLY a valid JSON array, no markdown, no prose:
 [{"name": "...", "url": "...", "tier": "A", "focus": "...", "rationale": "one sentence why this fits"}]`;
 
   try {
-    const message = await anthropic.messages.create({
+    const message = await claudeClient().messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 1024,
       thinking: { type: 'adaptive' },
@@ -77,7 +76,7 @@ Respond with ONLY a valid JSON array, no markdown, no prose:
 
     let added = 0;
     for (const s of suggestions) {
-      if (!s.name) continue;
+      if (!clip(s.name, 200)) continue;
       const nameKey = s.name.toLowerCase();
       if (existingNames.has(nameKey) || excludedNames.has(nameKey)) continue;
       const domain = s.url ? extractDomain(s.url) : '';
@@ -86,7 +85,7 @@ Respond with ONLY a valid JSON array, no markdown, no prose:
       await pool.query(
         `INSERT INTO publication_suggestions (org_id, name, url, tier, focus, rationale)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [orgId, s.name, s.url ?? '', ['A', 'B', 'C'].includes(s.tier ?? '') ? s.tier : 'B', s.focus ?? '', s.rationale ?? ''],
+        [orgId, clip(s.name, 200), clipUrl(s.url), ['A', 'B', 'C'].includes(s.tier ?? '') ? s.tier : 'B', clip(s.focus, 2000), clip(s.rationale, 2000)],
       );
       added++;
     }

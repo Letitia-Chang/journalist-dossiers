@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool, { inTransaction } from '../db';
 import { HttpError } from '../lib/httpError';
-import { recomputeTotals } from '../lib/scores';
+import { lockJournalists, recomputeTotals } from '../lib/scores';
 import { requireRole } from '../middleware/auth';
 import * as schemas from '../lib/schemas';
 import { parseBody, validateParams } from '../lib/validate';
@@ -33,6 +33,7 @@ router.post('/', requireRole('owner', 'admin'), async (req, res) => {
 router.put('/:id', requireRole('owner', 'admin'), async (req, res) => {
   const { name, description, weight, displayOrder } = parseBody(schemas.dimensionUpdate, req);
   const row = await inTransaction(async db => {
+    await lockJournalists(db, req.orgId!);
     const { rows: [updated] } = await db.query(
       `UPDATE scoring_dimensions SET
          name = COALESCE($1, name),
@@ -58,6 +59,7 @@ router.put('/:id', requireRole('owner', 'admin'), async (req, res) => {
 
 router.delete('/:id', requireRole('owner', 'admin'), async (req, res) => {
   await inTransaction(async db => {
+    await lockJournalists(db, req.orgId!);
     const result = await db.query('DELETE FROM scoring_dimensions WHERE id = $1 AND org_id = $2', [req.params.id, req.orgId]);
     if (result.rowCount === 0) throw new HttpError(404, 'Not found');
     await recomputeTotals(db, req.orgId!); // the dimension's scores were deleted with it

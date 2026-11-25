@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import pool from '../db';
+import { isDemo } from '../demo/limits';
 import { HttpError } from '../lib/httpError';
 
 export interface AuthTokenPayload {
@@ -41,7 +42,12 @@ export function verifyOAuthState(state: string): { sub: string; orgId: string } 
 
 /** The user's role right now, or null if they were removed. The token only says who they were at login. */
 export async function currentRole(userId: string, orgId: string): Promise<Role | null> {
-  const { rows: [row] } = await pool.query('SELECT role FROM users WHERE id = $1 AND org_id = $2', [userId, orgId]);
+  // A demo sandbox is only usable in demo mode and before it expires, even if it isn't swept yet.
+  const { rows: [row] } = await pool.query(
+    `SELECT u.role FROM users u JOIN organizations o ON o.id = u.org_id
+     WHERE u.id = $1 AND u.org_id = $2 AND (o.demo_expires_at IS NULL OR ($3 AND o.demo_expires_at > NOW()))`,
+    [userId, orgId, isDemo()],
+  );
   return row?.role ?? null;
 }
 

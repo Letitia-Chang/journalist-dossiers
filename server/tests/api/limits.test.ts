@@ -1,7 +1,6 @@
-import http from 'http';
-import type { AddressInfo } from 'net';
 import request from 'supertest';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { startClaudeStub, type ClaudeStub } from '../setup/claudeStub';
 import { hasDb, makeUser, useTestApp, type TestUser } from '../setup/testDb';
 
 const HOUR = 3_600_000;
@@ -51,7 +50,6 @@ describe.skipIf(!hasDb)('durable demo limits', () => {
 
   it('survives a restart: a fresh copy of the module sees the same counts', async () => {
     await L.takeLiveAi('a', 3, T);
-    const { vi } = await import('vitest');
     vi.resetModules();
     const fresh = await import('../../src/demo/limits');
     expect(await fresh.takeLiveAi('a', 1, T)).toBe(0);
@@ -74,10 +72,26 @@ describe.skipIf(!hasDb)('durable demo limits', () => {
     expect(R.normalizeIp('2001:db8:1:2::1')).toBe(R.normalizeIp('2001:0db8:0001:0002:ffff:eeee:dddd:cccc'));
     expect(R.normalizeIp('2001:db8:1:2::1')).not.toBe(R.normalizeIp('2001:db8:1:3::1'));
     expect(R.normalizeIp('::ffff:203.0.113.9')).toBe('203.0.113.9');
+    expect(R.normalizeIp('::ffff:cb00:7109')).toBe('203.0.113.9');
+    expect(R.normalizeIp('0:0:0:0:0:ffff:203.0.113.9')).toBe('203.0.113.9');
     expect(R.normalizeIp('::1')).toBe('0:0:0:0::/64');
+    expect(R.networkOf('2001:db8:1:2::1')).toBe(R.networkOf('2001:db8:1:ff::1'));
     await L.takeLiveAi('203.0.113.9', 1, T);
     const { rows } = await ctx.pool.query('SELECT bucket FROM rate_limits');
     expect(JSON.stringify(rows)).not.toContain('203.0.113');
+  });
+
+  it('does not deadlock when callers list the same counters in different orders', async () => {
+    const a = { bucket: 'a', windowMs: HOUR, limit: 1000 };
+    const b = { bucket: 'b', windowMs: HOUR, limit: 1000 };
+    let deadlocks = 0;
+    const query = ctx.pool.query.bind(ctx.pool);
+    const before = (await query('SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()')).rows[0].deadlocks;
+    await Promise.all(Array.from({ length: 60 }, (_, i) => R.take(i % 2 ? [a, b] : [b, a], 1, T).catch(() => { deadlocks++; })));
+    expect(deadlocks).toBe(0);
+    await query('SELECT pg_stat_force_next_flush()').catch(() => {});
+    expect((await query('SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()')).rows[0].deadlocks).toBe(before);
+    expect((await R.remaining([a, b], T))).toEqual([940, 940]);
   });
 
   it('prunes old windows only', async () => {
@@ -87,42 +101,62 @@ describe.skipIf(!hasDb)('durable demo limits', () => {
   });
 
   describe('over HTTP, with a stub Claude', () => {
-    let stub: http.Server; let calls: string[] = []; let owner: TestUser; let journalistId: number; let campaignId: number;
+    let stub: ClaudeStub; let owner: TestUser; let journalistId: number; let campaignId: number;
     beforeAll(async () => {
-      stub = http.createServer((req, res) => {
-        let body = '';
-        req.on('data', d => { body += d; });
-        req.on('end', () => {
-          calls.push(body);
-          const dims = [...body.matchAll(/dimensionId\\": (\d+)/g)].map(m => Number(m[1]));
-          const text = dims.length
-            ? JSON.stringify({ scores: dims.map(d => ({ dimensionId: d, score: 5, rationale: 'r', evidence: [] })), reasoning: 'ok' })
-            : '{"subject":"S","body":"B"}';
-          res.setHeader('content-type', 'application/json');
-          res.end(JSON.stringify({ id: 'm', type: 'message', role: 'assistant', model: 'x', content: [{ type: 'text', text }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } }));
-        });
-      }).listen(0);
-      process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${(stub.address() as AddressInfo).port}`;
-      process.env.ANTHROPIC_API_KEY = 'stub';
+      stub = await startClaudeStub();
       owner = await makeUser(ctx);
       await request(ctx.app).post('/api/scoring-dimensions').set(owner.auth).send({ name: 'Fit', weight: 25 });
       journalistId = (await request(ctx.app).post('/api/journalists').set(owner.auth).send({ name: 'J' })).body.id;
       campaignId = (await request(ctx.app).post('/api/campaigns').set(owner.auth).send({ name: 'C', brief: 'b' })).body.id;
     });
-    beforeEach(() => { calls = []; });
+    beforeEach(() => { stub.calls.length = 0; stub.fail = false; });
     afterAll(() => { stub.close(); });
 
     it('falls back to the saved analysis after the limit', async () => {
       const cached = [];
       for (let i = 0; i < 4; i++) cached.push((await request(ctx.app).post(`/api/journalists/${journalistId}/score`).set(owner.auth)).body.cached);
       expect(cached).toEqual([false, false, false, true]);
-      expect(calls).toHaveLength(3);
+      expect(stub.calls).toHaveLength(3);
+    });
+
+    it('counts one call per draft, for generating and regenerating, and stops at the limit', async () => {
+      const ids = [];
+      for (let i = 0; i < 4; i++) ids.push((await request(ctx.app).post('/api/journalists').set(owner.auth).send({ name: `D${i}` })).body.id);
+      await request(ctx.app).post(`/api/campaigns/${campaignId}/journalists`).set(owner.auth).send({ journalistIds: ids });
+      const gen = await request(ctx.app).post(`/api/campaigns/${campaignId}/generate-drafts`).set(owner.auth);
+      expect(gen.body.message).toMatch(/Generating drafts for 3 .*1 left for later/);
+      await vi.waitFor(async () => {
+        const rows = (await request(ctx.app).get(`/api/campaigns/${campaignId}/journalists`).set(owner.auth)).body;
+        expect(rows.filter((r: { status: string }) => r.status === 'ready')).toHaveLength(3);
+        expect(rows.find((r: { draft_subject: string }) => r.draft_subject).draft_subject).toBe('New subject'); // one line
+      });
+      expect(stub.calls).toHaveLength(3);
+      expect((await request(ctx.app).post(`/api/campaigns/${campaignId}/journalists/${ids[0]}/regenerate`).set(owner.auth).send({})).status).toBe(429);
+      expect((await request(ctx.app).post(`/api/campaigns/${campaignId}/generate-drafts`).set(owner.auth)).status).toBe(429);
+      expect(stub.calls).toHaveLength(3);
+    });
+
+    it('a failing Claude call is one request, never retried in the demo', async () => {
+      stub.fail = true;
+      expect((await request(ctx.app).post(`/api/journalists/${journalistId}/score`).set(owner.auth)).status).toBe(502);
+      expect(stub.calls).toHaveLength(1);
+    });
+
+    it('refuses an oversized draft prompt and marks the draft failed', async () => {
+      const c = (await request(ctx.app).post('/api/campaigns').set(owner.auth).send({ name: 'Big', brief: 'b' })).body.id;
+      const j = (await request(ctx.app).post('/api/journalists').set(owner.auth).send({ name: 'Big' })).body.id;
+      await request(ctx.app).post(`/api/campaigns/${c}/journalists`).set(owner.auth).send({ journalistIds: [j] });
+      await ctx.pool.query('UPDATE campaigns SET brief = $1 WHERE id = $2', ['x'.repeat(200_000), c]);
+      expect((await request(ctx.app).post(`/api/campaigns/${c}/journalists/${j}/regenerate`).set(owner.auth).send({})).status).toBe(413);
+      await request(ctx.app).post(`/api/campaigns/${c}/generate-drafts`).set(owner.auth);
+      await vi.waitFor(async () => expect((await request(ctx.app).get(`/api/campaigns/${c}/journalists`).set(owner.auth)).body[0].status).toBe('failed'));
+      expect(stub.calls).toHaveLength(0);
     });
 
     it('does not spend a call on a journalist who is not in the campaign', async () => {
       const res = await request(ctx.app).post(`/api/campaigns/${campaignId}/journalists/${journalistId}/regenerate`).set(owner.auth).send({});
       expect(res.status).toBe(404);
-      expect(calls).toHaveLength(0);
+      expect(stub.calls).toHaveLength(0);
       expect((await L.liveAiStatus('::ffff:127.0.0.1')).remaining).toBe(3);
     });
 
@@ -130,7 +164,7 @@ describe.skipIf(!hasDb)('durable demo limits', () => {
       await ctx.pool.query('UPDATE journalists SET bio = $1 WHERE id = $2', ['x'.repeat(200_000), journalistId]);
       const res = await request(ctx.app).post(`/api/journalists/${journalistId}/score`).set(owner.auth);
       expect(res.status).toBe(413);
-      expect(calls).toHaveLength(0);
+      expect(stub.calls).toHaveLength(0);
     });
   });
 });

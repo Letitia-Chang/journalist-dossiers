@@ -10,4 +10,10 @@ exports.up = (pgm) => {
 };
 
 /** @param pgm {import('node-pg-migrate').MigrationBuilder} */
-exports.down = (pgm) => { pgm.sql('ALTER TABLE organizations DROP COLUMN IF EXISTS demo_expires_at;'); };
+exports.down = (pgm) => {
+  // Without the marker a sandbox would look like a real organization.
+  pgm.sql(`
+    DELETE FROM organizations WHERE demo_expires_at IS NOT NULL;
+    ALTER TABLE organizations DROP COLUMN IF EXISTS demo_expires_at;
+  `);
+};

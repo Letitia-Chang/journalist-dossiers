@@ -9,8 +9,8 @@ export function toCsv(rows: Record<string, any>[]): string {
   const escape = (v: any) => {
     if (v === null || v === undefined) return '';
     let s = v instanceof Date ? v.toISOString() : Array.isArray(v) ? v.join('; ') : String(v);
-    // A leading = + - @ would run as a formula when the file is opened in a spreadsheet.
-    if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    // A leading = + - @ (even after spaces) would run as a formula when the file is opened in a spreadsheet.
+    if (typeof v !== 'number' && /^\s*[=+\-@]/.test(s)) s = `'${s}`;
     return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [headers.join(',')];

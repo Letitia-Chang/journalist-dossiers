@@ -13,8 +13,10 @@ const PG_ERRORS: Record<string, [number, string]> = {
   '22003': [400, 'Number out of range'],
   '22007': [400, 'Invalid date'],
   '22008': [400, 'Invalid date'],
+  '22009': [400, 'Invalid date'],
   '22021': [400, 'Invalid characters in text'],
   '22P05': [400, 'Invalid characters in text'],
+  '40P01': [503, 'The server is busy. Please try again.'],
   '23502': [400, 'A required value is missing'],
   '23503': [400, 'That refers to something that does not exist'],
   '23505': [409, 'That already exists'],
@@ -37,6 +39,12 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   const pg = typeof err?.code === 'string' ? PG_ERRORS[err.code] : undefined;
   if (pg) {
     res.status(pg[0]).json({ error: pg[1] });
+    return;
+  }
+  // Postgres is unreachable or every connection is in use.
+  if (/timeout exceeded when trying to connect|Connection terminated|ECONNREFUSED/.test(String(err?.message))) {
+    console.error('[db] unavailable:', err.message);
+    res.status(503).json({ error: 'The server is busy. Please try again.' });
     return;
   }
   // body-parser and the router set a 4xx status on malformed JSON, oversized bodies and bad URLs.

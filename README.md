@@ -106,11 +106,11 @@ The reference setup is Vercel (client) + Render (API) + Neon (Postgres); see [do
 ```bash
 npm run lint          # server + client
 npm run typecheck
-npm test              # server tests (set DATABASE_URL to a migrated Postgres for the API smoke test)
+npm test              # server tests (set DATABASE_URL to any local Postgres; they create and drop their own databases)
 npm run build
 ```
 
-CI runs lint, typecheck, tests against a Postgres service, the client build, and a gitleaks secret scan. Tests cover profile validation, prompt building, the score parser's handling of malformed model output, robots.txt rules, the demo limiter and dataset, and an API smoke test including first-run setup.
+CI runs lint, typecheck, tests against a Postgres service, the client build, and a gitleaks secret scan. Tests cover profile validation, prompt building, the score parser's handling of malformed model output, robots.txt rules, the demo limits and sandbox isolation, authentication, data integrity, bad input on every route, and first-run setup.
 
 ## Limitations
 

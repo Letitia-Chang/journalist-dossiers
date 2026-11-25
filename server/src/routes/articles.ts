@@ -40,10 +40,10 @@ router.put('/:id', async (req, res) => {
        title = COALESCE($1, title),
        url = COALESCE($2, url),
        summary = COALESCE($3, summary),
-       published_at = COALESCE($4, published_at)
+       published_at = CASE WHEN $7 THEN $4::timestamptz ELSE published_at END
      WHERE id = $5 AND org_id = $6
      RETURNING id, journalist_id, title, url, summary, published_at, created_at`,
-    [title, url, summary, publishedAt, req.params.id, req.orgId],
+    [title, url, summary, publishedAt, req.params.id, req.orgId, publishedAt !== undefined],
   );
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(row);

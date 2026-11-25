@@ -48,13 +48,13 @@ const journalistFields = {
 export const journalistCreate = z.object({ name, ...journalistFields });
 export const journalistUpdate = z.object({ name: name.nullish(), isFavorite: z.boolean().nullish(), ...journalistFields });
 
-const campaignFields = { brief: text(8000).nullish(), campaignType: line(60).nullish() };
+const campaignFields = { brief: text(12000).nullish(), campaignType: line(60).nullish() };
 export const campaignCreate = z.object({ name, ...campaignFields });
 export const campaignUpdate = z.object({ name: name.nullish(), status: line(40).nullish(), ...campaignFields });
 export const campaignAddJournalists = z.object({ journalistIds: z.array(id).min(1, 'journalistIds is required').max(200) });
 export const draftUpdate = z.object({ draftSubject: line(300).nullish(), draftBody: text(8000).nullish() });
 export const regenerate = z.object({ instructions: text(1000).nullish() });
-export const styleUpdate = z.object({ instructions: text(4000).nullish() });
+export const styleUpdate = z.object({ instructions: text(8000).nullish() });
 
 export const articleCreate = z.object({ journalistId: id, title: line(300).trim().min(1, 'Required'), url: link.nullish(), summary: text(4000).nullish(), publishedAt: date });
 export const articleUpdate = z.object({ title: line(300).trim().min(1, 'Required').nullish(), url: link.nullish(), summary: text(4000).nullish(), publishedAt: date });
@@ -74,7 +74,7 @@ export const dimensionCreate = z.object({ name, description: text(1000).nullish(
 export const dimensionUpdate = z.object({ name: name.nullish(), description: text(1000).nullish(), weight: weight.nullish(), displayOrder: order.nullish() });
 
 const publicationFields = {
-  url: link.nullish(), tier: line(10).nullish(), focus: text(1000).nullish(), notes: text(4000).nullish(), rssUrl: link.nullish(),
+  url: link.nullish(), tier: line(20).nullish(), focus: text(2000).nullish(), notes: text(4000).nullish(), rssUrl: link.nullish(),
 };
 export const publicationCreate = z.object({ name, ...publicationFields });
 export const publicationUpdate = z.object({ name: name.nullish(), active: z.boolean().nullish(), ...publicationFields });

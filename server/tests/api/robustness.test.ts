@@ -64,7 +64,7 @@ describe('bad input never crashes or 500s the server', () => {
     ['/api/journalists', { name: 'x', twitter: 'java\tscript:alert(1)' }], ['/api/journalists', { name: 'x', email: 'a@b.co\r\nBcc: c@d.co' }],
     ['/api/campaigns', { name: 'a\u0000b' }], ['/api/campaigns', {}], ['/api/articles', { journalistId: 'abc', title: 't' }],
     ['/api/coverage', { title: 't', publishedAt: 'notadate' }], ['/api/coverage', { title: 't', publishedAt: '2026-02-31' }],
-    ['/api/coverage', { title: 't', journalistId: 99999999 }], ['/api/coverage', { title: 't', url: 'data:text/html,x' }],
+    ['/api/coverage', { title: 't', publishedAt: '2024-01-01T00:00:00+20:00' }], ['/api/coverage', { title: 't', journalistId: 99999999 }], ['/api/coverage', { title: 't', url: 'data:text/html,x' }],
     ['/api/outreach', { journalistId: 1 }], ['/api/scoring-dimensions', { name: 'x', weight: 1e12 }],
     ['/api/publications', { name: 'x', url: 'javascript:1' }], ['/api/publications/import-opml', { opml: '<opml/>' }],
   ])('POST %s %j is a 400', async (path, body) => {
@@ -96,6 +96,32 @@ describe('bad input never crashes or 500s the server', () => {
       expect([res.status, res.body]).toEqual([500, { error: 'Internal server error' }]);
     } finally { (ctx.pool as { query: unknown }).query = original; }
     expect((await request(ctx.app).get('/api/setup/status')).status).toBe(200);
+  });
+
+  it('survives every database connection dropping, idle or in the middle of a transaction', async () => {
+    const db = await ctx.pool.connect();
+    await db.query('BEGIN');
+    const { Client } = await import('pg');
+    const killer = new Client({ connectionString: process.env.DATABASE_URL });
+    await killer.connect();
+    await killer.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()');
+    await new Promise(r => setTimeout(r, 200));
+    await expect(db.query('SELECT 1')).rejects.toThrow(); // and no uncaught 'error' event, which would fail the run
+    db.release(true);
+    await killer.end();
+    expect((await request(ctx.app).get('/api/journalists').set(owner.auth)).status).toBe(200);
+  });
+
+  it('a burst from one caller does not starve the connection pool', async () => {
+    const id = (await request(ctx.app).post('/api/journalists').set(owner.auth).send({ name: 'x' })).body.id;
+    const codes = (await Promise.all(Array.from({ length: 60 }, () => request(ctx.app).put(`/api/journalists/${id}`).set(owner.auth).send({ name: 'y' })))).map(r => r.status);
+    expect(codes.filter(c => c !== 200)).toEqual([]);
+  });
+
+  it('says it is busy, not broken, when the database is unreachable', async () => {
+    const original = ctx.pool.query;
+    (ctx.pool as { query: unknown }).query = () => Promise.reject(new Error('timeout exceeded when trying to connect'));
+    try { expect((await request(ctx.app).get('/api/setup/status')).status).toBe(503); } finally { (ctx.pool as { query: unknown }).query = original; }
   });
 
   it('sends security headers and hides the framework', async () => {

@@ -11,7 +11,7 @@ See the [self-host guide](README.md#self-host-in-5-minutes). You need Node 22+ a
 ```bash
 npm run lint
 npm run typecheck
-npm test            # set DATABASE_URL to a migrated Postgres so the API smoke test runs
+npm test            # set DATABASE_URL to any local Postgres; tests create and drop their own databases
 npm run build
 ```
 

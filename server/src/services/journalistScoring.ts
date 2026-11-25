@@ -1,7 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import { profileToPrompt } from '../lib/companyProfile';
 import type { CompanyProfile } from '../lib/companyProfile';
-import { assertPromptSize, CLAUDE_MODEL } from '../lib/claude';
+import { assertPromptSize, claudeClient, CLAUDE_MODEL } from '../lib/claude';
 
 export interface DimensionInput {
   id: number;
@@ -138,9 +138,8 @@ export async function scoreJournalistWithAI(input: ScoringInput): Promise<Journa
   if (input.dimensions.length === 0) return null;
 
   const prompt = assertPromptSize(buildScoringPrompt(input));
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   try {
-    const message = await anthropic.messages.create({
+    const message = await claudeClient().messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 2048,
       thinking: { type: 'adaptive' },

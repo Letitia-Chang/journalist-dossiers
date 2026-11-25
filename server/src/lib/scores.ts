@@ -11,3 +11,14 @@ export async function recomputeTotals(db: Pool | PoolClient, orgId: string, jour
   );
   return rows[0]?.total_score ?? 0;
 }
+
+/**
+ * Lock journalist rows before touching their scores. Every writer takes journalists first, in id
+ * order, then scores, so they queue instead of deadlocking.
+ */
+export async function lockJournalists(db: PoolClient, orgId: string, journalistId?: number): Promise<void> {
+  await db.query(
+    'SELECT id FROM journalists WHERE org_id = $1 AND ($2::int IS NULL OR id = $2) ORDER BY id FOR UPDATE',
+    [orgId, journalistId ?? null],
+  );
+}

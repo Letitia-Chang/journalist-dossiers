@@ -88,8 +88,10 @@ export const sandboxHours = () => {
   const n = Number(process.env.DEMO_SANDBOX_HOURS ?? 24);
   return Number.isFinite(n) && n > 0 ? n : 24;
 };
-/** Live sandboxes kept at once; past this the oldest is dropped, which bounds the database size. */
+/** Live sandboxes kept at once. With the write limits below, this is what bounds the database size. */
 export const MAX_SANDBOXES = 300;
+/** A sandbox younger than this is never dropped to make room, so a flood can't sign out active visitors. */
+export const PROTECTED_MINUTES = 60;
 
 async function insertRows(db: PoolClient, table: string, columns: string[], rows: unknown[][]): Promise<number[]> {
   if (rows.length === 0) return [];
@@ -173,14 +175,21 @@ export async function createSandbox(): Promise<{ user: { id: string; email: stri
   }
 }
 
-/** Drop expired sandboxes, then the oldest ones past the cap. Never touches a real organization. */
+/** Drop expired sandboxes. Never touches a real organization. */
 export async function sweepSandboxes(): Promise<void> {
   await pool.query('DELETE FROM organizations WHERE demo_expires_at < NOW()');
+}
+
+/** Make room for one more sandbox by dropping the oldest unprotected ones. False when the demo is full. */
+export async function makeRoomForSandbox(): Promise<boolean> {
+  await sweepSandboxes();
   await pool.query(
-    `DELETE FROM organizations WHERE demo_expires_at IS NOT NULL AND id IN (
-       SELECT id FROM organizations WHERE demo_expires_at IS NOT NULL ORDER BY created_at DESC OFFSET $1)`,
-    [MAX_SANDBOXES],
+    `DELETE FROM organizations WHERE demo_expires_at IS NOT NULL AND created_at < NOW() - make_interval(mins => $2)
+       AND id IN (SELECT id FROM organizations WHERE demo_expires_at IS NOT NULL ORDER BY created_at DESC OFFSET $1)`,
+    [MAX_SANDBOXES - 1, PROTECTED_MINUTES],
   );
+  const { rows: [{ c }] } = await pool.query('SELECT COUNT(*)::int AS c FROM organizations WHERE demo_expires_at IS NOT NULL');
+  return c < MAX_SANDBOXES;
 }
 
 /**
@@ -189,15 +198,21 @@ export async function sweepSandboxes(): Promise<void> {
  * visitors out.
  */
 export async function prepareDemo(): Promise<void> {
-  // Before sandboxes, every visitor shared this one organization.
-  await pool.query('DELETE FROM organizations WHERE id = $1', [LEGACY_DEMO_ORG_ID]);
-  const { rows } = await pool.query('SELECT id FROM organizations WHERE demo_expires_at IS NULL LIMIT 1');
+  // Before sandboxes, every visitor shared one organization. It is only ours to delete if its sole
+  // user is the old demo visitor: anyone else means it was put to real use.
+  const legacyDemo = `o.id = $1 AND NOT EXISTS (SELECT 1 FROM users u WHERE u.org_id = o.id AND u.email <> 'demo@example.com')`;
+  const { rows } = await pool.query(`SELECT o.id FROM organizations o WHERE o.demo_expires_at IS NULL AND NOT (${legacyDemo}) LIMIT 1`, [LEGACY_DEMO_ORG_ID]);
   if (rows.length > 0) throw new Error('DEMO_MODE refuses to run on a database that contains a real organization.');
+  await pool.query(`DELETE FROM organizations o WHERE ${legacyDemo}`, [LEGACY_DEMO_ORG_ID]);
   await sweepSandboxes();
 }
 
 /** `npm run demo:reset`: drop every sandbox. */
 export async function resetDemo(): Promise<void> {
   await prepareDemo();
+  await deleteAllSandboxes();
+}
+
+export async function deleteAllSandboxes(): Promise<void> {
   await pool.query('DELETE FROM organizations WHERE demo_expires_at IS NOT NULL');
 }

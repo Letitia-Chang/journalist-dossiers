@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pool from '../db';
+import pool, { inTransaction } from '../db';
 import { runAiScoring } from '../services/scoringRunner';
 import { clientIp } from '../lib/clientIp';
 import { HttpError } from '../lib/httpError';
@@ -93,37 +93,24 @@ router.post('/', async (req, res) => {
   const { name, publicationId, email, twitter, linkedin, bio, beats, photoUrl, scores } = parseBody(schemas.journalistCreate, req);
   await assertOwned(pool, req.orgId!, 'publications', [publicationId]);
 
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows: [row] } = await client.query(
+  const { row, totalScore } = await inTransaction(async db => {
+    const { rows: [created] } = await db.query(
       `INSERT INTO journalists (org_id, publication_id, name, email, twitter, linkedin, bio, beats, photo_url)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, publication_id, name, email, twitter, linkedin, bio, beats, total_score, is_favorite, photo_url, created_at, updated_at`,
       [req.orgId, publicationId ?? null, name, email ?? '', twitter ?? '', linkedin ?? '', bio ?? '', beats ?? [], photoUrl ?? ''],
     );
-    let totalScore = 0;
-    if (scores?.length) {
-      totalScore = await saveManualScores(client, req.orgId!, row.id, scores);
-    }
-    await client.query('COMMIT');
-    res.status(201).json({ ...row, total_score: totalScore, scores: scores ?? [] });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+    return { row: created, totalScore: scores?.length ? await saveManualScores(db, req.orgId!, created.id, scores) : 0 };
+  });
+  res.status(201).json({ ...row, total_score: totalScore, scores: scores ?? [] });
 });
 
 router.put('/:id', async (req, res) => {
   const { name, publicationId, email, twitter, linkedin, bio, beats, photoUrl, isFavorite, scores } = parseBody(schemas.journalistUpdate, req);
   await assertOwned(pool, req.orgId!, 'publications', [publicationId]);
 
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows: [row] } = await client.query(
+  const { row, totalScore } = await inTransaction(async db => {
+    const { rows: [updated] } = await db.query(
       `UPDATE journalists SET
          publication_id = CASE WHEN $12 THEN $1 ELSE publication_id END,
          name = COALESCE($2, name),
@@ -139,23 +126,12 @@ router.put('/:id', async (req, res) => {
        RETURNING id, publication_id, name, email, twitter, linkedin, bio, beats, total_score, is_favorite, photo_url, created_at, updated_at`,
       [publicationId, name, email, twitter, linkedin, bio, beats, photoUrl, isFavorite, req.params.id, req.orgId, publicationId !== undefined],
     );
-    if (!row) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Not found' });
-    }
-    let totalScore = row.total_score;
-    if (scores?.length) {
-      totalScore = await saveManualScores(client, req.orgId!, row.id, scores);
-    }
-    await client.query('COMMIT');
-    const scoresByJournalist = await attachScores(req.orgId!, [row.id]);
-    res.json({ ...row, total_score: totalScore, scores: scoresByJournalist.get(row.id) ?? [] });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+    if (!updated) throw new HttpError(404, 'Not found');
+    return { row: updated, totalScore: scores?.length ? await saveManualScores(db, req.orgId!, updated.id, scores) : updated.total_score };
+  });
+  // After the connection is back in the pool: a request must never wait for a second one.
+  const scoresByJournalist = await attachScores(req.orgId!, [row.id]);
+  res.json({ ...row, total_score: totalScore, scores: scoresByJournalist.get(row.id) ?? [] });
 });
 
 router.post('/:id/score', async (req, res) => {

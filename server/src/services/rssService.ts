@@ -1,4 +1,5 @@
 import Parser from 'rss-parser';
+import { clip, clipDate, clipUrl } from '../lib/clip';
 import pool from '../db';
 import { generateRssDiagnosticNote } from './rssDiagnostic';
 import { botUserAgent } from '../lib/http';
@@ -132,7 +133,7 @@ function extractAuthor(item: any): string | null {
   if (/^(admin|staff|editor|webmaster|noreply|newsroom|the \w+)$/i.test(name)) return null;
   if (/'\d{2}$/.test(name)) return null;
   if (!/^[A-Z][a-zA-Z'-]+(?: [A-Z][a-zA-Z'.-]+){1,3}$/.test(name)) return null;
-  return name;
+  return name.length <= 200 ? name : null;
 }
 
 async function scanFeedUrl(feedUrl: string, feedId: number): Promise<{ items: any[]; error?: string }> {
@@ -226,10 +227,10 @@ export async function scanPublicationRss(orgId: string, publicationId: number): 
       const articles = authorArticles.get(author) || [];
       if (articles.length >= 10) continue;
       articles.push({
-        title: item.title || '',
-        url: item.link || item.guid || '',
-        date: item.pubDate || '',
-        categories: Array.isArray(item.categories) ? item.categories : [],
+        title: clip(item.title, 300),
+        url: clipUrl(item.link) || clipUrl(item.guid),
+        date: clipDate(item.pubDate) ?? '',
+        categories: (Array.isArray(item.categories) ? item.categories : []).slice(0, 20).map((c: unknown) => clip(c, 80)),
       });
       authorArticles.set(author, articles);
     }

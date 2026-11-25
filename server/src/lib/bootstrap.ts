@@ -2,9 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
+import type { Pool, PoolClient } from 'pg';
 import pool from '../db';
 import { companyProfileSchema, loadProfile, saveProfile } from './companyProfile';
-import { prepareDemo } from '../demo/seed';
+import { prepareDemo, sweepSandboxes } from '../demo/seed';
 
 /**
  * One company per deployment. On boot we make sure the single organization row exists,
@@ -31,10 +32,10 @@ const configSchema = z.object({
   })).optional(),
 });
 
-export async function ensureOrg(): Promise<string> {
-  const { rows: [existing] } = await pool.query('SELECT id FROM organizations WHERE demo_expires_at IS NULL ORDER BY created_at ASC LIMIT 1');
+export async function ensureOrg(db: Pool | PoolClient = pool): Promise<string> {
+  const { rows: [existing] } = await db.query('SELECT id FROM organizations WHERE demo_expires_at IS NULL ORDER BY created_at ASC LIMIT 1');
   if (existing) return existing.id;
-  const { rows: [org] } = await pool.query(
+  const { rows: [org] } = await db.query(
     `INSERT INTO organizations (name, slug) VALUES ('My Company', 'default') RETURNING id`,
   );
   return org.id;
@@ -43,11 +44,12 @@ export async function ensureOrg(): Promise<string> {
 export async function seedDimensions(
   orgId: string,
   dims: readonly { name: string; description: string; weight: number }[] = DEFAULT_DIMENSIONS,
+  db: Pool | PoolClient = pool,
 ): Promise<boolean> {
-  const { rows: [{ c }] } = await pool.query('SELECT COUNT(*)::int AS c FROM scoring_dimensions WHERE org_id = $1', [orgId]);
+  const { rows: [{ c }] } = await db.query('SELECT COUNT(*)::int AS c FROM scoring_dimensions WHERE org_id = $1', [orgId]);
   if (c > 0) return false;
   for (const [i, d] of dims.entries()) {
-    await pool.query(
+    await db.query(
       `INSERT INTO scoring_dimensions (org_id, name, description, weight, display_order) VALUES ($1, $2, $3, $4, $5)`,
       [orgId, d.name, d.description, d.weight, i],
     );
@@ -73,14 +75,15 @@ export async function applyConfigFile(orgId: string): Promise<'none' | 'applied'
   const file = findConfigFile();
   if (!file) return 'none';
 
+  // Checked before validating: a file that is not going to be used must not stop the server.
+  const sync = process.env.COMPANY_CONFIG_SYNC === 'true';
+  if (!sync && (await loadProfile(orgId))) return 'skipped';
+
   const parsed = configSchema.safeParse(JSON.parse(fs.readFileSync(file, 'utf8')));
   if (!parsed.success) {
     const detail = parsed.error.issues.map(i => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
     throw new Error(`Invalid ${file}: ${detail}`);
   }
-
-  const sync = process.env.COMPANY_CONFIG_SYNC === 'true';
-  if (!sync && (await loadProfile(orgId))) return 'skipped';
 
   await saveProfile(orgId, parsed.data.company);
   if (parsed.data.scoringDimensions) await seedDimensions(orgId, parsed.data.scoringDimensions);
@@ -97,7 +100,7 @@ async function bootstrapAdminFromEnv(orgId: string): Promise<void> {
   if (ADMIN_PASSWORD.length < 8) throw new Error('ADMIN_PASSWORD must be at least 8 characters');
   await pool.query(
     `INSERT INTO users (org_id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, 'owner')`,
-    [orgId, ADMIN_EMAIL.toLowerCase(), await bcrypt.hash(ADMIN_PASSWORD, 12), ADMIN_NAME || 'Admin'],
+    [orgId, ADMIN_EMAIL.trim().toLowerCase(), await bcrypt.hash(ADMIN_PASSWORD, 12), ADMIN_NAME || 'Admin'],
   );
   console.log(`[bootstrap] Created admin ${ADMIN_EMAIL}`);
 }
@@ -109,6 +112,7 @@ export async function bootstrap(): Promise<void> {
     console.log('[bootstrap] DEMO_MODE: ready');
     return;
   }
+  await sweepSandboxes(); // left over if this database was once a demo
   const orgId = await ensureOrg();
   await applyConfigFile(orgId);
   await seedDimensions(orgId);

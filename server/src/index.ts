@@ -15,9 +15,7 @@ assertSessionSecret();
 
 bootstrap()
   .then(() => {
-    if (process.env.DEMO_MODE === 'true') {
-      setInterval(() => { sweepSandboxes().catch(err => console.error('[demo] sweep failed:', err.message)); }, HOUR_MS).unref();
-    }
+    setInterval(() => { sweepSandboxes().catch(err => console.error('[demo] sweep failed:', err.message)); }, HOUR_MS).unref();
     setInterval(() => { pruneRateLimits().catch(err => console.error('[rate-limits] prune failed:', err.message)); }, HOUR_MS).unref();
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

@@ -1,5 +1,5 @@
-import pool from '../db';
-import { recomputeTotals } from '../lib/scores';
+import pool, { inTransaction } from '../db';
+import { lockJournalists, recomputeTotals } from '../lib/scores';
 import { loadProfile } from '../lib/companyProfile';
 import { scoreJournalistWithAI } from './journalistScoring';
 import { limitMessage, liveAiStatus, takeLiveAi } from '../demo/limits';
@@ -73,26 +73,19 @@ export async function runAiScoring(orgId: string, journalistId: number, actor = 
     return { ok: false, status: 502, error: 'AI scoring failed. Check ANTHROPIC_API_KEY and server logs.' };
   }
 
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+  const total = await inTransaction(async db => {
+    await lockJournalists(db, orgId, journalistId);
     for (const s of result.scores) {
-      await client.query(
+      // The model ran for seconds: skip a dimension deleted meanwhile, and respect a lowered maximum.
+      await db.query(
         `INSERT INTO journalist_scores (org_id, journalist_id, dimension_id, score, rationale, evidence)
-         VALUES ($1, $2, $3, $4, $5, $6)
+         SELECT $1, $2, d.id, LEAST($4, d.weight), $5, $6 FROM scoring_dimensions d WHERE d.id = $3 AND d.org_id = $1
          ON CONFLICT (journalist_id, dimension_id)
-         DO UPDATE SET score = $4, rationale = $5, evidence = $6, updated_at = NOW()`,
+         DO UPDATE SET score = EXCLUDED.score, rationale = EXCLUDED.rationale, evidence = EXCLUDED.evidence, updated_at = NOW()`,
         [orgId, journalistId, s.dimensionId, s.score, s.rationale, JSON.stringify(s.evidence)],
       );
     }
-    const total = await recomputeTotals(client, orgId, journalistId);
-    await client.query('COMMIT');
-    return { ok: true, total, scores: result.scores, reasoning: result.reasoning };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('[scoringRunner] save failed', err);
-    return { ok: false, status: 500, error: 'Failed to save AI scores' };
-  } finally {
-    client.release();
-  }
+    return recomputeTotals(db, orgId, journalistId);
+  });
+  return { ok: true, total, scores: result.scores, reasoning: result.reasoning };
 }

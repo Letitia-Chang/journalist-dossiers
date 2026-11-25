@@ -1,10 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import pool from '../db';
 import { loadProfile, profileToPrompt } from '../lib/companyProfile';
 import { headerLine } from '../lib/mime';
-import { assertPromptSize, CLAUDE_MODEL } from '../lib/claude';
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { assertPromptSize, claudeClient, CLAUDE_MODEL } from '../lib/claude';
 
 interface DraftResult {
   subject: string;
@@ -100,7 +98,7 @@ Return ONLY valid JSON — no prose before or after:
   assertPromptSize(prompt);
 
   try {
-    const message = await anthropic.messages.create({
+    const message = await claudeClient().messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 1024,
       thinking: { type: 'adaptive' },
