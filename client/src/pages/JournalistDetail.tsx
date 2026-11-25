@@ -4,8 +4,9 @@ import { Edit2, Trash2, ChevronLeft, AtSign, Link2, Copy, Check, Sparkles, Plus,
 import { journalists as jApi, publications as pubApi, scoringDimensions as dimApi, outreach as oApi } from '../api';
 import type { Journalist, Publication, ScoringDimension, OutreachLog } from '../types';
 import { OUTREACH_TYPES, OUTREACH_STATUSES } from '../types';
+import ArticlesCard from '../components/ArticlesCard';
 import StatusBadge from '../components/StatusBadge';
-import { apiError } from '../lib/errors';
+import { apiError, apiStatus } from '../lib/errors';
 
 /** People enter "@handle", "jane" or "x.com/jane" as often as a full URL. */
 function profileUrl(value: string, handleBase: string): string {
@@ -28,13 +29,15 @@ export default function JournalistDetail() {
   const [showLogForm, setShowLogForm] = useState(false);
   const [logForm, setLogForm] = useState({ type: OUTREACH_TYPES[0] as string, status: OUTREACH_STATUSES[0] as string, notes: '' });
   const [logging, setLogging] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   const loadJournalist = () => {
     if (!id) return;
     jApi.get(Number(id)).then(r => {
       setJournalist(r.data);
       if (r.data.publication_id) pubApi.get(r.data.publication_id).then(pr => setPublication(pr.data));
-    });
+      else setPublication(null);
+    }).catch(err => { if (apiStatus(err) === 404) setNotFound(true); else throw err; });
   };
 
   const loadOutreach = () => {
@@ -97,6 +100,7 @@ export default function JournalistDetail() {
     });
   };
 
+  if (notFound) return <div className="p-8 text-slate-500">This journalist doesn't exist or was deleted. <Link to="/journalists" className="text-brand-600 hover:underline">Back to journalists</Link>.</div>;
   if (!journalist) return <div className="p-8 text-slate-400">Loading...</div>;
 
   const scoreByDimension = new Map(journalist.scores.map(s => [s.dimensionId, s.score]));
@@ -206,7 +210,7 @@ export default function JournalistDetail() {
                       <p className="text-xs text-slate-600 mb-1">
                         {detailByDimension.get(d.id)!.rationale}
                         {(detailByDimension.get(d.id)!.evidence ?? []).map((url, i) => (
-                          <a key={url} href={url} target="_blank" rel="noreferrer" className="ml-1 text-brand-600 hover:underline">[{i + 1}]</a>
+                          <a key={url} href={url} target="_blank" rel="noreferrer" title={url} className="ml-1 text-brand-600 hover:underline">[{i + 1}]</a>
                         ))}
                       </p>
                     )}
@@ -236,6 +240,8 @@ export default function JournalistDetail() {
           )}
         </div>
       </div>
+
+      <ArticlesCard journalistId={Number(id)} />
 
       {/* Outreach */}
       <div className="card p-5 mt-5">

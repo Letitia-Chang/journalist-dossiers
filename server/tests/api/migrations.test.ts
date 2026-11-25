@@ -40,14 +40,18 @@ describe.skipIf(!hasDb)('upgrade and rollback', () => {
     await db.query(`INSERT INTO journalist_scores (org_id, journalist_id, dimension_id, score) SELECT j.org_id, j.id, d.id, 2000000000 FROM journalists j JOIN scoring_dimensions d ON d.org_id = j.org_id WHERE j.org_id = $1`, [big.id]);
     for (const t of ['a', 'b']) await db.query(`INSERT INTO invites (org_id, email, token, expires_at) VALUES ($1, 'i@example.com', $2, NOW() + INTERVAL '1 day')`, [org.id, t]);
 
+    await db.query(`INSERT INTO publications (org_id, name, rss_url) VALUES ($1, 'Unscanned', 'https://u.example/rss'), ($1, 'Bare', 'b.example/rss'), ($1, 'None', '')`, [org.id]);
+    await db.query(`INSERT INTO publication_feeds (org_id, publication_id, feed_url) SELECT org_id, id, rss_url FROM publications WHERE name = 'Bare'`);
+
     await migrate('up', Infinity);
+    expect((await db.query('SELECT p.name, f.feed_url FROM publications p JOIN publication_feeds f ON f.publication_id = p.id ORDER BY p.name')).rows).toEqual([{ name: 'Bare', feed_url: 'https://b.example/rss' }, { name: 'Unscanned', feed_url: 'https://u.example/rss' }]);
     expect((await db.query('SELECT email FROM users ORDER BY email COLLATE "C"')).rows.map(r => r.email)).toEqual(['Twin@example.com', 'mixed@example.com', 'twin@example.com']);
     expect((await db.query(`SELECT total_score FROM journalists WHERE name = 'absurd'`)).rows).toEqual([{ total_score: 2000 }]);
     expect((await db.query(`SELECT total_score, LENGTH(bio) AS len FROM journalists WHERE name = 'j'`)).rows).toEqual([{ total_score: 10, len: 9000 }]);
     expect((await db.query(`SELECT COUNT(*)::int AS c FROM invites WHERE status = 'pending'`)).rows[0].c).toBe(1);
 
     await db.query(`INSERT INTO organizations (name, slug, demo_expires_at) VALUES ('Sandbox', 's', NOW())`);
-    await migrate('down', 3);
+    await migrate('down', 4);
     expect((await db.query('SELECT name FROM organizations ORDER BY created_at')).rows).toEqual([{ name: 'Real' }, { name: 'Absurd' }]); // no sandbox posing as real
     await migrate('up', Infinity);
     expect((await db.query('SELECT COUNT(*)::int AS c FROM users')).rows[0].c).toBe(3);

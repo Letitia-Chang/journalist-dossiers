@@ -8,6 +8,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import pool from '../db';
+import { personName } from '../lib/personName';
 import { botUserAgent, isAllowedByRobots } from '../lib/http';
 
 const STAFF_PAGE_PATHS = [
@@ -26,11 +27,6 @@ const GENERIC_NAMES = new Set([
 
 function isGenericName(name: string): boolean {
   return GENERIC_NAMES.has(name.toLowerCase().trim()) || name.trim().length < 4;
-}
-function looksLikePersonName(name: string): boolean {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length < 2 || parts.length > 4) return false;
-  return parts.every(p => /^[A-Z][a-zA-Z'-]+$/.test(p));
 }
 async function fetchPage(url: string): Promise<string | null> {
   try {
@@ -58,12 +54,14 @@ function extractNamesFromHtml(html: string, _baseUrl: string): string[] {
     const isAuthorLink = AUTHOR_LINK_PATTERNS.some(p => p.test(href));
     if (!isAuthorLink) return;
     const text = $(el).text().trim() || $(el).attr('aria-label')?.trim() || $(el).attr('title')?.trim() || '';
-    if (text && !isGenericName(text) && looksLikePersonName(text)) names.add(text);
+    const name = isGenericName(text) ? null : personName(text);
+    if (name) names.add(name);
   });
   if (names.size < 3) {
     $('[class*="name"], [class*="author"], [class*="writer"], [itemprop="name"]').each((_i, el) => {
       const text = $(el).text().trim();
-      if (text && !isGenericName(text) && looksLikePersonName(text)) names.add(text);
+      const name = isGenericName(text) ? null : personName(text);
+      if (name) names.add(name);
     });
   }
   $('script[type="application/ld+json"]').each((_i, el) => {
@@ -72,8 +70,8 @@ function extractNamesFromHtml(html: string, _baseUrl: string): string[] {
       const items = Array.isArray(data) ? data : [data];
       for (const item of items) {
         if (item['@type'] === 'Person' && item.name) {
-          const n = item.name.trim();
-          if (!isGenericName(n) && looksLikePersonName(n)) names.add(n);
+          const name = isGenericName(item.name) ? null : personName(item.name);
+          if (name) names.add(name);
         }
       }
     } catch { /* ignore */ }

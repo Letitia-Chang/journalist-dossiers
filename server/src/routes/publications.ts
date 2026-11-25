@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import * as cheerio from 'cheerio';
-import pool from '../db';
+import pool, { inTransaction } from '../db';
+import { HttpError } from '../lib/httpError';
+import { setMainFeed } from '../lib/feeds';
 import { discoverRssUrl } from '../services/rssDiscovery';
 import { discoverPublications } from '../services/blogDiscovery';
 import { discoverAndSaveFeeds } from '../services/categoryFeedDiscovery';
@@ -94,13 +96,17 @@ router.post('/import-opml', requireEditor, async (req, res) => {
       skipped++;
     } else {
       const first = entries[0];
-      const { rows: [newPub] } = await pool.query(
-        `INSERT INTO publications (org_id, name, url, rss_url) VALUES ($1, $2, $3, $4) RETURNING id`,
-        [req.orgId, first.name, first.homepage || `https://${domain}`, first.feedUrl],
-      );
-      pubId = newPub.id;
+      pubId = await inTransaction(async db => {
+        const { rows: [newPub] } = await db.query(
+          `INSERT INTO publications (org_id, name, url, rss_url) VALUES ($1, $2, $3, $4) RETURNING id`,
+          [req.orgId, first.name, first.homepage || `https://${domain}`, first.feedUrl],
+        );
+        await setMainFeed(db, req.orgId!, newPub.id, first.feedUrl);
+        return newPub.id as number;
+      });
       mainFeedByPubId.set(pubId, first.feedUrl);
       added++;
+      feedsAdded++;
     }
 
     for (const entry of entries) {
@@ -199,11 +205,17 @@ router.post('/:id/feeds', requireEditor, async (req, res) => {
 });
 
 router.delete('/:id/feeds/:feedId', requireEditor, async (req, res) => {
-  const result = await pool.query(
-    'DELETE FROM publication_feeds WHERE id = $1 AND publication_id = $2 AND org_id = $3',
-    [req.params.feedId, req.params.id, req.orgId],
-  );
-  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  const deleted = await inTransaction(async db => {
+    const { rows: [feed] } = await db.query(
+      'DELETE FROM publication_feeds WHERE id = $1 AND publication_id = $2 AND org_id = $3 RETURNING feed_url',
+      [req.params.feedId, req.params.id, req.orgId],
+    );
+    // If it was the main feed, forget the address too, or the next scan would add it back.
+    if (feed) await db.query(`UPDATE publications SET rss_url = '' WHERE id = $1 AND org_id = $2 AND rss_url = $3
+      AND NOT EXISTS (SELECT 1 FROM publication_feeds WHERE publication_id = $1 AND feed_url = $3)`, [req.params.id, req.orgId, feed.feed_url]);
+    return feed;
+  });
+  if (!deleted) return res.status(404).json({ error: 'Not found' });
   res.status(204).end();
 });
 
@@ -215,7 +227,10 @@ router.post('/:id/discover-rss', requireEditor, blockInDemo, async (req, res) =>
   const feedUrl = await discoverRssUrl(pub.url);
   if (!feedUrl) return res.status(404).json({ error: 'No RSS feed found' });
 
-  await pool.query(`UPDATE publications SET rss_url = $1, rss_status = 'active', rss_last_checked = NOW() WHERE id = $2`, [feedUrl, req.params.id]);
+  await inTransaction(async db => {
+    await db.query(`UPDATE publications SET rss_url = $1, rss_status = 'active', rss_last_checked = NOW() WHERE id = $2 AND org_id = $3`, [feedUrl, pub.id, req.orgId]);
+    await setMainFeed(db, req.orgId!, pub.id, feedUrl);
+  });
   res.json({ feedUrl });
 });
 
@@ -226,34 +241,42 @@ router.post('/:id/discover-feeds', requireEditor, blockInDemo, async (req, res) 
 
 router.post('/', requireEditor, async (req, res) => {
   const { name, url, tier, focus, notes, rssUrl } = parseBody(schemas.publicationCreate, req);
-  const { rows: [row] } = await pool.query(
-    `INSERT INTO publications (org_id, name, url, tier, focus, notes, rss_url)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, name, url, tier, focus, notes, active, rss_url, rss_status, rss_status_note,
-               health_status, last_health_check, created_at, updated_at`,
-    [req.orgId, name, url ?? '', tier ?? 'B', focus ?? '', notes ?? '', rssUrl ?? ''],
-  );
+  const row = await inTransaction(async db => {
+    const { rows: [created] } = await db.query(
+      `INSERT INTO publications (org_id, name, url, tier, focus, notes, rss_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, name, url, tier, focus, notes, active, rss_url, rss_status, rss_status_note,
+                 health_status, last_health_check, created_at, updated_at`,
+      [req.orgId, name, url ?? '', tier ?? 'B', focus ?? '', notes ?? '', rssUrl ?? ''],
+    );
+    await setMainFeed(db, req.orgId!, created.id, rssUrl ?? '');
+    return created;
+  });
   res.status(201).json(row);
 });
 
 router.put('/:id', requireEditor, async (req, res) => {
   const { name, url, tier, focus, notes, active, rssUrl } = parseBody(schemas.publicationUpdate, req);
-  const { rows: [row] } = await pool.query(
-    `UPDATE publications SET
-       name = COALESCE($1, name),
-       url = COALESCE($2, url),
-       tier = COALESCE($3, tier),
-       focus = COALESCE($4, focus),
-       notes = COALESCE($5, notes),
-       active = COALESCE($6, active),
-       rss_url = COALESCE($7, rss_url),
-       updated_at = NOW()
-     WHERE id = $8 AND org_id = $9
-     RETURNING id, name, url, tier, focus, notes, active, rss_url, rss_status, rss_status_note,
-               health_status, last_health_check, created_at, updated_at`,
-    [name, url, tier, focus, notes, active, rssUrl, req.params.id, req.orgId],
-  );
-  if (!row) return res.status(404).json({ error: 'Not found' });
+  const row = await inTransaction(async db => {
+    const { rows: [updated] } = await db.query(
+      `UPDATE publications SET
+         name = COALESCE($1, name),
+         url = COALESCE($2, url),
+         tier = COALESCE($3, tier),
+         focus = COALESCE($4, focus),
+         notes = COALESCE($5, notes),
+         active = COALESCE($6, active),
+         rss_url = COALESCE($7, rss_url),
+         updated_at = NOW()
+       WHERE id = $8 AND org_id = $9
+       RETURNING id, name, url, tier, focus, notes, active, rss_url, rss_status, rss_status_note,
+                 health_status, last_health_check, created_at, updated_at`,
+      [name, url, tier, focus, notes, active, rssUrl, req.params.id, req.orgId],
+    );
+    if (!updated) throw new HttpError(404, 'Not found');
+    if (rssUrl != null) await setMainFeed(db, req.orgId!, updated.id, rssUrl);
+    return updated;
+  });
   res.json(row);
 });
 

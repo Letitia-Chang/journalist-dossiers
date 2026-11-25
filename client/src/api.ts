@@ -115,7 +115,7 @@ export const campaigns = {
   regenerateDraft: (id: number, journalistId: number, instructions: string) =>
     api.post(`/campaigns/${id}/journalists/${journalistId}/regenerate`, { instructions }),
   updateDraft: (id: number, journalistId: number, data: object) => api.put(`/campaigns/${id}/journalists/${journalistId}/draft`, data),
-  markSent: (id: number, journalistId: number, campaignType: string) => api.post(`/campaigns/${id}/journalists/${journalistId}/send`, { campaignType }),
+  markSent: (id: number, journalistId: number) => api.post(`/campaigns/${id}/journalists/${journalistId}/send`),
   getCoverage: (id: number) => api.get(`/campaigns/${id}/coverage`),
   linkCoverage: (id: number, coverageId: number) => api.post(`/campaigns/${id}/coverage/link`, { coverageId }),
   unlinkCoverage: (id: number, coverageId: number) => api.delete(`/campaigns/${id}/coverage/${coverageId}/unlink`),

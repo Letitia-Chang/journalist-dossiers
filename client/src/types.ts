@@ -182,7 +182,7 @@ export interface PublicationSuggestion {
 export const CAMPAIGN_TYPES = ['cold_intro', 'event', 'hackathon', 'founder_promo'] as const;
 export type CampaignType = typeof CAMPAIGN_TYPES[number];
 export type CampaignStatus = 'draft' | 'active' | 'completed' | 'archived';
-export type DraftStatus = 'not_started' | 'ready' | 'sent' | 'failed';
+export type DraftStatus = 'not_started' | 'drafting' | 'ready' | 'sent' | 'failed';
 
 export interface Campaign {
   id: number;

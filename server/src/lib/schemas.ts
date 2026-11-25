@@ -24,13 +24,17 @@ export const link = z.string().trim().max(2000, 'URL is too long')
     return !scheme || scheme === 'http' || scheme === 'https' || scheme.includes('.');
   }, 'Must be an http(s) URL');
 
+/** A web address we will fetch or link to: a bare domain becomes a real URL. */
+export const webUrl = link.transform(s => (s === '' || /^https?:\/\//i.test(s) ? s : `https://${s.replace(/^\/+/, '')}`));
+
 // Free-form on purpose: people record "a@x.com; b@x.com" or a note. One line, so it is header-safe.
 const email = line(254).trim();
 
 const id = z.number().int().positive().max(2147483647);
 const date = z.preprocess(
   v => (v === '' ? null : v),
-  z.string().max(40).refine(s => /^\d{4}-\d{2}-\d{2}/.test(s) && !Number.isNaN(Date.parse(s)), 'Invalid date').nullish(),
+  z.string().max(40).refine(s => /^\d{4}-\d{2}-\d{2}/.test(s) && !Number.isNaN(Date.parse(s)), 'Invalid date')
+    .transform(s => (s.length === 10 ? `${s}T00:00:00Z` : s)).nullish(), // a day is the same day in any time zone
 );
 const name = line(200).trim().min(1, 'Required');
 const score = z.object({ dimensionId: id, score: z.number().min(0).max(1000).transform(Math.round) });
@@ -56,10 +60,10 @@ export const draftUpdate = z.object({ draftSubject: line(300).nullish(), draftBo
 export const regenerate = z.object({ instructions: text(1000).nullish() });
 export const styleUpdate = z.object({ instructions: text(8000).nullish() });
 
-export const articleCreate = z.object({ journalistId: id, title: line(300).trim().min(1, 'Required'), url: link.nullish(), summary: text(4000).nullish(), publishedAt: date });
-export const articleUpdate = z.object({ title: line(300).trim().min(1, 'Required').nullish(), url: link.nullish(), summary: text(4000).nullish(), publishedAt: date });
+export const articleCreate = z.object({ journalistId: id, title: line(300).trim().min(1, 'Required'), url: webUrl.nullish(), summary: text(4000).nullish(), publishedAt: date });
+export const articleUpdate = z.object({ title: line(300).trim().min(1, 'Required').nullish(), url: webUrl.nullish(), summary: text(4000).nullish(), publishedAt: date });
 
-const coverageFields = { url: link.nullish(), notes: text(4000).nullish(), publishedAt: date, journalistId: id.nullish(), campaignId: id.nullish() };
+const coverageFields = { url: webUrl.nullish(), notes: text(4000).nullish(), publishedAt: date, journalistId: id.nullish(), campaignId: id.nullish() };
 export const coverageCreate = z.object({ title: line(300).trim().min(1, 'Required'), ...coverageFields });
 export const coverageUpdate = z.object({ title: line(300).trim().min(1, 'Required').nullish(), ...coverageFields });
 
@@ -74,11 +78,11 @@ export const dimensionCreate = z.object({ name, description: text(1000).nullish(
 export const dimensionUpdate = z.object({ name: name.nullish(), description: text(1000).nullish(), weight: weight.nullish(), displayOrder: order.nullish() });
 
 const publicationFields = {
-  url: link.nullish(), tier: line(20).nullish(), focus: text(2000).nullish(), notes: text(4000).nullish(), rssUrl: link.nullish(),
+  url: webUrl.nullish(), tier: line(20).nullish(), focus: text(2000).nullish(), notes: text(4000).nullish(), rssUrl: webUrl.nullish(),
 };
 export const publicationCreate = z.object({ name, ...publicationFields });
 export const publicationUpdate = z.object({ name: name.nullish(), active: z.boolean().nullish(), ...publicationFields });
-export const feedCreate = z.object({ feedUrl: link.min(1, 'feedUrl is required'), feedLabel: line(200).nullish() });
+export const feedCreate = z.object({ feedUrl: link.min(1, 'feedUrl is required').pipe(webUrl), feedLabel: line(200).nullish() });
 export const discover = z.object({ query: line(200).trim().min(1, 'query is required') });
 export const opmlImport = z.object({ opml: z.string().min(1, 'opml text is required') });
 

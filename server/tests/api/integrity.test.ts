@@ -1,15 +1,19 @@
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as schemas from '../../src/lib/schemas';
 import { startClaudeStub, type ClaudeStub } from '../setup/claudeStub';
 import { hasDb, makeUser, useTestApp, type TestUser } from '../setup/testDb';
 
-const gmail = vi.hoisted(() => ({ created: [] as string[], fail: false }));
+const gmail = vi.hoisted(() => ({ created: [] as string[], bodies: [] as string[], fail: false, expired: false, during: undefined as undefined | ((to: string) => Promise<void>) }));
 vi.mock('../../src/services/gmailService', () => ({
   getAuthedGmailClient: async () => ({}),
-  createGmailDraft: async (_g: unknown, to: string) => {
+  createGmailDraft: async (_g: unknown, to: string, _subject: string, body: string) => {
+    await gmail.during?.(to);
     await new Promise(r => setTimeout(r, 30));
+    if (gmail.expired) throw new Error('invalid_grant');
     if (gmail.fail) throw new Error('x');
     gmail.created.push(to);
+    gmail.bodies.push(body);
     return `draft-${gmail.created.length}`;
   },
 }));
@@ -96,6 +100,151 @@ describe.skipIf(!hasDb)('data integrity', () => {
       expect((await api('post', `${p()}/regenerate`, {})).status).toBe(409);
       expect((await api('get', `/api/campaigns/${c}/journalists`)).body[0]).toMatchObject({ status: 'sent', draft_body: 'B' });
     });
+    it('a pitch someone writes themselves is ready, and editing it makes the Gmail copy out of date', async () => {
+      const j2 = (await api('post', '/api/journalists', { name: 'J2', email: 'j2@example.com' })).body.id;
+      await api('post', `/api/campaigns/${c}/journalists`, { journalistIds: [j2] });
+      const path = `/api/campaigns/${c}/journalists/${j2}/draft`;
+      expect((await api('put', path, { draftSubject: 'Only a subject' })).body.status).toBe('not_started');
+      expect((await api('put', path, { draftBody: 'And a body' })).body.status).toBe('ready');
+      await ctx.pool.query(`UPDATE campaign_journalists SET gmail_draft_id = 'g1' WHERE journalist_id = $1`, [j2]);
+      const gmailId = async () => (await api('get', `/api/campaigns/${c}/journalists`)).body.find((x: { journalist_id: number }) => x.journalist_id === j2).gmail_draft_id;
+      await api('put', path, { draftBody: 'And a body' });
+      expect(await gmailId()).toBe('g1'); // unchanged text
+      await api('put', path, { draftBody: 'Different' });
+      expect(await gmailId()).toBeNull();
+    });
+    it('clicking Generate twice writes, and pays for, each draft once', async () => {
+      const ids = [];
+      for (let i = 0; i < 3; i++) ids.push((await api('post', '/api/journalists', { name: `G${i}` })).body.id);
+      await api('post', `/api/campaigns/${c}/journalists`, { journalistIds: ids });
+      stub.onCall = () => new Promise(r => setTimeout(r, 150));
+      const both = await Promise.all([api('post', `/api/campaigns/${c}/generate-drafts`), api('post', `/api/campaigns/${c}/generate-drafts`)]);
+      expect(both.map(r => r.body.generating).sort()).toEqual([0, 3]);
+      expect((await api('post', `/api/campaigns/${c}/journalists/${ids[2]}/regenerate`, {})).status).toBe(409);
+      await vi.waitFor(async () => expect((await api('get', `/api/campaigns/${c}/journalists`)).body.filter((x: { status: string }) => x.status === 'drafting')).toHaveLength(0), { timeout: 8000 });
+      stub.onCall = undefined;
+      expect(stub.calls).toHaveLength(3);
+      expect((await api('post', `/api/campaigns/${c}/generate-drafts`)).body.generating).toBe(0);
+    });
+    it('a draft someone writes while one is being generated is kept', async () => {
+      const j2 = (await api('post', '/api/journalists', { name: 'W' })).body.id;
+      await api('post', `/api/campaigns/${c}/journalists`, { journalistIds: [j2] });
+      stub.onCall = async () => { await api('put', `/api/campaigns/${c}/journalists/${j2}/draft`, { draftSubject: 'Mine', draftBody: 'Mine too' }); };
+      await api('post', `/api/campaigns/${c}/generate-drafts`);
+      await vi.waitFor(() => expect(stub.calls.length).toBe(1));
+      await new Promise(r => setTimeout(r, 400));
+      stub.onCall = undefined;
+      expect((await api('get', `/api/campaigns/${c}/journalists`)).body.find((x: { journalist_id: number }) => x.journalist_id === j2)).toMatchObject({ draft_subject: 'Mine', status: 'ready' });
+    });
+    it('an interrupted generation can be retried', async () => {
+      const j2 = (await api('post', '/api/journalists', { name: 'S' })).body.id;
+      await api('post', `/api/campaigns/${c}/journalists`, { journalistIds: [j2] });
+      const set = (age: string) => ctx.pool.query(`UPDATE campaign_journalists SET status = 'drafting', updated_at = NOW() - $2::interval WHERE journalist_id = $1`, [j2, age]);
+      await set('1 minute');
+      expect((await api('post', `/api/campaigns/${c}/generate-drafts`)).body.generating).toBe(0);
+      await set('11 minutes');
+      expect((await api('post', `/api/campaigns/${c}/generate-drafts`)).body.generating).toBe(1);
+      await vi.waitFor(() => expect(stub.calls.length).toBe(1));
+    });
+
+    /** A journalist added to the campaign, with helpers for that row. */
+    const member = async (name: string, draft?: { draftSubject: string; draftBody: string }) => {
+      const id: number = (await api('post', '/api/journalists', { name, email: `${name}@example.com` })).body.id;
+      await api('post', `/api/campaigns/${c}/journalists`, { journalistIds: [id] });
+      const path = `/api/campaigns/${c}/journalists/${id}`;
+      if (draft) await api('put', `${path}/draft`, draft);
+      const row = async () => (await api('get', `/api/campaigns/${c}/journalists`)).body.find((x: { journalist_id: number }) => x.journalist_id === id);
+      return { id, path, row };
+    };
+    const slow = () => { stub.onCall = () => new Promise(r => setTimeout(r, 200)); };
+    const idle = () => vi.waitFor(async () => expect((await api('get', `/api/campaigns/${c}/journalists`)).body.filter((x: { status: string }) => x.status === 'drafting')).toHaveLength(0), { timeout: 8000 });
+
+    it('an interrupted draft shows as it was, so it can be written or generated again', async () => {
+      const blank = await member('blank');
+      const kept = await member('kept', { draftSubject: 'S', draftBody: 'B' });
+      await ctx.pool.query(`UPDATE campaign_journalists SET status = 'drafting', updated_at = NOW() - INTERVAL '11 minutes' WHERE journalist_id = ANY($1::int[])`, [[blank.id, kept.id]]);
+      expect([(await blank.row()).status, (await kept.row()).status]).toEqual(['not_started', 'ready']);
+      expect((await api('post', `${kept.path}/regenerate`, {})).body).toMatchObject({ status: 'ready', draft_subject: expect.not.stringMatching(/^S$/) });
+    });
+    it('regenerating pays once, however it is clicked', async () => {
+      const m = await member('twice');
+      slow();
+      const all = await Promise.all([api('post', `${m.path}/regenerate`, {}), api('post', `${m.path}/regenerate`, {}), api('post', `/api/campaigns/${c}/generate-drafts`)]);
+      await idle();
+      stub.onCall = undefined;
+      expect(stub.calls).toHaveLength(1);
+      expect(all.slice(0, 2).map(r => r.status).filter(x => x === 200).length).toBeLessThanOrEqual(1);
+      expect((await m.row()).status).toBe('ready');
+    });
+    it('a pitch saved while the AI rewrites it is kept', async () => {
+      const m = await member('saved', { draftSubject: 'Old', draftBody: 'Old' });
+      stub.onCall = async () => { await api('put', `${m.path}/draft`, { draftBody: 'Mine' }); };
+      expect((await api('post', `${m.path}/regenerate`, {})).status).toBe(409);
+      stub.onCall = undefined;
+      expect(await m.row()).toMatchObject({ draft_subject: 'Old', draft_body: 'Mine', status: 'ready' });
+    });
+    it('a failed rewrite keeps the old pitch', async () => {
+      const m = await member('fails', { draftSubject: 'Old', draftBody: 'Old' });
+      stub.fail = true;
+      expect((await api('post', `${m.path}/regenerate`, {})).status).toBe(502);
+      stub.fail = false;
+      expect(await m.row()).toMatchObject({ draft_body: 'Old', status: 'ready' });
+    });
+    it('a long batch is not paid for twice', async () => {
+      await member('l1'); await member('l2'); await member('l3');
+      let first = true;
+      stub.onCall = async () => {
+        if (!first) return;
+        first = false;
+        // The first call took so long that the waiting rows look interrupted, and someone clicks again.
+        await ctx.pool.query(`UPDATE campaign_journalists SET updated_at = NOW() - INTERVAL '11 minutes' WHERE campaign_id = $1 AND status = 'drafting' AND id > (SELECT MIN(id) FROM campaign_journalists WHERE campaign_id = $1 AND status = 'drafting')`, [c]);
+        expect((await api('post', `/api/campaigns/${c}/generate-drafts`)).body.generating).toBe(2);
+      };
+      await api('post', `/api/campaigns/${c}/generate-drafts`);
+      await idle();
+      stub.onCall = undefined;
+      expect(stub.calls).toHaveLength(3);
+    });
+    it('a journalist removed mid-batch is not paid for', async () => {
+      await member('r1');
+      const gone = await member('r2');
+      stub.onCall = async () => { await api('delete', gone.path); };
+      await api('post', `/api/campaigns/${c}/generate-drafts`);
+      await idle();
+      stub.onCall = undefined;
+      expect(stub.calls).toHaveLength(1);
+    });
+    it('what Gmail gets is what the pitch says', async () => {
+      const m = await member('gm', { draftSubject: 'S', draftBody: 'First' });
+      await member('nobody', { draftSubject: 'Subject only', draftBody: ' ' });
+      gmail.bodies.length = 0;
+      const during: number[] = [];
+      gmail.during = async to => {
+        if (to !== 'gm@example.com') return;
+        during.push((await api('put', `${m.path}/draft`, { draftBody: 'Changed' })).status, (await api('post', `${m.path}/regenerate`, {})).status);
+      };
+      await api('post', `/api/campaigns/${c}/create-gmail-drafts`);
+      gmail.during = undefined;
+      expect(during).toEqual([409, 409]);
+      expect(stub.calls).toHaveLength(0);
+      expect(gmail.bodies).toContain('First');
+      expect(gmail.bodies.filter(b => !b.trim())).toEqual([]); // a pitch with no body is not ready for Gmail
+      expect(await m.row()).toMatchObject({ draft_body: 'First', gmail_draft_id: expect.stringMatching(/^draft-/) });
+      expect((await api('put', `${m.path}/draft`, { draftBody: 'Changed' })).status).toBe(200);
+      expect((await m.row()).gmail_draft_id).toBeNull();
+    });
+    it('making a Gmail draft from an interrupted rewrite leaves it ready', async () => {
+      const m = await member('revived', { draftSubject: 'S', draftBody: 'B' });
+      await ctx.pool.query(`UPDATE campaign_journalists SET status = 'drafting', updated_at = NOW() - INTERVAL '11 minutes' WHERE journalist_id = $1`, [m.id]);
+      await api('post', `/api/campaigns/${c}/create-gmail-drafts`);
+      expect(await m.row()).toMatchObject({ status: 'ready', gmail_draft_id: expect.stringMatching(/^draft-/) });
+    });
+    it('a pitch cleared again can be generated', async () => {
+      const m = await member('cleared', { draftSubject: 'S', draftBody: 'B' });
+      expect((await api('put', `${m.path}/draft`, { draftSubject: ' ', draftBody: '' })).body.status).toBe('not_started');
+      expect((await api('post', `/api/campaigns/${c}/generate-drafts`)).body.generating).toBe(1);
+      await idle();
+    });
     it('cannot be removed and re-added to send it twice', async () => {
       await api('post', `${p()}/send`);
       expect((await api('delete', p())).status).toBe(409);
@@ -103,10 +252,10 @@ describe.skipIf(!hasDb)('data integrity', () => {
     });
     it('generating drafts skips a sent pitch that has no text', async () => {
       await ctx.pool.query(`UPDATE campaign_journalists SET draft_subject = '', draft_body = '', status = 'sent' WHERE campaign_id = $1`, [c]);
-      expect((await api('post', `/api/campaigns/${c}/generate-drafts`)).body.message).toMatch(/for 0 journalists/);
+      expect((await api('post', `/api/campaigns/${c}/generate-drafts`)).body.message).toMatch(/nothing to generate/);
     });
     it('a draft finished after the pitch was marked sent does not overwrite it', async () => {
-      await ctx.pool.query(`UPDATE campaign_journalists SET draft_subject = '' WHERE campaign_id = $1`, [c]);
+      await ctx.pool.query(`UPDATE campaign_journalists SET draft_subject = '', draft_body = '', status = 'not_started' WHERE campaign_id = $1`, [c]);
       stub.onCall = async () => { await ctx.pool.query(`UPDATE campaign_journalists SET status = 'sent', draft_subject = 'Sent by hand' WHERE campaign_id = $1`, [c]); };
       await api('post', `/api/campaigns/${c}/generate-drafts`);
       await vi.waitFor(() => expect(stub.calls.length).toBeGreaterThan(0));
@@ -118,8 +267,12 @@ describe.skipIf(!hasDb)('data integrity', () => {
       gmail.created.length = 0;
       const go = () => api('post', `/api/campaigns/${c}/create-gmail-drafts`);
       gmail.fail = true;
-      expect((await go()).body.created).toBe(0);
+      expect((await go()).body).toMatchObject({ created: 0, failed: 1 });
       gmail.fail = false;
+      gmail.expired = true;
+      const dead = await go();
+      expect([dead.status, dead.body.error]).toEqual([400, expect.stringMatching(/expired/)]);
+      gmail.expired = false;
       // Hold the row so all three requests have read it as unclaimed before any can claim it.
       const lock = await ctx.pool.connect();
       await lock.query('BEGIN');
@@ -146,7 +299,8 @@ describe.skipIf(!hasDb)('data integrity', () => {
     expect((await api('put', `/api/journalists/${j}`, { isFavorite: true })).body.publication_id).toBe(pub);
     expect((await api('put', `/api/journalists/${j}`, { publicationId: null })).body.publication_id).toBeNull();
     const art = (await api('post', '/api/articles', { journalistId: j, title: 'a', publishedAt: '2026-01-02' })).body.id;
-    expect((await api('put', `/api/articles/${art}`, { title: 'b' })).body.published_at).not.toBeNull();
+    expect(schemas.articleCreate.parse({ journalistId: 1, title: 'a', publishedAt: '2026-01-02' }).publishedAt).toBe('2026-01-02T00:00:00Z'); // whatever time zone the database is in
+    expect((await api('put', `/api/articles/${art}`, { title: 'b' })).body.published_at).toBe('2026-01-02T00:00:00.000Z');
     expect((await api('put', `/api/articles/${art}`, { publishedAt: '' })).body).toMatchObject({ title: 'b', published_at: null });
     const cov = (await api('post', '/api/coverage', { title: 't', journalistId: j, publishedAt: '2026-01-02' })).body.id;
     expect((await api('put', `/api/coverage/${cov}`, { title: 't2' })).body).toMatchObject({ title: 't2', journalist_id: j });
@@ -180,6 +334,28 @@ describe.skipIf(!hasDb)('data integrity', () => {
     const [s] = (await api('get', '/api/journalist-suggestions')).body;
     expect([s.name, s.recent_article_title.length, s.recent_article_url]).toEqual(['Jane Roe', 300, '']);
     expect(s.all_articles.length).toBeLessThan(2000);
+  });
+
+  describe('feeds', () => {
+    const feeds = async (pub: number) => (await api('get', `/api/publications/${pub}/feeds`)).body.map((f: { feed_url: string }) => f.feed_url).sort();
+    it('an RSS address always has a feed to scan, however it was added or changed', async () => {
+      const pub = (await api('post', '/api/publications', { name: 'P', url: 'p.example', rssUrl: 'p.example/rss' })).body;
+      expect(pub).toMatchObject({ url: 'https://p.example', rss_url: 'https://p.example/rss' }); // bare domains become real links
+      expect(await feeds(pub.id)).toEqual(['https://p.example/rss']);
+      await api('post', `/api/publications/${pub.id}/feeds`, { feedUrl: 'https://p.example/extra' });
+      await api('put', `/api/publications/${pub.id}`, { rssUrl: 'https://p.example/new' });
+      expect(await feeds(pub.id)).toEqual(['https://p.example/extra', 'https://p.example/new']);
+      await api('put', `/api/publications/${pub.id}`, { focus: 'x' });
+      expect(await feeds(pub.id)).toHaveLength(2); // not mentioned, not touched
+      const main = (await api('get', `/api/publications/${pub.id}/feeds`)).body.find((x: { feed_url: string }) => x.feed_url === 'https://p.example/new');
+      expect((await api('delete', `/api/publications/${pub.id}/feeds/${main.id}`)).status).toBe(204);
+      expect((await api('get', `/api/publications/${pub.id}`)).body.rss_url).toBe(''); // a deleted main feed stays deleted
+      const opml = '<opml><body><outline title="One" xmlUrl="https://one.example/rss" htmlUrl="https://one.example"/></body></opml>';
+      expect((await api('post', '/api/publications/import-opml', { opml })).body).toEqual({ added: 1, feedsAdded: 1, skipped: 0 });
+      const one = (await api('get', '/api/publications')).body.find((x: { name: string }) => x.name === 'One').id;
+      expect(await feeds(one)).toEqual(['https://one.example/rss']);
+      expect((await api('post', '/api/publications/import-opml', { opml })).body).toEqual({ added: 0, feedsAdded: 0, skipped: 1 });
+    });
   });
 
   it('keeps old free-form contact details editable, but never multi-line', async () => {

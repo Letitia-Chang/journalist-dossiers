@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
 import { clip, clipDate, clipUrl } from '../lib/clip';
 import pool from '../db';
+import { personName } from '../lib/personName';
 import { loadProfile } from '../lib/companyProfile';
 import { commonCategory, matchTopics, relevance, strength, topicsFrom, type Topics } from '../lib/topics';
 import { generateRssDiagnosticNote } from './rssDiagnostic';
@@ -38,11 +39,8 @@ function extractAuthor(item: any): string | null {
   const raw = item.creator || item.author || item['dc:creator'] || (item.itunes && item.itunes.author) || null;
   if (!raw || typeof raw !== 'string') return null;
   const name = raw.replace(/^[^\s(]+@[^\s(]+\s*/, '').replace(/<[^>]+>/g, '').replace(/\(([^)]+)\)/, '$1').trim();
-  if (!name || name.length < 3) return null;
-  if (/^(admin|staff|editor|webmaster|noreply|newsroom|the \w+)$/i.test(name)) return null;
-  if (/'\d{2}$/.test(name)) return null;
-  if (!/^[A-Z][a-zA-Z'-]+(?: [A-Z][a-zA-Z'.-]+){1,3}$/.test(name)) return null;
-  return name.length <= 200 ? name : null;
+  if (/'\d{2}$/.test(name)) return null; // "Jane Roe '25"
+  return personName(name);
 }
 
 async function scanFeedUrl(feedUrl: string, feedId: number): Promise<{ items: any[]; error?: string }> {
@@ -178,9 +176,10 @@ export async function scanPublicationRss(orgId: string, publicationId: number): 
 
 export async function scanAllRssFeeds(orgId: string): Promise<RssScanResult[]> {
   const pubs = (await pool.query(
-    `SELECT DISTINCT p.id FROM publications p
-     INNER JOIN publication_feeds pf ON pf.publication_id = p.id
-     WHERE p.org_id = $1 AND p.active = true`,
+    `SELECT p.id FROM publications p
+     WHERE p.org_id = $1 AND p.active = true
+       AND (p.rss_url <> '' OR EXISTS (SELECT 1 FROM publication_feeds f WHERE f.publication_id = p.id))
+     ORDER BY p.id`,
     [orgId],
   )).rows as { id: number }[];
 
