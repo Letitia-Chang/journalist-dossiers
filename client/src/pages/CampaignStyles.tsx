@@ -121,7 +121,7 @@ export default function CampaignStyles() {
       </div>
 
       <div className="space-y-6">
-        {/* Retired types keep their saved instructions, so so show any that were saved. */}
+        {/* Retired types keep their saved instructions, so show any that were saved. */}
         {[...new Set([...Object.keys(CAMPAIGN_TYPES), ...Object.keys(savedAt)])].map(type => {
           const label = campaignTypeLabel(type);
           const meta = CAMPAIGN_TYPES[type];
