@@ -52,7 +52,7 @@ flowchart LR
   Routes -->|"gmail.compose"| Gmail
 ```
 
-Details in [docs/architecture.md](docs/architecture.md).
+Details in [docs/architecture.md](docs/architecture.md). Why it is built this way, and what went wrong: [docs/design.md](docs/design.md).
 
 ## Self-host in 5 minutes
 
