@@ -40,8 +40,11 @@ export default function CampaignList() {
   const handleCreate = async () => {
     if (!form.name.trim() || !form.brief.trim()) return;
     setSaving(true);
-    await api.create({ name: form.name, brief: form.brief, campaignType: form.type });
-    setSaving(false);
+    try {
+      await api.create({ name: form.name, brief: form.brief, campaignType: form.type });
+    } finally {
+      setSaving(false);
+    }
     setShowForm(false);
     setForm({ name: '', type: 'cold_intro', brief: '' });
     load();
@@ -68,8 +71,8 @@ export default function CampaignList() {
   const displayed = showArchived ? archived : active;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Megaphone className="w-6 h-6 text-brand-600" />
@@ -101,8 +104,8 @@ export default function CampaignList() {
       {showForm && (
         <div className="card p-5 mb-6 border-brand-200 bg-brand-50">
           <h3 className="font-semibold text-slate-900 mb-4">New Campaign</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 sm:col-span-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-1">
               <label className="form-label">Campaign name</label>
               <input
                 className="form-input"
@@ -111,7 +114,7 @@ export default function CampaignList() {
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               />
             </div>
-            <div className="col-span-2 sm:col-span-1">
+            <div className="sm:col-span-1">
               <label className="form-label">Type</label>
               <select
                 className="form-select"
@@ -123,7 +126,7 @@ export default function CampaignList() {
                 ))}
               </select>
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="form-label">
                 Brief
                 <span className="text-slate-400 font-normal ml-1">

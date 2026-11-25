@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import pool from '../db';
+import { buildMimeMessage } from '../lib/mime';
 
 function getOAuthClient() {
   return new google.auth.OAuth2(
@@ -20,23 +21,11 @@ export async function getAuthedGmailClient(orgId: string) {
   return google.gmail({ version: 'v1', auth });
 }
 
-function makeMimeMessage(to: string, subject: string, body: string): string {
-  const lines = [
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    body,
-  ];
-  return Buffer.from(lines.join('\r\n')).toString('base64url');
-}
-
 export async function createGmailDraft(
   gmail: NonNullable<Awaited<ReturnType<typeof getAuthedGmailClient>>>,
   to: string, subject: string, body: string,
 ): Promise<string> {
-  const raw = makeMimeMessage(to, subject, body);
+  const raw = buildMimeMessage(to, subject, body);
   const result = await gmail.users.drafts.create({
     userId: 'me',
     requestBody: { message: { raw } },

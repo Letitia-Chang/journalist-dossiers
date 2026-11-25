@@ -5,9 +5,12 @@ import { scanStaffPage } from '../services/staffPageScanner';
 import { runAiScoring } from '../services/scoringRunner';
 import { requireRole } from '../middleware/auth';
 import { blockInDemo } from '../middleware/demo';
+import { clip, clipDate, clipUrl } from '../lib/clip';
 import { clientIp } from '../lib/clientIp';
+import { validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { id: 'int', publicationId: 'int' });
 const requireEditor = requireRole('owner', 'admin');
 
 router.get('/', async (req, res) => {
@@ -60,7 +63,7 @@ router.post('/:id/accept', async (req, res) => {
   const { rows: [journalist] } = await pool.query(
     `INSERT INTO journalists (org_id, name, publication_id, beats, bio)
      VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [req.orgId, suggestion.name, suggestion.publication_id, suggestion.suggested_beat ? [suggestion.suggested_beat] : [], bio],
+    [req.orgId, clip(suggestion.name, 200), suggestion.publication_id, suggestion.suggested_beat ? [clip(suggestion.suggested_beat, 80)] : [], clip(bio, 4000)],
   );
 
   await pool.query(`UPDATE journalist_suggestions SET status = 'accepted' WHERE id = $1`, [req.params.id]);
@@ -71,11 +74,11 @@ router.post('/:id/accept', async (req, res) => {
     if (allArticles.length === 0 && suggestion.recent_article_title && suggestion.recent_article_url) {
       allArticles = [{ title: suggestion.recent_article_title, url: suggestion.recent_article_url, date: suggestion.recent_article_date }];
     }
-    for (const a of allArticles) {
+    for (const a of allArticles.slice(0, 50)) {
       if (!a.title) continue;
       await pool.query(
         `INSERT INTO articles (org_id, journalist_id, title, url, published_at) VALUES ($1, $2, $3, $4, $5)`,
-        [req.orgId, journalist.id, a.title, a.url ?? '', a.date || null],
+        [req.orgId, journalist.id, clip(a.title, 300), clipUrl(a.url), clipDate(a.date)],
       );
     }
   } catch { /* non-fatal — article seeding is best-effort */ }

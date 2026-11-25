@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Pool, PoolClient } from 'pg';
 import pool from '../db';
 
 /**
@@ -7,46 +8,49 @@ import pool from '../db';
  * company is hard-coded anywhere else.
  */
 
-const optionalUrl = z.union([z.literal(''), z.string().trim().url('Must be a valid URL (https://…)')]);
+// Every field ends up in paid Claude prompts, so every field has a cap.
+const str = (max: number) => z.string().trim().max(max, `Must be ${max} characters or fewer`).refine(s => !s.includes('\u0000'), 'Invalid characters');
+const httpUrl = z.string().trim().max(500).regex(/^https?:\/\//i, 'Must be a valid URL (https://…)').url('Must be a valid URL (https://…)');
+const optionalUrl = z.union([z.literal(''), httpUrl]);
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color like #4f46e5');
-const stringList = z.array(z.string().trim().min(1)).default([]);
+const stringList = z.array(str(300).min(1)).max(20, 'At most 20 items').default([]);
 
 export const newsworthyItemSchema = z.object({
   type: z.enum(['launch', 'funding', 'research', 'hire', 'other']).default('other'),
-  title: z.string().trim().min(1, 'Title is required'),
-  date: z.string().trim().default(''),
-  description: z.string().trim().default(''),
+  title: str(200).min(1, 'Title is required'),
+  date: str(40).default(''),
+  description: str(1000).default(''),
   url: optionalUrl.default(''),
 });
 
 export const spokespersonSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  title: z.string().trim().default(''),
-  topics: stringList,
+  name: str(100).min(1, 'Name is required'),
+  title: str(100).default(''),
+  topics: z.array(str(80).min(1)).max(10, 'At most 10 topics').default([]),
 });
 
 export const pressCoverageSchema = z.object({
-  title: z.string().trim().default(''),
-  url: z.string().trim().url('Must be a valid URL (https://…)'),
+  title: str(200).default(''),
+  url: httpUrl,
 });
 
 export const companyProfileSchema = z.object({
-  name: z.string().trim().min(1, 'Company name is required'),
+  name: str(200).min(1, 'Company name is required'),
   website: optionalUrl.default(''),
-  one_liner: z.string().trim().default(''),
-  industry: z.string().trim().default(''),
-  products: z.string().trim().default(''),
-  target_audience: z.string().trim().default(''),
+  one_liner: str(500).default(''),
+  industry: str(200).default(''),
+  products: str(2000).default(''),
+  target_audience: str(1000).default(''),
   regions: stringList,
   key_messages: stringList,
-  newsworthy_items: z.array(newsworthyItemSchema).default([]),
+  newsworthy_items: z.array(newsworthyItemSchema).max(20, 'At most 20 items').default([]),
   competitors: stringList,
-  press_coverage: z.array(pressCoverageSchema).default([]),
-  spokespeople: z.array(spokespersonSchema).default([]),
-  pitch_tone: z.string().trim().default(''),
-  email_signature: z.string().default(''),
+  press_coverage: z.array(pressCoverageSchema).max(20, 'At most 20 items').default([]),
+  spokespeople: z.array(spokespersonSchema).max(20, 'At most 20 items').default([]),
+  pitch_tone: str(1000).default(''),
+  email_signature: z.string().max(1000).refine(s => !s.includes('\u0000'), 'Invalid characters').default(''),
   // Branding
-  app_name: z.string().trim().default('Press Dossier'),
+  app_name: str(60).default('Press Dossier'),
   logo_url: optionalUrl.default(''),
   brand_color: hexColor.default('#4f46e5'),
 });
@@ -84,18 +88,18 @@ export async function loadProfile(orgId: string): Promise<CompanyProfile | null>
   return parsed.success ? parsed.data : (row as CompanyProfile);
 }
 
-export async function saveProfile(orgId: string, profile: CompanyProfile): Promise<void> {
+export async function saveProfile(orgId: string, profile: CompanyProfile, db: Pool | PoolClient = pool): Promise<void> {
   const values = COLUMNS.map(c => (JSON_COLUMNS.has(c) ? JSON.stringify(profile[c]) : profile[c]));
   const placeholders = COLUMNS.map((_c, i) => `$${i + 2}`).join(', ');
   const updates = COLUMNS.map((c, i) => `${c} = $${i + 2}`).join(', ');
-  await pool.query(
+  await db.query(
     `INSERT INTO company_profile (org_id, ${COLUMNS.join(', ')})
      VALUES ($1, ${placeholders})
      ON CONFLICT (org_id) DO UPDATE SET ${updates}, updated_at = NOW()`,
     [orgId, ...values],
   );
   // Keep the organization's display name in sync with the profile.
-  await pool.query('UPDATE organizations SET name = $1, updated_at = NOW() WHERE id = $2', [profile.name, orgId]);
+  await db.query('UPDATE organizations SET name = $1, updated_at = NOW() WHERE id = $2', [profile.name, orgId]);
 }
 
 // ── Prompt building ───────────────────────────────────────────────────────────

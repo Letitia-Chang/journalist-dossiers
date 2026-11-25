@@ -8,8 +8,12 @@ import { scanAllRssFeeds } from '../services/rssService';
 import { runHealthChecks, getHealthSummary } from '../services/healthCheckService';
 import { requireRole } from '../middleware/auth';
 import { blockInDemo } from '../middleware/demo';
+import * as schemas from '../lib/schemas';
+import { link } from '../lib/schemas';
+import { parseBody, validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { id: 'int', feedId: 'int' });
 const requireEditor = requireRole('owner', 'admin');
 
 function hostnameOf(url: string): string {
@@ -34,8 +38,7 @@ router.get('/', async (req, res) => {
 // ── Discovery — must come before /:id so "discover" isn't parsed as an id ──────
 
 router.post('/discover', requireEditor, blockInDemo, async (req, res) => {
-  const { query } = req.body as { query?: string };
-  if (!query?.trim()) return res.status(400).json({ error: 'query is required' });
+  const { query } = parseBody(schemas.discover, req);
 
   const { rows: existing } = await pool.query('SELECT url FROM publications WHERE org_id = $1', [req.orgId]);
   const existingDomains = new Set(
@@ -45,13 +48,12 @@ router.post('/discover', requireEditor, blockInDemo, async (req, res) => {
     }),
   );
 
-  const results = await discoverPublications(query.trim(), existingDomains);
+  const results = await discoverPublications(query, existingDomains);
   res.json(results);
 });
 
 router.post('/import-opml', requireEditor, async (req, res) => {
-  const { opml } = req.body as { opml?: string };
-  if (!opml?.trim()) return res.status(400).json({ error: 'opml text is required' });
+  const { opml } = parseBody(schemas.opmlImport, req);
 
   let outlines: { name: string; homepage: string; feedUrl: string }[];
   try {
@@ -61,8 +63,8 @@ router.post('/import-opml', requireEditor, async (req, res) => {
       const xmlUrl = (node.attr('xmlUrl') ?? '').trim();
       const homepage = (node.attr('htmlUrl') ?? '').trim();
       const name = (node.attr('title') ?? '').trim() || (node.attr('text') ?? '').trim() || hostnameOf(homepage || xmlUrl);
-      return { name, homepage, feedUrl: xmlUrl };
-    }).filter(o => o.feedUrl);
+      return { name: name.slice(0, 200), homepage, feedUrl: xmlUrl };
+    }).filter(o => link.safeParse(o.feedUrl).success && link.safeParse(o.homepage).success && o.feedUrl).slice(0, 2000);
   } catch {
     return res.status(400).json({ error: 'Could not parse OPML file' });
   }
@@ -133,8 +135,8 @@ router.post('/sync-feeds', requireEditor, blockInDemo, async (req, res) => {
     for (const pub of pubs) {
       await discoverAndSaveFeeds(req.orgId!, pub.id).catch(err => console.error('[SyncFeeds] discover', err.message));
     }
-    await scanAllRssFeeds(req.orgId!).catch(err => console.error('[SyncFeeds] scan', err.message));
-  })();
+    await scanAllRssFeeds(req.orgId!);
+  })().catch(err => console.error('[SyncFeeds]', err));
 });
 
 router.get('/health-summary', async (req, res) => {
@@ -182,8 +184,7 @@ router.get('/:id/feeds', async (req, res) => {
 });
 
 router.post('/:id/feeds', requireEditor, async (req, res) => {
-  const { feedUrl, feedLabel } = req.body as { feedUrl?: string; feedLabel?: string };
-  if (!feedUrl) return res.status(400).json({ error: 'feedUrl is required' });
+  const { feedUrl, feedLabel } = parseBody(schemas.feedCreate, req);
 
   const { rows: [pub] } = await pool.query('SELECT id FROM publications WHERE id = $1 AND org_id = $2', [req.params.id, req.orgId]);
   if (!pub) return res.status(404).json({ error: 'Publication not found' });
@@ -224,11 +225,7 @@ router.post('/:id/discover-feeds', requireEditor, blockInDemo, async (req, res) 
 });
 
 router.post('/', requireEditor, async (req, res) => {
-  const { name, url, tier, focus, notes, rssUrl } = req.body as {
-    name?: string; url?: string; tier?: string; focus?: string; notes?: string; rssUrl?: string;
-  };
-  if (!name) return res.status(400).json({ error: 'name is required' });
-
+  const { name, url, tier, focus, notes, rssUrl } = parseBody(schemas.publicationCreate, req);
   const { rows: [row] } = await pool.query(
     `INSERT INTO publications (org_id, name, url, tier, focus, notes, rss_url)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -240,9 +237,7 @@ router.post('/', requireEditor, async (req, res) => {
 });
 
 router.put('/:id', requireEditor, async (req, res) => {
-  const { name, url, tier, focus, notes, active, rssUrl } = req.body as {
-    name?: string; url?: string; tier?: string; focus?: string; notes?: string; active?: boolean; rssUrl?: string;
-  };
+  const { name, url, tier, focus, notes, active, rssUrl } = parseBody(schemas.publicationUpdate, req);
   const { rows: [row] } = await pool.query(
     `UPDATE publications SET
        name = COALESCE($1, name),

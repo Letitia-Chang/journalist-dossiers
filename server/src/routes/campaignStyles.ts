@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import pool from '../db';
 import { requireRole } from '../middleware/auth';
+import * as schemas from '../lib/schemas';
+import { parseBody, validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { campaignType: 'slug' });
 
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(
@@ -13,7 +16,7 @@ router.get('/', async (req, res) => {
 });
 
 router.put('/:campaignType', requireRole('owner', 'admin'), async (req, res) => {
-  const { instructions } = req.body as { instructions?: string };
+  const { instructions } = parseBody(schemas.styleUpdate, req);
   const { rows: [row] } = await pool.query(
     `INSERT INTO campaign_type_styles (org_id, campaign_type, instructions)
      VALUES ($1, $2, $3)

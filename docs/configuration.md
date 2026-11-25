@@ -50,7 +50,7 @@ See `server/.env.example` for the full annotated list.
 | Variable | Default | Purpose |
 |---|---|---|
 | `DATABASE_URL` | – | Postgres connection string (required) |
-| `SESSION_SECRET` | – | JWT signing key (required) |
+| `SESSION_SECRET` | – | JWT signing key (required; in production at least 32 characters, `openssl rand -hex 32`) |
 | `ANTHROPIC_API_KEY` | – | Claude key; AI features are disabled without it |
 | `ANTHROPIC_MODEL` | `claude-opus-4-8` | Model for all AI steps |
 | `PORT` | `3001` | API port |
@@ -61,6 +61,6 @@ See `server/.env.example` for the full annotated list.
 | `BOT_NAME`, `BOT_CONTACT_URL`, `BOT_USER_AGENT` | `PressDossierBot` | How the crawler identifies itself |
 | `TRUST_PROXY` | – | `true` behind a reverse proxy |
 | `CLIENT_IP_HEADER` | – | Header holding the real client address, for the demo's per-visitor limits when a CDN sits in front of the proxy (Render: `cf-connecting-ip`). Only set it if every request passes through that CDN, or clients could spoof it |
-| `DEMO_MODE`, `DEMO_AI_PER_HOUR`, `DEMO_AI_PER_DAY`, `DEMO_RESET_HOURS` | – | See [demo-mode.md](demo-mode.md) |
+| `DEMO_MODE`, `DEMO_AI_PER_HOUR`, `DEMO_AI_PER_DAY`, `DEMO_SANDBOX_HOURS` | – | See [demo-mode.md](demo-mode.md) |
 
 Client: `VITE_API_URL` (default `http://localhost:3001/api`).

@@ -5,11 +5,8 @@
  * Results are stored in publications.rssStatusNote.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import pool from '../db';
-import { CLAUDE_MODEL } from '../lib/claude';
-
-const client = new Anthropic();
+import { claudeClient, CLAUDE_MODEL } from '../lib/claude';
 
 export async function generateRssDiagnosticNote(
   orgId: string,
@@ -33,9 +30,9 @@ export async function generateRssDiagnosticNote(
         ? `Auto-discovery failed to fetch the homepage. Error: ${errorMessage}`
         : `RSS feeds were saved but all failed when tested. Feed URLs tried: ${(feedUrls ?? []).join(', ')}. HTTP status(es) received: ${httpStatuses ?? 'unknown'}.`;
 
-    const response = await client.messages.create({
+    const response = await claudeClient().messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 300,
+      max_tokens: 2048, // includes thinking
       thinking: { type: 'adaptive' },
       messages: [{
         role: 'user',

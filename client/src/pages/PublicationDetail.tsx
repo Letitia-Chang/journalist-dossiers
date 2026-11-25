@@ -52,7 +52,7 @@ export default function PublicationDetail() {
   const withEmail = journalists.filter(j => j.email).length;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto">
       <Link to="/admin/publications" className="text-sm text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-5">
         <ArrowLeft className="w-3.5 h-3.5" /> All publications
       </Link>
@@ -119,7 +119,7 @@ export default function PublicationDetail() {
           </div>
 
           <div className="card overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Journalist</th>
@@ -162,7 +162,7 @@ export default function PublicationDetail() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </>
       )}

@@ -144,7 +144,7 @@ export default function CampaignDetail() {
   const draftableCount = campaignJournalists.filter(cj => cj.draft_subject && !cj.gmail_draft_id && cj.status !== 'sent').length;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-4xl mx-auto">
       <Link to="/campaigns" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-5">
         <ChevronLeft className="w-4 h-4" /> Back to campaigns
       </Link>
@@ -175,7 +175,7 @@ export default function CampaignDetail() {
       </div>
 
       {/* Journalists */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h2 className="font-semibold text-slate-900">Journalists ({campaignJournalists.length})</h2>
         <div className="flex items-center gap-2">
           <button className="btn-secondary text-sm" onClick={() => setShowPicker(v => !v)}>
@@ -267,9 +267,9 @@ export default function CampaignDetail() {
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${DRAFT_STATUS_STYLE[cj.status] ?? DRAFT_STATUS_STYLE.not_started}`}>
                       {cj.status.replace('_', ' ')}
                     </span>
-                    <button onClick={() => handleRemove(cj.journalist_id)} className="p-1 rounded text-slate-300 hover:text-red-500" title="Remove">
+                    {cj.status !== 'sent' && <button onClick={() => handleRemove(cj.journalist_id)} className="p-1 rounded text-slate-300 hover:text-red-500" title="Remove">
                       <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    </button>}
                   </div>
                 </div>
 
@@ -280,15 +280,17 @@ export default function CampaignDetail() {
                     <input
                       className="form-input text-sm font-medium"
                       value={subject}
+                      readOnly={cj.status === 'sent'}
                       onChange={e => setEditedDrafts(prev => ({ ...prev, [cj.journalist_id]: { subject: e.target.value, body } }))}
                     />
                     <textarea
                       className="form-input text-sm"
                       rows={5}
                       value={body}
+                      readOnly={cj.status === 'sent'}
                       onChange={e => setEditedDrafts(prev => ({ ...prev, [cj.journalist_id]: { subject, body: e.target.value } }))}
                     />
-                    <div className="flex items-center gap-2 flex-wrap">
+                    {cj.status !== 'sent' && <div className="flex items-center gap-2 flex-wrap">
                       {hasEdits && (
                         <button className="btn-secondary py-1 text-xs" onClick={() => handleSaveDraft(cj)}>
                           <Save className="w-3 h-3" /> Save edits
@@ -308,12 +310,10 @@ export default function CampaignDetail() {
                         <RefreshCw className={`w-3 h-3 ${regeneratingId === cj.journalist_id ? 'animate-spin' : ''}`} />
                         {regeneratingId === cj.journalist_id ? 'Regenerating…' : 'Regenerate'}
                       </button>
-                      {cj.status !== 'sent' && (
-                        <button className="btn-primary py-1 text-xs" onClick={() => handleSend(cj.journalist_id)}>
-                          <Send className="w-3 h-3" /> Mark Sent
-                        </button>
-                      )}
-                    </div>
+                      <button className="btn-primary py-1 text-xs" onClick={() => handleSend(cj.journalist_id)}>
+                        <Send className="w-3 h-3" /> Mark Sent
+                      </button>
+                    </div>}
                   </div>
                 )}
               </div>

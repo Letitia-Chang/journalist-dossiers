@@ -4,14 +4,14 @@ Thanks for helping. Small, focused pull requests are easiest to review.
 
 ## Setup
 
-See the [self-host guide](README.md#self-host-in-5-minutes). You need Node 20+ and a Postgres database. Run a throwaway one locally (Docker, or `initdb`) and point `DATABASE_URL` at it.
+See the [self-host guide](README.md#self-host-in-5-minutes). You need Node 22+ and a Postgres database. Run a throwaway one locally (Docker, or `initdb`) and point `DATABASE_URL` at it.
 
 ## Before you open a PR
 
 ```bash
 npm run lint
 npm run typecheck
-npm test            # set DATABASE_URL to a migrated Postgres so the API smoke test runs
+npm test            # set DATABASE_URL to any local Postgres; tests create and drop their own databases
 npm run build
 ```
 

@@ -8,6 +8,7 @@
  *   3. Medium tag feeds    — derived from query keywords, always valid
  */
 
+import { clip } from '../lib/clip';
 import axios from 'axios';
 import { botUserAgent } from '../lib/http';
 
@@ -59,11 +60,11 @@ async function queryFeedly(query: string): Promise<DiscoveredPublication[]> {
         name:           item.title || item.visualUrl || extractDomain(siteUrl),
         url:            siteUrl,
         feedUrl,
-        description:    item.description || '',
+        description:    clip(item.description, 2000),
         source:         'feedly',
         subscribers:    item.subscribers || 0,
         suggestedTier:  guessTier(item.subscribers),
-        focus:          item.description || '',
+        focus:          clip(item.description, 2000),
       });
     }
     return results;
@@ -100,11 +101,11 @@ async function querySubstack(query: string): Promise<DiscoveredPublication[]> {
         name:          p.name || subdomain,
         url:           baseUrl,
         feedUrl,
-        description:   p.description || '',
+        description:   clip(p.description, 2000),
         source:        'substack',
         subscribers:   p.subscriber_count || 0,
         suggestedTier: guessTier(p.subscriber_count),
-        focus:         p.description || '',
+        focus:         clip(p.description, 2000),
       });
     }
     return results;

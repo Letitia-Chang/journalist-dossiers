@@ -64,7 +64,7 @@ export default function ScoringDimensions() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       <div className="mb-7">
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-brand-500" /> Scoring Dimensions
@@ -145,16 +145,16 @@ function DimensionForm({ form, set, saving, onSave, onCancel }: {
   onCancel: () => void;
 }) {
   return (
-    <div className="grid grid-cols-12 gap-3 items-end">
-      <div className="col-span-3">
+    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+      <div className="sm:col-span-3">
         <label className="form-label">Name *</label>
         <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Climate Relevance" autoFocus />
       </div>
-      <div className="col-span-6">
+      <div className="sm:col-span-6">
         <label className="form-label">Description</label>
         <input className="form-input" value={form.description} onChange={e => set('description', e.target.value)} placeholder="Used in the AI scoring prompt" />
       </div>
-      <div className="col-span-3">
+      <div className="sm:col-span-3">
         <label className="form-label">Weight (points)</label>
         <input
           type="number"
@@ -165,7 +165,7 @@ function DimensionForm({ form, set, saving, onSave, onCancel }: {
           onChange={e => set('weight', Number(e.target.value))}
         />
       </div>
-      <div className="col-span-12 flex items-center gap-2 pt-1">
+      <div className="sm:col-span-12 flex items-center gap-2 pt-1">
         <button className="btn-primary py-1.5 text-sm" onClick={onSave} disabled={saving || !form.name.trim()}>
           {saving ? 'Saving…' : 'Save'}
         </button>

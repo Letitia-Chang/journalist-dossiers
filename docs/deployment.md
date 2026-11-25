@@ -45,12 +45,15 @@ Open the site. You should see the "Enter the demo" screen.
 ## Self-hosting for real use
 
 - Don't set `DEMO_MODE`. Visit the app to run the setup wizard, or set `ADMIN_EMAIL` / `ADMIN_PASSWORD` and a `company.config.json` (see [configuration.md](configuration.md)).
-- Use a **persistent Postgres** with backups. The demo database is disposable because it reseeds itself.
+- Use a **persistent Postgres** with backups. The demo database is disposable: it only holds expiring sandboxes.
 - Serve over **HTTPS** and set `FRONTEND_URL` to the exact browser origin.
 - For Gmail drafts, add your API origin's callback to the Google OAuth client: `https://<api-host>/auth/google/callback`, and set `GOOGLE_REDIRECT_URI` to match. The Gmail refresh token is stored unencrypted in the database, so use encryption at rest.
 - Set `BOT_NAME` and `BOT_CONTACT_URL` so publishers can see who is crawling them.
-- `TRUST_PROXY=true` if the API sits behind a reverse proxy. If a CDN sits in front of that proxy (Render is fronted by Cloudflare), `req.ip` is the CDN's edge address, so also set `CLIENT_IP_HEADER` (the blueprint sets `cf-connecting-ip`); otherwise the demo's per-visitor limits can't tell visitors apart.
-- Run **one** API instance if you use demo mode (its rate limits are in memory).
+- `TRUST_PROXY=true` is **required** if the API sits behind a reverse proxy: sign-in throttling and the demo limits are per client address, and without it every visitor looks like the proxy. If a CDN sits in front of that proxy (Render is fronted by Cloudflare), `req.ip` is the CDN's edge address, so also set `CLIENT_IP_HEADER` (the blueprint sets `cf-connecting-ip`); otherwise the demo's per-visitor limits can't tell visitors apart.
+
+## Rolling back
+
+Migrations from this version on add a marker to demo sandboxes that older code doesn't know. To go back to an older version, first run `npm run migrate:down --prefix server` once per migration you are undoing (this also deletes any demo sandboxes), then deploy the older code.
 
 ## Troubleshooting
 
@@ -59,5 +62,5 @@ Open the site. You should see the "Enter the demo" screen.
 | Browser console shows a CORS error | `FRONTEND_URL` doesn't exactly match the site's origin (scheme, host, no path) |
 | "Can't reach the server" after the retries | `VITE_API_URL` is wrong, or the API failed to boot; check Render logs |
 | API exits at boot with `Invalid …company.config.json` | The config file failed validation; the message names the fields |
-| API exits with "DEMO_MODE refuses to wipe a database…" | `DEMO_MODE` is on but the database contains a real organization; use a dedicated database |
+| API exits with "DEMO_MODE refuses to run on a database…" | `DEMO_MODE` is on but the database contains a real organization; use a dedicated database |
 | Migrations hang | You're using a pooled connection string; use the direct one |

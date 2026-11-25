@@ -76,7 +76,7 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       <div className="mb-7">
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <UsersIcon className="w-5 h-5 text-brand-500" /> Team
@@ -92,10 +92,10 @@ export default function TeamPage() {
 
       <div className="card divide-y divide-slate-100 mb-6">
         {members.map(m => (
-          <div key={m.id} className="p-4 flex items-center gap-3">
-            <div className="flex-1 min-w-0">
+          <div key={m.id} className="p-4 flex flex-wrap items-center gap-3">
+            <div className="flex-1 min-w-40">
               <div className="font-medium text-slate-900 text-sm">{m.name}</div>
-              <div className="text-xs text-slate-500">{m.email}</div>
+              <div className="text-xs text-slate-500 break-all">{m.email}</div>
             </div>
             {isOwner ? (
               <select
@@ -131,8 +131,8 @@ export default function TeamPage() {
             <h2 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-1.5">
               <UserPlus className="w-4 h-4" /> Invite someone
             </h2>
-            <div className="grid grid-cols-12 gap-3 items-end">
-              <div className="col-span-7">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+              <div className="sm:col-span-7">
                 <label className="form-label">Email</label>
                 <input
                   className="form-input"
@@ -142,7 +142,7 @@ export default function TeamPage() {
                   placeholder="jane@acme.com"
                 />
               </div>
-              <div className="col-span-3">
+              <div className="sm:col-span-3">
                 <label className="form-label">Role</label>
                 <select className="form-input" value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
                   <option value="member">Member</option>
@@ -150,7 +150,7 @@ export default function TeamPage() {
                   <option value="owner">Owner</option>
                 </select>
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <button
                   className="btn-primary py-2 text-sm w-full"
                   onClick={handleInvite}
@@ -171,8 +171,8 @@ export default function TeamPage() {
                 Pending invites
               </div>
               {invites.map(inv => (
-                <div key={inv.id} className="p-4 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
+                <div key={inv.id} className="p-4 flex flex-wrap items-center gap-3">
+                  <div className="flex-1 min-w-40">
                     <div className="font-medium text-slate-900 text-sm">{inv.email}</div>
                     <div className="text-xs text-slate-500">
                       {ROLE_LABEL[inv.role]} · expires {new Date(inv.expires_at).toLocaleDateString()}

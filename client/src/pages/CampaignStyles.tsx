@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Save, Check, Sparkles, Mail, Unplug } from 'lucide-react';
 import { campaignStyles as api, auth as authApi } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { apiError } from '../lib/errors';
 
 type CampaignType = 'cold_intro' | 'event' | 'hackathon' | 'founder_promo';
 
@@ -99,15 +100,18 @@ export default function CampaignStyles() {
 
   const handleSave = async (type: CampaignType) => {
     setSaving(type);
-    await api.update(type, styles[type]);
-    setSaving(null);
+    try {
+      await api.update(type, styles[type]);
+    } finally {
+      setSaving(null);
+    }
     setJustSaved(type);
     setSavedAt(prev => ({ ...prev, [type]: new Date().toISOString() }));
     setTimeout(() => setJustSaved(null), 2000);
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       <Link to="/campaigns" className="text-sm text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-5">
         <ArrowLeft className="w-3.5 h-3.5" /> Back to campaigns
       </Link>
@@ -146,7 +150,7 @@ export default function CampaignStyles() {
             )}
           </div>
         ) : isOwner ? (
-          <button className="btn-primary py-1.5 text-sm" onClick={() => authApi.connectGmail()}>
+          <button className="btn-primary py-1.5 text-sm" onClick={() => authApi.connectGmail().catch(err => alert(apiError(err, 'Could not start the Gmail connection.')))}>
             <Mail className="w-3.5 h-3.5" /> Connect Gmail
           </button>
         ) : (
@@ -164,7 +168,7 @@ export default function CampaignStyles() {
 
           return (
             <div key={type} className="card p-5">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2">
                   <h2 className="font-semibold text-slate-900">{meta.label}</h2>
                   {hasContent && (

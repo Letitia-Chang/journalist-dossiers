@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Newspaper, Plus, Trash2, Pencil, ExternalLink } from 'lucide-react';
 import { coverage as covApi, journalists as jApi, campaigns as campApi } from '../api';
+import { apiError } from '../lib/errors';
 import type { CoverageItem, Journalist, Campaign } from '../types';
 
 const empty = { title: '', url: '', notes: '', publishedAt: '', journalistId: '' as number | '', campaignId: '' as number | '' };
@@ -52,6 +53,8 @@ export default function CoveragePage() {
       else await covApi.create(payload);
       cancelForm();
       load();
+    } catch (err) {
+      alert(apiError(err, 'Could not save this item.'));
     } finally {
       setSaving(false);
     }
@@ -64,8 +67,8 @@ export default function CoveragePage() {
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 sm:p-8 max-w-4xl mx-auto">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Newspaper className="w-6 h-6 text-brand-600" /> Press Coverage
@@ -80,8 +83,8 @@ export default function CoveragePage() {
       {showForm && (
         <div className="card p-5 mb-6 border-brand-200 bg-brand-50">
           <h3 className="font-semibold text-slate-900 mb-4">{editingId ? 'Edit Coverage' : 'New Coverage'}</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
               <label className="form-label">Title *</label>
               <input className="form-input" value={form.title} onChange={e => set('title', e.target.value)} placeholder="Article headline" autoFocus />
             </div>
@@ -107,7 +110,7 @@ export default function CoveragePage() {
                 {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="form-label">Notes</label>
               <textarea className="form-input" rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} />
             </div>

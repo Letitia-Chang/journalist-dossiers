@@ -186,16 +186,22 @@ export default function AdminPublications() {
 
   const handleAccept = async (s: PublicationSuggestion) => {
     setAcceptingId(s.id);
-    await suggestApi.accept(s.id);
-    await Promise.all([loadPubs(), loadSuggestions()]);
-    setAcceptingId(null);
+    try {
+      await suggestApi.accept(s.id);
+      await Promise.all([loadPubs(), loadSuggestions()]);
+    } finally {
+      setAcceptingId(null);
+    }
   };
 
   const handleReject = async (s: PublicationSuggestion) => {
     setRejectingId(s.id);
-    await suggestApi.reject(s.id);
-    await loadSuggestions();
-    setRejectingId(null);
+    try {
+      await suggestApi.reject(s.id);
+      await loadSuggestions();
+    } finally {
+      setRejectingId(null);
+    }
   };
 
   const handleStaffScan = async (p: Publication) => {
@@ -358,15 +364,15 @@ export default function AdminPublications() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="max-w-screen-xl mx-auto px-6 py-8">
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
 
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
           <div>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Publications</h1>
             <p className="text-slate-400 text-sm mt-0.5">Track which outlets to source journalists from.</p>
           </div>
           {canEdit && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button onClick={handleRunNow} disabled={runningJob}
                 title="AI Suggest — Claude picks new publications relevant to your company and adds them to suggestions"
                 className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all">
@@ -922,25 +928,25 @@ function PublicationForm({ form, set, saving, onSave, onCancel }: {
   saving: boolean; onSave: () => void; onCancel: () => void;
 }) {
   return (
-    <div className="grid grid-cols-12 gap-3 items-end">
-      <div className="col-span-2">
+    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+      <div className="sm:col-span-2">
         <label className="form-label">Name *</label>
         <input className="form-input" value={form.name}
           onChange={e => set('name', e.target.value)} placeholder="e.g. TechCrunch" autoFocus />
       </div>
-      <div className="col-span-2">
+      <div className="sm:col-span-2">
         <label className="form-label">Homepage URL</label>
         <input className="form-input" value={form.url}
           onChange={e => set('url', e.target.value)} placeholder="https://..." />
       </div>
-      <div className="col-span-2">
+      <div className="sm:col-span-2">
         <label className="form-label flex items-center gap-1">
           <Rss className="w-3 h-3 text-emerald-500" /> RSS Feed URL
         </label>
         <input className="form-input" value={form.rssUrl}
           onChange={e => set('rssUrl', e.target.value)} placeholder="https://.../feed/" />
       </div>
-      <div className="col-span-2">
+      <div className="sm:col-span-2">
         <label className="form-label">Tier</label>
         <select className="form-select" value={form.tier} onChange={e => set('tier', e.target.value)}>
           <option value="A">A — Major & National</option>
@@ -948,17 +954,17 @@ function PublicationForm({ form, set, saving, onSave, onCancel }: {
           <option value="C">C — Regional & Niche</option>
         </select>
       </div>
-      <div className="col-span-2">
+      <div className="sm:col-span-2">
         <label className="form-label">Focus</label>
         <input className="form-input" value={form.focus}
           onChange={e => set('focus', e.target.value)} placeholder="AI funding, startups…" />
       </div>
-      <div className="col-span-2">
+      <div className="sm:col-span-2">
         <label className="form-label">Notes</label>
         <input className="form-input" value={form.notes}
           onChange={e => set('notes', e.target.value)} placeholder="Internal notes…" />
       </div>
-      <div className="col-span-12 flex items-center gap-2 pt-1">
+      <div className="sm:col-span-12 flex items-center gap-2 pt-1">
         <button className="btn-primary py-1.5 text-sm" onClick={onSave} disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
         </button>

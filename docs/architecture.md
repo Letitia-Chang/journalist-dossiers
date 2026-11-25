@@ -12,19 +12,19 @@ server/   Express + TypeScript, PostgreSQL via `pg`, migrations via node-pg-migr
 | Path | Responsibility |
 |---|---|
 | `src/app.ts` | Builds the Express app: CORS, JSON, public routes, then everything behind `requireAuth` |
-| `src/index.ts` | Runs `bootstrap()`, then listens (and schedules the demo reseed in demo mode) |
+| `src/index.ts` | Runs `bootstrap()`, then listens (and schedules the sandbox sweep in demo mode) |
 | `src/lib/companyProfile.ts` | The company profile: zod schema, load/save, and `profileToPrompt()` |
 | `src/lib/bootstrap.ts` | Ensures the single org exists, seeds default scoring dimensions, applies `company.config.json`, creates the env admin |
 | `src/lib/http.ts` | Honest User-Agent and the robots.txt check used for third-party page fetches |
 | `src/lib/claude.ts` | The Claude model name (`ANTHROPIC_MODEL`) |
 | `src/routes/*` | One router per resource. Every query is scoped by `org_id` taken from the JWT |
 | `src/services/*` | Scoring, pitch drafts, publication suggestions, discovery (RSS, blogs, staff pages), health checks, Gmail |
-| `src/demo/*` | Demo seed data, the live-AI limiter |
+| `src/demo/*` | Demo seed data, per-visitor sandboxes, the live-AI limiter |
 | `migrations/` | Versioned schema changes (CommonJS) |
 
 ## One company per deployment
 
-There is a single `organizations` row, created on boot. Rows in every table still carry `org_id` (so queries are explicitly scoped and the schema stays simple to reason about), but the app never creates a second organization. The first signup becomes the owner; everyone else joins by invite.
+There is a single real `organizations` row, created on boot. Rows in every table still carry `org_id` (so queries are explicitly scoped and the schema stays simple to reason about), but the app never creates a second one. (In [demo mode](demo-mode.md) there is none: each visitor gets a temporary sandbox organization instead.) The first signup becomes the owner; everyone else joins by invite.
 
 ## The company profile drives every AI step
 
@@ -61,7 +61,7 @@ flowchart TD
 
 - Email + password (bcrypt), JWT (HS256, 7 days) sent as `Authorization: Bearer`.
 - Roles: **member** works with journalists, campaigns, outreach and coverage. **admin** also manages publications, scoring dimensions, house style, the company profile, and discovery. **owner** also manages the team and the Gmail connection.
-- A role change takes effect on the user's next login (the role is in the token).
+- The role is read from the database on every request, so removing or demoting someone takes effect at once.
 - Signup is open only until the first account exists.
 
 ## Discovery and polite crawling

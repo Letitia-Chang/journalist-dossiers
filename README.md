@@ -1,6 +1,6 @@
 # Press Dossier
 
-An open-source PR research tool. Give it your company profile, and it helps you find journalists who cover your space, builds a dossier on each one, scores how well they fit *your* company with evidence you can click through, and drafts a personalized pitch you review and send yourself.
+An open-source PR research tool. Give it your company profile, and it helps you find journalists who cover your space, builds a dossier on each one, scores how well they fit *your* company with a reason and the articles it cites, and drafts a personalized pitch you review and send yourself.
 
 **Live demo:** [press-dossier.vercel.app](https://press-dossier.vercel.app) · fictional company and journalists, live AI runs are rate-limited. The API sleeps when idle, so the first load can take up to a minute.
 
@@ -8,12 +8,12 @@ An open-source PR research tool. Give it your company profile, and it helps you 
 
 ## Why
 
-Most pitches fail because they're sent to the wrong person with the wrong angle. Press Dossier keeps three things together in one place: who covers what (and what they have actually written), how well each journalist fits *your* company, and a draft pitch that uses your real story, news and spokespeople. Every score shows its reasoning and the articles behind it, and nothing is ever sent without a human doing it.
+Most pitches fail because they're sent to the wrong person with the wrong angle. Press Dossier keeps three things together in one place: who covers what (and what they have actually written), how well each journalist fits *your* company, and a draft pitch that uses your real story, news and spokespeople. AI scores come with a reason and, where there is one, the articles they cite; nothing is ever sent without a human doing it.
 
 ## What it does
 
 - **Company profile as the single source of truth.** One profile (what you do, audience, regions, story angles, news, competitors, spokespeople, tone, signature) feeds every AI step. Set it up in a first-run wizard, in Settings, or from a `company.config.json` file with no UI at all.
-- **Configurable fit scoring.** Define your own dimensions (defaults: beat relevance, audience match, similar-company coverage, geography, outlet reach, responsiveness) with weights. Claude scores each journalist per dimension, writes a one-line rationale, and cites the journalist's recorded articles as evidence. Cited URLs are checked against the real article list, so a model can't invent links.
+- **Configurable fit scoring.** Define your own dimensions (defaults: beat relevance, audience match, similar-company coverage, geography, outlet reach, responsiveness) with weights. Claude scores each journalist per dimension, writes a one-line rationale, and can cite the journalist's recorded articles. Cited URLs are kept only if they are in that journalist's article list. (It sees article titles, not full text: treat a score as a lead to check.)
 - **Dossiers.** Beats, bio, articles, outreach history and scores per journalist, with a pipeline and list view.
 - **Pitch drafts.** Built from your profile plus the journalist's dossier: the best-fitting story angle, a relevant news item, the most relevant spokesperson, your tone and signature. Edit, regenerate with instructions, or write your own.
 - **Gmail drafts, never sends.** Optionally create drafts in your own Gmail with the `gmail.compose` scope (create drafts only). A person reviews and sends from Gmail.
@@ -56,7 +56,7 @@ Details in [docs/architecture.md](docs/architecture.md).
 
 ## Self-host in 5 minutes
 
-You need **Node 20+**, **PostgreSQL** (local, Neon, Supabase, Render, …) and an **Anthropic API key**.
+You need **Node 22+**, **PostgreSQL** (local, Neon, Supabase, Render, …) and an **Anthropic API key**.
 
 ```bash
 git clone <this repo> press-dossier && cd press-dossier
@@ -97,7 +97,7 @@ The reference setup is Vercel (client) + Render (API) + Neon (Postgres); see [do
 
 ## Demo mode
 
-`DEMO_MODE=true` seeds a fictional company ("Lumen Grid"), journalists and outlets; signs visitors in with one click; rate-limits live Claude calls per visitor and per day (falling back to saved results); replaces Gmail with a preview; and disables web discovery. It reseeds on boot and refuses to run against a database containing a real organization. See [docs/demo-mode.md](docs/demo-mode.md).
+`DEMO_MODE=true` seeds a fictional company ("Lumen Grid"), journalists and outlets; gives each visitor a private sandbox with one click; rate-limits live Claude calls per visitor and per day (falling back to saved results); replaces Gmail with a preview; and disables web discovery. It refuses to run against a database containing a real organization. See [docs/demo-mode.md](docs/demo-mode.md).
 
 ![Gmail preview in demo mode](docs/images/gmail-preview.jpg)
 
@@ -106,20 +106,19 @@ The reference setup is Vercel (client) + Render (API) + Neon (Postgres); see [do
 ```bash
 npm run lint          # server + client
 npm run typecheck
-npm test              # server tests (set DATABASE_URL to a migrated Postgres for the API smoke test)
+npm test              # server tests (set DATABASE_URL to any local Postgres; they create and drop their own databases)
 npm run build
 ```
 
-CI runs lint, typecheck, tests against a Postgres service, the client build, and a gitleaks secret scan. Tests cover profile validation, prompt building, the score parser's handling of malformed model output, robots.txt rules, the demo limiter and dataset, and an API smoke test including first-run setup.
+CI runs lint, typecheck, tests against a Postgres service, the client build, and a gitleaks secret scan. Tests cover profile validation, prompt building, the score parser's handling of malformed model output, robots.txt rules, the demo limits and sandbox isolation, authentication, data integrity, malformed input across the API, and first-run setup.
 
 ## Limitations
 
 - **One company per deployment.** There is no multi-company account switching.
-- **Scores are AI estimates, not facts.** They're only as good as the profile and the articles on record; with no articles the model is told to estimate cautiously and say so. Review them.
+- **Scores are AI estimates, not facts, and have not been evaluated against human judgments.** The model sees the profile, the beat, the bio and article *titles*, not article text; with no articles the model is told to estimate cautiously and say so. Review them.
 - **Discovery is best-effort.** It depends on publishers exposing RSS and readable staff pages. Name extraction from staff pages is heuristic and noisy (expect job titles and non-editorial staff in the review queue). Substack/Feedly endpoints are unofficial and can change.
 - **No contact enrichment.** Emails are entered by hand or copied from a publication's own page. The app never guesses addresses.
 - **Gmail** in Testing status expires tokens weekly; the connection is per deployment, not per user, and the refresh token is stored unencrypted in your database.
-- **Demo limits are in memory**, so they reset on restart and aren't shared across instances.
 - Login tokens live in the browser's `localStorage`; put the app behind HTTPS.
 - The free-tier demo host sleeps when idle, so the first request can take up to a minute.
 

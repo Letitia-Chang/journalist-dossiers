@@ -109,7 +109,7 @@ export async function scanStaffPage(orgId: string, publicationId: number): Promi
     return { found: 0, added: 0, skipped: 0, names: [], pageScanned: null, error: 'No accessible staff page found' };
   }
 
-  const names = extractNamesFromHtml(html, base);
+  const names = extractNamesFromHtml(html, base).filter(n => n.length <= 200).slice(0, 500);
   console.log(`[StaffScanner] "${pub.name}" → ${names.length} names from ${pageScanned}`);
 
   let added = 0;

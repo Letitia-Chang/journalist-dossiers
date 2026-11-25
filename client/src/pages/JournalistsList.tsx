@@ -157,8 +157,8 @@ export default function JournalistsList() {
   const grouped = Object.fromEntries(PIPELINE_COLS.map(s => [s, pipelineSource.filter(j => j.outreach_status === s)]));
 
   return (
-    <div className={`p-8 ${view === 'pipeline' ? 'max-w-none' : 'max-w-6xl'} mx-auto`}>
-      <div className="flex items-center justify-between mb-6">
+    <div className={`p-4 sm:p-8 ${view === 'pipeline' ? 'max-w-none' : 'max-w-6xl'} mx-auto`}>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Journalists</h1>
           <p className="text-slate-500 mt-1">
@@ -166,7 +166,7 @@ export default function JournalistsList() {
             {favOnly && <span className="ml-2 text-amber-600 font-medium">★ Favourites</span>}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center bg-slate-100 rounded-lg p-1 gap-1">
             <button
               onClick={() => setView('list')}
@@ -191,6 +191,7 @@ export default function JournalistsList() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             className="form-input pl-9"
+            aria-label="Search journalists"
             placeholder="Search name, publication, beat..."
             value={search}
             onChange={e => update('search', e.target.value)}
@@ -208,7 +209,7 @@ export default function JournalistsList() {
           Favourites
         </button>
         {view === 'list' && (
-          <select className="form-select w-auto" value={sortBy} onChange={e => update('sortBy', e.target.value)}>
+          <select aria-label="Sort" className="form-select w-auto" value={sortBy} onChange={e => update('sortBy', e.target.value)}>
             <option value="total_score">Sort: Score</option>
             <option value="name">Sort: Name</option>
             <option value="created_at">Sort: Added</option>
@@ -229,18 +230,18 @@ export default function JournalistsList() {
               }
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="w-8 px-3 py-3"></th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Name</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Publication</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Beats</th>
+                  <th className="hidden md:table-cell text-left px-4 py-3 font-medium text-slate-600">Publication</th>
+                  <th className="hidden lg:table-cell text-left px-4 py-3 font-medium text-slate-600">Beats</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600 flex items-center gap-1">
                     <SortDesc className="w-3 h-3" /> Score
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Email</th>
+                  <th className="hidden lg:table-cell text-left px-4 py-3 font-medium text-slate-600">Email</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -257,22 +258,23 @@ export default function JournalistsList() {
                       </button>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900">{j.name}</div>
+                      <Link to={`/journalists/${j.id}`} className="font-medium text-slate-900 hover:text-brand-700">{j.name}</Link>
+                      <div className="md:hidden text-xs text-slate-400">{j.publication_id ? pubsById[j.publication_id]?.name ?? '' : ''}</div>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="hidden md:table-cell px-4 py-3 text-slate-600">
                       {j.publication_id ? pubsById[j.publication_id]?.name ?? '—' : '—'}
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{j.beats.join(', ')}</td>
+                    <td className="hidden lg:table-cell px-4 py-3 text-slate-500 text-xs">{j.beats.join(', ')}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <div className="w-16 bg-slate-100 rounded-full h-1.5">
+                        <div className="hidden sm:block w-16 bg-slate-100 rounded-full h-1.5">
                           <div className="bg-brand-500 h-1.5 rounded-full" style={{ width: `${Math.min(100, j.total_score)}%` }} />
                         </div>
                         <span className="font-mono text-xs font-medium text-slate-700">{j.total_score}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={j.outreach_status} /></td>
-                    <td className="px-4 py-3">
+                    <td className="hidden lg:table-cell px-4 py-3">
                       {j.email ? (
                         <button
                           onClick={e => copyEmail(e, j)}
@@ -297,12 +299,13 @@ export default function JournalistsList() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={e => handleDelete(e, j)}
-                          className="p-1 rounded text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="p-1 rounded text-slate-300 hover:text-red-500 lg:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                           title="Delete"
+                          aria-label={`Delete ${j.name}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                        <Link to={`/journalists/${j.id}`} className="text-brand-600 hover:text-brand-800 flex items-center">
+                        <Link to={`/journalists/${j.id}`} className="text-brand-600 hover:text-brand-800 flex items-center" aria-label={`Open ${j.name}`}>
                           <ChevronRight className="w-4 h-4" />
                         </Link>
                       </div>
@@ -310,7 +313,7 @@ export default function JournalistsList() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       )}
