@@ -2,13 +2,9 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ChevronLeft, Sparkles, Send, RefreshCw, Trash2, Plus, Search, Save, Mail, Check } from 'lucide-react';
 import { campaigns as cApi, journalists as jApi } from '../api';
-import type { Campaign, CampaignJournalist, CampaignType, Journalist } from '../types';
+import type { Campaign, CampaignJournalist, Journalist } from '../types';
+import { campaignTypeLabel } from '../lib/campaignTypes';
 import { apiError } from '../lib/errors';
-
-const TYPE_LABELS: Record<CampaignType, string> = {
-  cold_intro: 'Cold Introduction', event: 'Event Coverage',
-  hackathon: 'Hackathon', founder_promo: 'Founder Spotlight',
-};
 
 const DRAFT_STATUS_STYLE: Record<string, string> = {
   not_started: 'bg-slate-100 text-slate-500',
@@ -166,7 +162,7 @@ export default function CampaignDetail() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                {TYPE_LABELS[campaign.campaign_type as CampaignType] ?? campaign.campaign_type}
+                {campaignTypeLabel(campaign.campaign_type)}
               </span>
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{campaign.status}</span>
             </div>

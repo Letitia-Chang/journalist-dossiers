@@ -125,7 +125,7 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
 
       <Section title="Your story" hint="Pitches are built from these angles and news items.">
         <Field label="Key messages and story angles">
-          <StringList items={p.key_messages} onChange={v => set('key_messages', v)} placeholder="e.g. Cuts grid-connection wait times from years to months" readOnly={readOnly} addLabel="Add angle" />
+          <StringList items={p.key_messages} onChange={v => set('key_messages', v)} placeholder="e.g. Cuts a two-week process to an afternoon" readOnly={readOnly} addLabel="Add angle" />
         </Field>
 
         <Field label="Recent newsworthy items" hint="Launches, funding, research, hires.">
