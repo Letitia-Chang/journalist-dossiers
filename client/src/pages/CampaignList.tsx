@@ -93,8 +93,8 @@ export default function CampaignList() {
           <h3 className="font-semibold text-slate-900 mb-4">New Campaign</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-1">
-              <label className="form-label">Campaign name</label>
-              <input
+              <label className="form-label" htmlFor="campaign-list-campaign-name">Campaign name</label>
+              <input id="campaign-list-campaign-name"
                 className="form-input"
                 placeholder="e.g. Version 2 launch"
                 value={form.name}
@@ -102,8 +102,8 @@ export default function CampaignList() {
               />
             </div>
             <div className="sm:col-span-1">
-              <label className="form-label">Type</label>
-              <select
+              <label className="form-label" htmlFor="campaign-list-type">Type</label>
+              <select id="campaign-list-type"
                 className="form-select"
                 value={form.type}
                 onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
@@ -114,13 +114,13 @@ export default function CampaignList() {
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className="form-label">
+              <label className="form-label" htmlFor="campaign-list-brief">
                 Brief
                 <span className="text-slate-400 font-normal ml-1">
                   — what are you pitching? Claude uses this to write each email.
                 </span>
               </label>
-              <textarea
+              <textarea id="campaign-list-brief"
                 className="form-textarea"
                 rows={4}
                 placeholder={CAMPAIGN_TYPES[form.type]?.brief}
@@ -153,7 +153,7 @@ export default function CampaignList() {
           ) : (
             <>
               <div className="text-slate-500 font-medium">No campaigns yet</div>
-              <div className="text-slate-400 text-sm mt-1">Create one to start drafting personalised outreach with Claude.</div>
+              <div className="text-slate-400 text-sm mt-1">Create one to start drafting personalized outreach with Claude.</div>
             </>
           )}
         </div>
@@ -203,7 +203,7 @@ export default function CampaignList() {
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 lg:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                 {c.status !== 'archived' ? (
                   <button
                     className="p-1.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"

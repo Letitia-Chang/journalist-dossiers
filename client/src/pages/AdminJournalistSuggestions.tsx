@@ -7,6 +7,7 @@ import {
 import { journalistSuggestions as api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import type { JournalistSuggestion } from '../types';
+import Modal from '../components/Modal';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -100,31 +101,45 @@ export default function AdminJournalistSuggestions() {
 
   const handleAccept = async (s: JournalistSuggestion) => {
     setAcceptingId(s.id);
-    const res = await api.accept(s.id);
-    if (res.data.journalistId) setAcceptedJournalistId(res.data.journalistId);
-    await load();
-    setAcceptingId(null);
+    try {
+      const res = await api.accept(s.id);
+      if (res.data.journalistId) setAcceptedJournalistId(res.data.journalistId);
+      await load();
+    } finally {
+      setAcceptingId(null);
+    }
   };
 
   const handleReject = async (s: JournalistSuggestion) => {
     setRejectingId(s.id);
-    await api.reject(s.id);
-    await load();
-    setRejectingId(null);
+    try {
+      await api.reject(s.id);
+      await load();
+    } finally {
+      setRejectingId(null);
+    }
   };
 
   const handleRejectAll = async (ids: number[]) => {
     if (!confirm(`Skip all ${ids.length} low-signal suggestions? They won't reappear for 30 days.`)) return;
     setRejectingAll(true);
-    for (const id of ids) await api.reject(id);
-    await load();
-    setRejectingAll(false);
+    try {
+      for (const id of ids) await api.reject(id);
+    } finally {
+      await load().catch(() => {});
+      setRejectingAll(false);
+    }
   };
 
   const handleScanAll = async () => {
     setScanningAll(true);
-    await api.scanAll();
-    setTimeout(async () => { await load(); setScanningAll(false); }, 5000);
+    try {
+      await api.scanAll();
+    } catch (err) {
+      setScanningAll(false);
+      throw err;
+    }
+    setTimeout(() => { load().catch(() => {}).finally(() => setScanningAll(false)); }, 5000);
   };
 
   const loadHistory = async () => {
@@ -207,7 +222,7 @@ export default function AdminJournalistSuggestions() {
               className="ml-auto text-emerald-700 font-medium hover:underline flex items-center gap-1">
               View record <ExternalLink className="w-3 h-3" />
             </Link>
-            <button onClick={() => setAcceptedJournalistId(null)} className="text-emerald-400 hover:text-emerald-600">
+            <button aria-label="Dismiss" onClick={() => setAcceptedJournalistId(null)} className="text-emerald-400 hover:text-emerald-600">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -255,7 +270,7 @@ export default function AdminJournalistSuggestions() {
                 How scored
               </button>
               <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-lg p-4 z-20
-                            invisible opacity-0 group-hover/info:visible group-hover/info:opacity-100
+                            invisible opacity-0 group-hover/info:visible group-hover/info:opacity-100 group-focus-within/info:visible group-focus-within/info:opacity-100
                             transition-all duration-150 pointer-events-none group-hover/info:pointer-events-auto">
                 <div className="absolute -top-2 right-0 w-full h-2" />
                 <p className="text-xs font-semibold text-slate-700 mb-2">How the 0–10 score is calculated</p>
@@ -392,13 +407,10 @@ export default function AdminJournalistSuggestions() {
 
         {/* History modal */}
         {showHistory && (
-          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-6"
-            onClick={() => setShowHistory(false)}>
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[65vh] flex flex-col overflow-hidden"
-              onClick={e => e.stopPropagation()}>
+          <Modal label="Journalist suggestion history" onClose={() => setShowHistory(false)} className="max-w-2xl max-h-[65vh]">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                 <h2 className="font-semibold text-slate-900 text-sm">Journalist Suggestion History</h2>
-                <button onClick={() => setShowHistory(false)}
+                <button aria-label="Close" onClick={() => setShowHistory(false)}
                   className="w-7 h-7 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400">
                   <X className="w-4 h-4" />
                 </button>
@@ -439,8 +451,7 @@ export default function AdminJournalistSuggestions() {
                     </table></div>
                 }
               </div>
-            </div>
-          </div>
+          </Modal>
         )}
       </div>
     </div>

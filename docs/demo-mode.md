@@ -6,7 +6,7 @@
 
 | Area | Behavior in demo mode |
 |---|---|
-| Data | Each visitor gets a **private sandbox** when they enter: their own organization, seeded with the same fictional company. Sandboxes are deleted after `DEMO_SANDBOX_HOURS` (default 24). At 300, the oldest make room, but none younger than an hour; if all are, the demo says it is full. `npm run demo:reset` deletes them all. |
+| Data | Each visitor gets a **private sandbox** when they enter: their own organization, seeded with the same fictional company. Sandboxes are deleted after `DEMO_SANDBOX_HOURS` (default 24). At 300, the oldest make room, but none younger than an hour; if all are, the demo says it is full. `npm run demo:reset --prefix server` deletes them all. |
 | Company | **Lumen Grid**, a fictional climate-tech startup with a complete profile, 10 fictional journalists at 8 fictional outlets, made-up articles, finished dossiers with hand-set scores and template explanations, one sample pitch each, outreach history and a coverage item. Every URL and email is on `example.com`. |
 | Access | "Enter the demo" creates the sandbox and signs the visitor in as its **member** (no password). Sign-up, password login and invites are off. New sandboxes and writes are limited per visitor, per network and overall. |
 | Banner | "Demo data — fictional" is always visible. |
@@ -24,8 +24,9 @@
 
 ## Running it
 
-```bash
-DEMO_MODE=true ANTHROPIC_API_KEY=… DATABASE_URL=… npm run dev --prefix server
-```
+Use a dedicated, empty database. In `server/.env`, set `DATABASE_URL`, `SESSION_SECRET` and `ANTHROPIC_API_KEY`, and add `DEMO_MODE=true`. Then:
 
-Use a dedicated database for the demo.
+```bash
+npm run migrate:up --prefix server
+npm run dev
+```

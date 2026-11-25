@@ -133,8 +133,8 @@ export default function TeamPage() {
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
               <div className="sm:col-span-7">
-                <label className="form-label">Email</label>
-                <input
+                <label className="form-label" htmlFor="team-email">Email</label>
+                <input id="team-email"
                   className="form-input"
                   type="email"
                   value={inviteEmail}
@@ -143,8 +143,8 @@ export default function TeamPage() {
                 />
               </div>
               <div className="sm:col-span-3">
-                <label className="form-label">Role</label>
-                <select className="form-input" value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
+                <label className="form-label" htmlFor="team-role">Role</label>
+                <select id="team-role" className="form-input" value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
                   <option value="member">Member</option>
                   <option value="admin">Admin</option>
                   <option value="owner">Owner</option>

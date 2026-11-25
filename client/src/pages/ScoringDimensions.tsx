@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Trash2, GripVertical, Sparkles } from 'lucide-react';
+import { useEffect, useState, useId } from 'react';
+import { Plus, Trash2, Sparkles } from 'lucide-react';
 import { scoringDimensions as api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import type { ScoringDimension } from '../types';
@@ -97,7 +97,6 @@ export default function ScoringDimensions() {
               <DimensionForm form={form} set={set} saving={saving} onSave={handleUpdate} onCancel={cancelEdit} />
             ) : (
               <div className="flex items-start gap-3">
-                <GripVertical className="w-4 h-4 text-slate-300 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-slate-900 text-sm">{d.name}</span>
@@ -144,19 +143,20 @@ function DimensionForm({ form, set, saving, onSave, onCancel }: {
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const id = useId();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
       <div className="sm:col-span-3">
-        <label className="form-label">Name *</label>
-        <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Beat relevance" autoFocus />
+        <label className="form-label" htmlFor={`${id}-name`}>Name *</label>
+        <input id={`${id}-name`} className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Beat relevance" autoFocus />
       </div>
       <div className="sm:col-span-6">
-        <label className="form-label">Description</label>
-        <input className="form-input" value={form.description} onChange={e => set('description', e.target.value)} placeholder="Used in the AI scoring prompt" />
+        <label className="form-label" htmlFor={`${id}-description`}>Description</label>
+        <input id={`${id}-description`} className="form-input" value={form.description} onChange={e => set('description', e.target.value)} placeholder="Used in the AI scoring prompt" />
       </div>
       <div className="sm:col-span-3">
-        <label className="form-label">Weight (points)</label>
-        <input
+        <label className="form-label" htmlFor={`${id}-weight-points`}>Weight (points)</label>
+        <input id={`${id}-weight-points`}
           type="number"
           min={0}
           max={100}

@@ -64,7 +64,7 @@ export async function discoverCategoryFeeds(publicationUrl: string, topics: Topi
   let html: string;
   try {
     if (!(await isAllowedByRobots(publicationUrl))) {
-      throw new Error('disallowed by robots.txt');
+      throw new Error('robots.txt disallows it or could not be loaded');
     }
     const res = await axios.get(publicationUrl, {
       timeout: 12000,

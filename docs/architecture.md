@@ -17,7 +17,7 @@ server/   Express + TypeScript, PostgreSQL via `pg`, migrations via node-pg-migr
 | `src/lib/bootstrap.ts` | Ensures the single org exists, seeds default scoring dimensions, applies `company.config.json`, creates the env admin |
 | `src/lib/http.ts` | Honest User-Agent and the robots.txt check used for third-party page fetches |
 | `src/lib/claude.ts` | The Claude model name (`ANTHROPIC_MODEL`) |
-| `src/routes/*` | One router per resource. Every query is scoped by `org_id` taken from the JWT |
+| `src/routes/*` | One router per resource. Queries on an organization's data are scoped by `org_id` taken from the JWT |
 | `src/services/*` | Scoring, pitch drafts, publication suggestions, discovery (RSS, blogs, staff pages), health checks, Gmail |
 | `src/demo/*` | Demo seed data, per-visitor sandboxes, the live-AI limiter |
 | `migrations/` | Versioned schema changes (CommonJS) |
@@ -26,7 +26,7 @@ server/   Express + TypeScript, PostgreSQL via `pg`, migrations via node-pg-migr
 
 There is a single real `organizations` row, created on boot. Rows in every table still carry `org_id` (so queries are explicitly scoped and the schema stays simple to reason about), but the app never creates a second one. (In [demo mode](demo-mode.md) there is none: each visitor gets a temporary sandbox organization instead.) The first signup becomes the owner; everyone else joins by invite.
 
-## The company profile drives every AI step
+## The company profile drives the AI steps
 
 ```mermaid
 flowchart TD
@@ -66,7 +66,7 @@ flowchart TD
 
 ## Discovery and polite crawling
 
-RSS auto-discovery, category-feed discovery and staff-page scanning fetch publisher HTML pages. They identify themselves with `BOT_USER_AGENT` (or `BOT_NAME` + `BOT_CONTACT_URL`) and skip pages that `robots.txt` disallows for the bot. Blog search uses Feedly, Substack and Medium endpoints. Every discovered journalist or publication lands in a review queue; nothing is added without an explicit accept.
+RSS auto-discovery, category-feed discovery and staff-page scanning fetch publisher HTML pages. They identify themselves with `BOT_USER_AGENT` (or `BOT_NAME` + `BOT_CONTACT_URL`) and skip pages that `robots.txt` disallows for the bot, or whose `robots.txt` can't be loaded. Blog search uses Feedly, Substack and Medium endpoints. Every discovered journalist or publication lands in a review queue; nothing is added without an explicit accept.
 
 ## Data model (summary)
 

@@ -31,8 +31,7 @@ async function attachScores(orgId: string, journalistIds: number[]) {
   return map;
 }
 
-// outreach_status is derived from the latest outreach_logs row, never stored —
-// avoids the sync-bug class the old app had with a separately-maintained status column.
+// Derived from the latest outreach_logs row rather than stored, so the two can't disagree.
 const OUTREACH_STATUS_SELECT = `COALESCE((
   SELECT ol.status FROM outreach_logs ol
   WHERE ol.journalist_id = j.id AND ol.org_id = j.org_id

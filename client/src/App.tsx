@@ -37,11 +37,11 @@ const adminItems = [
   { to: '/settings/company', label: 'Company Profile', icon: Building2 },
   { to: '/admin/scoring-dimensions', label: 'Scoring Dimensions', icon: Target },
   { to: '/admin/publications', label: 'Publications', icon: Settings },
-  { to: '/admin/journalist-suggestions', label: 'RSS Suggestions', icon: Rss },
+  { to: '/admin/journalist-suggestions', label: 'Journalist Suggestions', icon: Rss },
   { to: '/campaigns/styles', label: 'House Style', icon: Wand2 },
   { to: '/export', label: 'Export Data', icon: FileDown },
   { to: '/team', label: 'Team', icon: UserCog },
-  { to: '/system', label: 'System Info', icon: BookOpen },
+  { to: '/system', label: 'How it works', icon: BookOpen },
 ];
 
 function initials(name: string) {
@@ -94,7 +94,7 @@ export default function App() {
         <p className="text-slate-700 font-medium">{attempts > 0 ? 'Waking up the server…' : 'Loading…'}</p>
         {attempts > 0 && (
           <p className="text-slate-400 text-sm max-w-sm">
-            The demo runs on a free host that sleeps when idle, so the first visit can take up to a minute. Retrying automatically (attempt {attempts}).
+            The server may be asleep. Free hosts sleep when idle, so the first visit can take up to a minute. Retrying automatically (attempt {attempts}).
           </p>
         )}
       </div>
@@ -198,7 +198,7 @@ export default function App() {
                   {suggestionCount}
                 </span>
               )}
-              {label === 'RSS Suggestions' && jSuggestionCount > 0 && (
+              {label === 'Journalist Suggestions' && jSuggestionCount > 0 && (
                 <span className="ml-auto bg-emerald-400 text-emerald-900 text-xs font-bold px-1.5 py-0.5 rounded-full">
                   {jSuggestionCount}
                 </span>

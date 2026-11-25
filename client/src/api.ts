@@ -58,21 +58,12 @@ export const login = (email: string, password: string) =>
 export default api;
 
 export const journalists = {
-  // params accepted for backward compatibility with not-yet-rewritten pages;
-  // the org-scoped backend doesn't support server-side sort/filter yet.
-  list: (_params?: object) => api.get('/journalists'),
+  list: () => api.get('/journalists'),
   get: (id: number) => api.get(`/journalists/${id}`),
   create: (data: object) => api.post('/journalists', data),
   update: (id: number, data: object) => api.put(`/journalists/${id}`, data),
   delete: (id: number) => api.delete(`/journalists/${id}`),
   scoreWithAI: (id: number) => api.post(`/journalists/${id}/score`),
-  // Not yet implemented on the org-scoped backend (deferred to later phases):
-  bulkRescore: () => api.post('/journalists/bulk-rescore'),
-  backfillArticles: () => api.post('/journalists/backfill-articles'),
-  toggleFavorite: (id: number) => api.patch(`/journalists/${id}/favorite`),
-  uploadPhoto: (id: number, photoUrl: string) => api.post(`/journalists/${id}/photo`, { photoUrl }),
-  rescore: (id: number) => api.post(`/journalists/${id}/rescore`),
-  refreshArticles: () => api.post('/journalist-articles/refresh-now'),
 };
 
 export const scoringDimensions = {
@@ -93,7 +84,6 @@ export const outreach = {
   byJournalist: (id: number) => api.get(`/outreach/journalist/${id}`),
   activity: (params?: Record<string, string | number | boolean | undefined>) => api.get('/outreach/activity', { params }),
   create: (data: object) => api.post('/outreach', data),
-  update: (id: number, data: object) => api.put(`/outreach/${id}`, data),
   delete: (id: number) => api.delete(`/outreach/${id}`),
 };
 
@@ -111,14 +101,10 @@ export const campaigns = {
   addJournalists: (id: number, journalistIds: number[]) => api.post(`/campaigns/${id}/journalists`, { journalistIds }),
   removeJournalist: (id: number, journalistId: number) => api.delete(`/campaigns/${id}/journalists/${journalistId}`),
   generateDrafts: (id: number) => api.post(`/campaigns/${id}/generate-drafts`),
-  suggestJournalists: (id: number) => api.post(`/campaigns/${id}/suggest-journalists`),
   regenerateDraft: (id: number, journalistId: number, instructions: string) =>
     api.post(`/campaigns/${id}/journalists/${journalistId}/regenerate`, { instructions }),
   updateDraft: (id: number, journalistId: number, data: object) => api.put(`/campaigns/${id}/journalists/${journalistId}/draft`, data),
   markSent: (id: number, journalistId: number) => api.post(`/campaigns/${id}/journalists/${journalistId}/send`),
-  getCoverage: (id: number) => api.get(`/campaigns/${id}/coverage`),
-  linkCoverage: (id: number, coverageId: number) => api.post(`/campaigns/${id}/coverage/link`, { coverageId }),
-  unlinkCoverage: (id: number, coverageId: number) => api.delete(`/campaigns/${id}/coverage/${coverageId}/unlink`),
   createGmailDrafts: (id: number) => api.post(`/campaigns/${id}/create-gmail-drafts`),
 };
 
@@ -148,11 +134,9 @@ export const publications = {
   getFeeds:      (id: number) => api.get(`/publications/${id}/feeds`),
   getJournalists: (id: number) => api.get(`/publications/${id}/journalists`),
   discover: (query: string) => api.post('/publications/discover', { query }),
-  discoverRss: (id: number) => api.post(`/publications/${id}/discover-rss`),
   discoverFeeds: (id: number) => api.post(`/publications/${id}/discover-feeds`),
   addFeed:       (id: number, feedUrl: string, feedLabel: string) => api.post(`/publications/${id}/feeds`, { feedUrl, feedLabel }),
   deleteFeed:    (id: number, feedId: number) => api.delete(`/publications/${id}/feeds/${feedId}`),
-  checkAllFeeds: () => api.post('/publications/check-feeds'),
   syncFeeds: () => api.post('/publications/sync-feeds'),
   importOpml: (opml: string) => api.post('/publications/import-opml', { opml }),
 };
@@ -163,7 +147,6 @@ export const journalistSuggestions = {
   accept: (id: number) => api.post(`/journalist-suggestions/${id}/accept`),
   reject: (id: number) => api.post(`/journalist-suggestions/${id}/reject`),
   history: () => api.get('/journalist-suggestions/history'),
-  scanPublication: (publicationId: number) => api.post(`/journalist-suggestions/scan/${publicationId}`),
   staffScan: (publicationId: number) => api.post(`/journalist-suggestions/staff-scan/${publicationId}`),
   scanAll: () => api.post('/journalist-suggestions/scan-all'),
 };
@@ -184,12 +167,9 @@ export const suggestions = {
 
 export const coverage = {
   list:      (params?: Record<string, string | number | boolean | undefined>) => api.get('/coverage', { params }),
-  get:       (id: number)   => api.get(`/coverage/${id}`),
   create:    (data: object)    => api.post('/coverage', data),
   update:    (id: number, data: object) => api.put(`/coverage/${id}`, data),
   delete:    (id: number)   => api.delete(`/coverage/${id}`),
-  fetchMeta:  (url: string)  => api.post('/coverage/fetch-meta', { url }),
-  parseText:  (text: string) => api.post('/coverage/parse-text', { text }),
 };
 
 export const team = {

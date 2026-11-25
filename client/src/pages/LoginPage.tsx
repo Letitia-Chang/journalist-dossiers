@@ -57,8 +57,8 @@ export default function LoginPage() {
         {!status.demo && <div className="bg-white rounded-2xl shadow-2xl p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">Email</label>
-              <input
+              <label className="block text-xs font-medium text-slate-700 mb-1.5" htmlFor="login-email">Email</label>
+              <input id="login-email"
                 type="email"
                 autoFocus
                 required
@@ -70,8 +70,8 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">Password</label>
-              <input
+              <label className="block text-xs font-medium text-slate-700 mb-1.5" htmlFor="login-password">Password</label>
+              <input id="login-password"
                 type="password"
                 required
                 value={password}

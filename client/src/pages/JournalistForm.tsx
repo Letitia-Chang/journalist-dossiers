@@ -94,12 +94,12 @@ export default function JournalistForm() {
       <div className="card p-6 space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="form-label">Name *</label>
-            <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} autoFocus />
+            <label className="form-label" htmlFor="journalist-form-name">Name *</label>
+            <input id="journalist-form-name" className="form-input" value={form.name} onChange={e => set('name', e.target.value)} autoFocus />
           </div>
           <div>
-            <label className="form-label">Publication</label>
-            <select className="form-select" value={form.publicationId} onChange={e => set('publicationId', e.target.value ? Number(e.target.value) : '')}>
+            <label className="form-label" htmlFor="journalist-form-publication">Publication</label>
+            <select id="journalist-form-publication" className="form-select" value={form.publicationId} onChange={e => set('publicationId', e.target.value ? Number(e.target.value) : '')}>
               <option value="">— None —</option>
               {pubList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
@@ -108,38 +108,38 @@ export default function JournalistForm() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label className="form-label">Email</label>
-            <input className="form-input" value={form.email} onChange={e => set('email', e.target.value)} />
+            <label className="form-label" htmlFor="journalist-form-email">Email</label>
+            <input id="journalist-form-email" className="form-input" value={form.email} onChange={e => set('email', e.target.value)} />
           </div>
           <div>
-            <label className="form-label">Twitter/X</label>
-            <input className="form-input" value={form.twitter} onChange={e => set('twitter', e.target.value)} placeholder="@handle" />
+            <label className="form-label" htmlFor="journalist-form-twitter-x">Twitter/X</label>
+            <input id="journalist-form-twitter-x" className="form-input" value={form.twitter} onChange={e => set('twitter', e.target.value)} placeholder="@handle" />
           </div>
           <div>
-            <label className="form-label">LinkedIn</label>
-            <input className="form-input" value={form.linkedin} onChange={e => set('linkedin', e.target.value)} placeholder="URL" />
+            <label className="form-label" htmlFor="journalist-form-linkedin">LinkedIn</label>
+            <input id="journalist-form-linkedin" className="form-input" value={form.linkedin} onChange={e => set('linkedin', e.target.value)} placeholder="URL" />
           </div>
         </div>
 
         <div>
-          <label className="form-label">Beats <span className="text-slate-400 font-normal">(comma-separated)</span></label>
-          <input className="form-input" value={form.beats} onChange={e => set('beats', e.target.value)} placeholder="energy policy, local business" />
+          <label className="form-label" htmlFor="journalist-form-beats">Beats <span className="text-slate-400 font-normal">(comma-separated)</span></label>
+          <input id="journalist-form-beats" className="form-input" value={form.beats} onChange={e => set('beats', e.target.value)} placeholder="energy policy, local business" />
         </div>
 
         <div>
-          <label className="form-label">Bio / notes</label>
-          <textarea className="form-input" rows={3} value={form.bio} onChange={e => set('bio', e.target.value)} placeholder="Background, beat focus, anything useful for pitching" />
+          <label className="form-label" htmlFor="journalist-form-bio-notes">Bio / notes</label>
+          <textarea id="journalist-form-bio-notes" className="form-input" rows={3} value={form.bio} onChange={e => set('bio', e.target.value)} placeholder="Background, beat focus, anything useful for pitching" />
         </div>
 
         <div>
-          <label className="form-label">Photo URL</label>
-          <input className="form-input" value={form.photoUrl} onChange={e => set('photoUrl', e.target.value)} placeholder="https://..." />
+          <label className="form-label" htmlFor="journalist-form-photo-url">Photo URL</label>
+          <input id="journalist-form-photo-url" className="form-input" value={form.photoUrl} onChange={e => set('photoUrl', e.target.value)} placeholder="https://..." />
         </div>
 
         {/* ── Scoring ── */}
         <div className="pt-2 border-t border-slate-100">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <label className="form-label mb-0">Scores</label>
+            <h2 className="form-label mb-0">Scores</h2>
             <span className="text-xs font-mono text-slate-500">{totalScore} total</span>
           </div>
           {dimensions.length === 0 ? (
@@ -156,6 +156,7 @@ export default function JournalistForm() {
                   </div>
                   <input
                     type="range"
+                    aria-label={`${d.name} score`}
                     min={0}
                     max={d.weight}
                     value={scores[d.id] ?? 0}
@@ -164,6 +165,7 @@ export default function JournalistForm() {
                   />
                   <input
                     type="number"
+                    aria-label={`${d.name} score, typed`}
                     min={0}
                     max={d.weight}
                     value={scores[d.id] ?? 0}
