@@ -233,6 +233,12 @@ describe.skipIf(!hasDb)('data integrity', () => {
       expect((await api('put', `${m.path}/draft`, { draftBody: 'Changed' })).status).toBe(200);
       expect((await m.row()).gmail_draft_id).toBeNull();
     });
+    it('making a Gmail draft from an interrupted rewrite leaves it ready', async () => {
+      const m = await member('revived', { draftSubject: 'S', draftBody: 'B' });
+      await ctx.pool.query(`UPDATE campaign_journalists SET status = 'drafting', updated_at = NOW() - INTERVAL '11 minutes' WHERE journalist_id = $1`, [m.id]);
+      await api('post', `/api/campaigns/${c}/create-gmail-drafts`);
+      expect(await m.row()).toMatchObject({ status: 'ready', gmail_draft_id: expect.stringMatching(/^draft-/) });
+    });
     it('a pitch cleared again can be generated', async () => {
       const m = await member('cleared', { draftSubject: 'S', draftBody: 'B' });
       expect((await api('put', `${m.path}/draft`, { draftSubject: ' ', draftBody: '' })).body.status).toBe('not_started');

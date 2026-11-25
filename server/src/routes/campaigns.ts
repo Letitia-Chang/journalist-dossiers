@@ -154,7 +154,8 @@ router.post('/:id/generate-drafts', async (req, res) => {
   );
   claimed.sort((a, b) => a.id - b.id);
   const release = (ids: number[]) => pool.query(
-    `UPDATE campaign_journalists SET status = 'not_started', updated_at = NOW() WHERE id = ANY($1::int[]) AND status = 'drafting'`, [ids]);
+    `UPDATE campaign_journalists SET status = 'not_started', updated_at = NOW()
+     WHERE id = ANY($1::int[]) AND status = 'drafting' AND updated_at = $2::timestamptz`, [ids, claimed[0]?.token]);
 
   // Demo safeguard: each draft is one live Claude call; only run as many as this visitor has left.
   let granted = 0;
@@ -267,7 +268,7 @@ router.post('/:id/journalists/:journalistId/regenerate', async (req, res) => {
      RETURNING id, campaign_id, journalist_id, draft_subject, draft_body, status, sent_at`,
     [draft.subject, draft.body, claim.id, claim.token],
   );
-  if (!row) return res.status(409).json({ error: 'This pitch was changed while the AI was writing, so that version was kept.' });
+  if (!row) return res.status(409).json({ error: 'This pitch was changed or removed while the AI was writing, so the AI draft was dropped.' });
   res.json(row);
 });
 
@@ -368,7 +369,7 @@ router.post('/:id/create-gmail-drafts', async (req, res) => {
     // Claim the row first, so a double click can't create the same draft twice and its text can't
     // change before Gmail has it. Read the text now: it may have been edited since the list was made.
     const { rows: [pitch] } = await pool.query(
-      `UPDATE campaign_journalists SET gmail_draft_id = '${CLAIM}', updated_at = NOW()
+      `UPDATE campaign_journalists SET gmail_draft_id = '${CLAIM}', status = 'ready', updated_at = NOW()
        WHERE id = $1 AND status <> 'sent' AND NOT ${WRITING} AND ${HAS_TEXT} AND ${UNCLAIMED}
        RETURNING draft_subject, draft_body`, [t.id]);
     if (!pitch) continue;
