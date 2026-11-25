@@ -18,8 +18,10 @@ const RSS_SUFFIXES = [
   '/rss/index.xml', '/feed/', '/feed', '/rss/', '/rss', '/feed.xml', '/atom.xml',
   '?format=rss', '?rss=y', '?feed=rss2',
 ];
-/** Pages that are never a section of articles, with or without more words ("about-us", "privacy-policy"). */
-const NOT_A_SECTION = /^(about|contact|advertis|subscri|newsletter|log-?in|sign-?(in|up)|regist|account|profile|search|sitemap|privacy|terms|cookie|legal|careers?|jobs?|events?|store|shop|cart|donate|support|help|faq|feed|rss|author|staff|team|masthead|press-?kit|my-|user|wp-)/i;
+/** Machinery, never a section. */
+const NEVER = /^(log-?in|log-?out|sign-?in|sign-?up|register|account|my-account|cart|checkout|search|sitemap|feed|rss|wp-(admin|content|json|login))$/i;
+/** Usually a page about the site, unless it matches what the company does ("/legal" for a law company). */
+const USUALLY_NOT = /^(about([-_].*)?|contact([-_]us)?|advertis(e|ing)([-_].*)?|subscribe|subscriptions?|newsletters?|profiles?|privacy([-_].*)?|terms([-_].*)?|cookies?([-_].*)?|legal([-_].*)?|careers?|jobs?|events?|store|shop|donate|support([-_]us)?|help|faqs?|authors?|staff|team|masthead|press[-_]?kit)$/i;
 
 /** Links on a homepage worth trying for a feed: matching sections first, then a few others. */
 export function sectionCandidates(html: string, homepage: string, topics: Topics): [string, string][] {
@@ -34,7 +36,7 @@ export function sectionCandidates(html: string, homepage: string, topics: Topics
     if (url.hostname !== base.hostname || !/^https?:$/.test(url.protocol)) return;
     const segments = url.pathname.split('/').filter(Boolean);
     // The query and fragment don't make it a different section, and "#top" is just the homepage again.
-    if (segments.length === 0 || segments.length > 3 || NOT_A_SECTION.test(segments[0])) return;
+    if (segments.length === 0 || segments.length > 3 || NEVER.test(segments[0])) return;
     if (/\.\w{2,5}$/.test(url.pathname)) return;
     const section = `${url.origin}/${segments.join('/')}`;
     if (matched.has(section) || others.has(section)) return;
@@ -44,8 +46,8 @@ export function sectionCandidates(html: string, homepage: string, topics: Topics
     const text = clip($(el).text(), 100);
     const label = clip((slug.split(' ').pop() ?? text).replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), 60) || 'Section';
     const m = matchTopics(topics, `${text} ${slug.replace(/[-_]/g, ' ')}`, []);
-    if (m.points > 0) matched.set(section, label);
-    else if (segments.length === 1) others.set(section, label);
+    if (m.points > 0 || (m.partial > 0 && !USUALLY_NOT.test(segments[0]))) matched.set(section, label);
+    else if (segments.length === 1 && !USUALLY_NOT.test(segments[0])) others.set(section, label);
   });
   return [...[...matched].slice(0, MAX_MATCHED), ...[...others].slice(0, Math.max(0, MAX_UNMATCHED - matched.size))];
 }

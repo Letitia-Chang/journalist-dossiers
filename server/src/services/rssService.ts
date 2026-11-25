@@ -2,7 +2,7 @@ import Parser from 'rss-parser';
 import { clip, clipDate, clipUrl } from '../lib/clip';
 import pool from '../db';
 import { loadProfile } from '../lib/companyProfile';
-import { commonCategory, matchTopics, relevance, topicsFrom, type Topics } from '../lib/topics';
+import { commonCategory, matchTopics, relevance, strength, topicsFrom, type Topics } from '../lib/topics';
 import { generateRssDiagnosticNote } from './rssDiagnostic';
 import { botUserAgent } from '../lib/http';
 
@@ -25,8 +25,7 @@ interface AuthorRelevance { relevanceScore: number; matchedTags: string[]; bestA
 
 function scoreAuthor(articles: ArticleData[], topics: Topics): AuthorRelevance {
   const matches = articles.map(a => matchTopics(topics, a.title, a.categories));
-  const strength = (i: number) => matches[i].points + matches[i].weak / 10;
-  const best = matches.reduce((b, _m, i) => (strength(i) > strength(b) ? i : b), 0);
+  const best = matches.reduce((b, _m, i) => (strength(matches[i]) > strength(matches[b]) ? i : b), 0);
   return {
     relevanceScore: relevance(matches),
     matchedTags: [...new Set(matches.flatMap(m => m.matched))].slice(0, 8),

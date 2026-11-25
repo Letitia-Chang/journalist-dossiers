@@ -262,19 +262,15 @@ export default function AdminJournalistSuggestions() {
                 <p className="text-xs text-slate-400 mb-3">Points are summed across up to 10 recent articles, then capped at 10.</p>
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs text-slate-600">Feed category matches your industry, a spokesperson topic or a competitor</span>
+                    <span className="text-xs text-slate-600">Feed category matches a whole industry, spokesperson topic or competitor</span>
                     <span className="text-xs font-semibold text-emerald-600 shrink-0">+3</span>
                   </div>
                   <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs text-slate-600">Feed category shares a word with your industry or topics</span>
+                    <span className="text-xs text-slate-600">The same for a headline</span>
                     <span className="text-xs font-semibold text-emerald-600 shrink-0">+2</span>
                   </div>
                   <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs text-slate-600">The same for a headline</span>
-                    <span className="text-xs font-semibold text-emerald-600 shrink-0">+2 / +1</span>
-                  </div>
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs text-slate-600">Two or more words from the rest of your profile (at most 2 in total)</span>
+                    <span className="text-xs text-slate-600">One word of an industry or topic, or two words from the rest of your profile (at most 2 points in total)</span>
                     <span className="text-xs font-semibold text-emerald-600 shrink-0">+1</span>
                   </div>
                 </div>
