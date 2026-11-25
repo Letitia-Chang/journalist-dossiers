@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import pool from '../db';
+import * as schemas from '../lib/schemas';
+import { parseBody, validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { id: 'int', journalistId: 'int' });
 
 router.get('/journalist/:journalistId', async (req, res) => {
   const { rows } = await pool.query(
@@ -14,13 +17,7 @@ router.get('/journalist/:journalistId', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { journalistId, title, url, summary, publishedAt } = req.body as {
-    journalistId?: number; title?: string; url?: string; summary?: string; publishedAt?: string;
-  };
-  if (!journalistId || !title) {
-    return res.status(400).json({ error: 'journalistId and title are required' });
-  }
-
+  const { journalistId, title, url, summary, publishedAt } = parseBody(schemas.articleCreate, req);
   const { rows: [journalist] } = await pool.query(
     'SELECT id FROM journalists WHERE id = $1 AND org_id = $2',
     [journalistId, req.orgId],
@@ -37,9 +34,7 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { title, url, summary, publishedAt } = req.body as {
-    title?: string; url?: string; summary?: string; publishedAt?: string;
-  };
+  const { title, url, summary, publishedAt } = parseBody(schemas.articleUpdate, req);
   const { rows: [row] } = await pool.query(
     `UPDATE articles SET
        title = COALESCE($1, title),

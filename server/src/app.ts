@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import userAuthRouter from './routes/userAuth';
 import scoringDimensionsRouter from './routes/scoringDimensions';
 import publicationsRouter from './routes/publications';
@@ -18,9 +19,13 @@ import googleAuthRouter from './routes/googleAuth';
 import setupRouter from './routes/setup';
 import companyRouter from './routes/company';
 import { requireAuth } from './middleware/auth';
+import { errorHandler, HttpError } from './lib/httpError';
 import { allowedOrigins, isOriginAllowed } from './lib/cors';
 
 export const app = express();
+
+// JSON API: no framing, no sniffing, no X-Powered-By. CORS below decides who may read responses.
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // Behind a proxy (Render, Vercel, etc.) req.ip is the proxy unless we trust X-Forwarded-For.
 if (process.env.DEMO_MODE === 'true' || process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1);
@@ -31,17 +36,18 @@ const origins = allowedOrigins();
 app.use(cors({
   origin: (origin, callback) => {
     if (isOriginAllowed(origin, origins)) return callback(null, true);
-    callback(new Error('Not allowed by CORS'));
+    callback(new HttpError(403, 'Not allowed by CORS'));
   },
   credentials: true,
 }));
 
-app.use(express.json({ limit: '10mb' }));
+// Small by default. Only the OPML import, which is behind auth, takes a larger body.
+const json = express.json({ limit: '200kb' });
 
 // ── Auth — signup/login must come before requireAuth ─────────────────────────
-app.use('/api/auth', userAuthRouter);
+app.use('/api/auth', json, userAuthRouter);
 app.use('/api/setup', setupRouter);
-app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', (_req, res) => { res.json({ status: 'ok' }); });
 
 // Gmail OAuth — mounted at the bare /auth path (not /api) since /auth/google and
 // /auth/google/callback are plain browser redirects that can't carry an
@@ -50,7 +56,10 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 // apply requireAuth internally since those are normal XHR calls.
 app.use('/auth', googleAuthRouter);
 
+// Authenticate before parsing, so an anonymous request can't make us read a body.
 app.use('/api', requireAuth);
+app.use('/api/publications/import-opml', express.json({ limit: '5mb' }));
+app.use(json);
 
 // ── Org-scoped resource routes ────────────────────────────────────────────────
 app.use('/api/scoring-dimensions', scoringDimensionsRouter);
@@ -68,8 +77,5 @@ app.use('/api/suggestions', suggestionsRouter);
 app.use('/api/team', teamRouter);
 app.use('/api/company', companyRouter);
 
-// ── Global error handler ──────────────────────────────────────────────────────
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('[Unhandled error]', err);
-  res.status(500).json({ error: err.message || 'Internal server error' });
-});
+app.use((_req, res) => { res.status(404).json({ error: 'Not found' }); });
+app.use(errorHandler);

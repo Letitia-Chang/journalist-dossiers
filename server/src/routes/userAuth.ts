@@ -4,20 +4,16 @@ import pool from '../db';
 import { signToken } from '../middleware/auth';
 import { ensureOrg, seedDimensions } from '../lib/bootstrap';
 import { DEMO_USER_EMAIL } from '../demo/seedData';
+import * as schemas from '../lib/schemas';
+import { parseBody, validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { token: 'token' });
 
 // First-run only: the first account becomes the owner of the single company.
 // After that, people join via an invite from the owner (see /api/team/invites).
 router.post('/signup', async (req, res) => {
-  const { email, password, name } = req.body as { email?: string; password?: string; name?: string };
-
-  if (!email || !password || !name) {
-    return res.status(400).json({ error: 'name, email and password are required' });
-  }
-  if (password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters' });
-  }
+  const { email, password, name } = parseBody(schemas.signup, req);
 
   const client = await pool.connect();
   try {
@@ -35,7 +31,7 @@ router.post('/signup', async (req, res) => {
     const { rows: [user] } = await client.query(
       `INSERT INTO users (org_id, email, password_hash, name, role)
        VALUES ($1, $2, $3, $4, 'owner') RETURNING id, email, name, role`,
-      [orgId, email.trim().toLowerCase(), passwordHash, name.trim()],
+      [orgId, email, passwordHash, name],
     );
     const { rows: [org] } = await client.query('SELECT id, name, slug FROM organizations WHERE id = $1', [orgId]);
     await client.query('COMMIT');
@@ -44,8 +40,7 @@ router.post('/signup', async (req, res) => {
     res.status(201).json({ token, user, org });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[auth] signup failed', err);
-    res.status(500).json({ error: 'Setup failed' });
+    throw err;
   } finally {
     client.release();
   }
@@ -65,14 +60,7 @@ router.get('/invite/:token', async (req, res) => {
 });
 
 router.post('/accept-invite', async (req, res) => {
-  const { token, name, password } = req.body as { token?: string; name?: string; password?: string };
-  if (!token || !name || !password) {
-    return res.status(400).json({ error: 'token, name, and password are required' });
-  }
-  if (password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters' });
-  }
-
+  const { token, name, password } = parseBody(schemas.acceptInvite, req);
   const client = await pool.connect();
   try {
     const { rows: [invite] } = await client.query('SELECT * FROM invites WHERE token = $1', [token]);
@@ -105,8 +93,7 @@ router.post('/accept-invite', async (req, res) => {
     res.status(201).json({ token: jwtToken, user, org });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[auth] accept-invite failed', err);
-    res.status(500).json({ error: 'Failed to accept invite' });
+    throw err;
   } finally {
     client.release();
   }
@@ -130,33 +117,24 @@ router.post('/demo-login', async (_req, res) => {
 });
 
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body as { email?: string; password?: string };
-  if (!email || !password) {
-    return res.status(400).json({ error: 'email and password are required' });
+  const { email, password } = parseBody(schemas.login, req);
+  const { rows } = await pool.query(
+    `SELECT u.id, u.email, u.name, u.role, u.password_hash, o.id as org_id, o.name as org_name, o.slug as org_slug
+     FROM users u JOIN organizations o ON o.id = u.org_id
+     WHERE u.email = $1`,
+    [email],
+  );
+  const row = rows[0];
+  if (!row || !(await bcrypt.compare(password, row.password_hash))) {
+    return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  try {
-    const { rows } = await pool.query(
-      `SELECT u.id, u.email, u.name, u.role, u.password_hash, o.id as org_id, o.name as org_name, o.slug as org_slug
-       FROM users u JOIN organizations o ON o.id = u.org_id
-       WHERE u.email = $1`,
-      [email],
-    );
-    const row = rows[0];
-    if (!row || !(await bcrypt.compare(password, row.password_hash))) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const token = signToken({ sub: row.id, orgId: row.org_id, role: row.role });
-    res.json({
-      token,
-      user: { id: row.id, email: row.email, name: row.name, role: row.role },
-      org: { id: row.org_id, name: row.org_name, slug: row.org_slug },
-    });
-  } catch (err) {
-    console.error('[auth] login failed', err);
-    res.status(500).json({ error: 'Login failed' });
-  }
+  const token = signToken({ sub: row.id, orgId: row.org_id, role: row.role });
+  res.json({
+    token,
+    user: { id: row.id, email: row.email, name: row.name, role: row.role },
+    org: { id: row.org_id, name: row.org_name, slug: row.org_slug },
+  });
 });
 
 export default router;

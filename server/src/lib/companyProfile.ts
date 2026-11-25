@@ -7,46 +7,49 @@ import pool from '../db';
  * company is hard-coded anywhere else.
  */
 
-const optionalUrl = z.union([z.literal(''), z.string().trim().url('Must be a valid URL (https://…)')]);
+// Every field ends up in paid Claude prompts, so every field has a cap.
+const str = (max: number) => z.string().trim().max(max, `Must be ${max} characters or fewer`).refine(s => !s.includes('\u0000'), 'Invalid characters');
+const httpUrl = z.string().trim().max(500).regex(/^https?:\/\//i, 'Must be a valid URL (https://…)').url('Must be a valid URL (https://…)');
+const optionalUrl = z.union([z.literal(''), httpUrl]);
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color like #4f46e5');
-const stringList = z.array(z.string().trim().min(1)).default([]);
+const stringList = z.array(str(300).min(1)).max(20, 'At most 20 items').default([]);
 
 export const newsworthyItemSchema = z.object({
   type: z.enum(['launch', 'funding', 'research', 'hire', 'other']).default('other'),
-  title: z.string().trim().min(1, 'Title is required'),
-  date: z.string().trim().default(''),
-  description: z.string().trim().default(''),
+  title: str(200).min(1, 'Title is required'),
+  date: str(40).default(''),
+  description: str(1000).default(''),
   url: optionalUrl.default(''),
 });
 
 export const spokespersonSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  title: z.string().trim().default(''),
+  name: str(100).min(1, 'Name is required'),
+  title: str(100).default(''),
   topics: stringList,
 });
 
 export const pressCoverageSchema = z.object({
-  title: z.string().trim().default(''),
-  url: z.string().trim().url('Must be a valid URL (https://…)'),
+  title: str(200).default(''),
+  url: httpUrl,
 });
 
 export const companyProfileSchema = z.object({
-  name: z.string().trim().min(1, 'Company name is required'),
+  name: str(200).min(1, 'Company name is required'),
   website: optionalUrl.default(''),
-  one_liner: z.string().trim().default(''),
-  industry: z.string().trim().default(''),
-  products: z.string().trim().default(''),
-  target_audience: z.string().trim().default(''),
+  one_liner: str(500).default(''),
+  industry: str(200).default(''),
+  products: str(2000).default(''),
+  target_audience: str(1000).default(''),
   regions: stringList,
   key_messages: stringList,
-  newsworthy_items: z.array(newsworthyItemSchema).default([]),
+  newsworthy_items: z.array(newsworthyItemSchema).max(20, 'At most 20 items').default([]),
   competitors: stringList,
-  press_coverage: z.array(pressCoverageSchema).default([]),
-  spokespeople: z.array(spokespersonSchema).default([]),
-  pitch_tone: z.string().trim().default(''),
-  email_signature: z.string().default(''),
+  press_coverage: z.array(pressCoverageSchema).max(20, 'At most 20 items').default([]),
+  spokespeople: z.array(spokespersonSchema).max(20, 'At most 20 items').default([]),
+  pitch_tone: str(1000).default(''),
+  email_signature: z.string().max(1000).refine(s => !s.includes('\u0000'), 'Invalid characters').default(''),
   // Branding
-  app_name: z.string().trim().default('Press Dossier'),
+  app_name: str(60).default('Press Dossier'),
   logo_url: optionalUrl.default(''),
   brand_color: hexColor.default('#4f46e5'),
 });

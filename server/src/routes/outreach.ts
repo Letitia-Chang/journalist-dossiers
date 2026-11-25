@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import pool from '../db';
+import { assertOwned } from '../lib/owned';
+import * as schemas from '../lib/schemas';
+import { parseBody, validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { id: 'int', journalistId: 'int' });
 
 // GET /api/outreach/activity — chronological feed across all journalists
 router.get('/activity', async (req, res) => {
@@ -36,18 +40,13 @@ router.get('/journalist/:journalistId', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { journalistId, campaignId, type, status, notes } = req.body as {
-    journalistId?: number; campaignId?: number; type?: string; status?: string; notes?: string;
-  };
-  if (!journalistId || !type || !status) {
-    return res.status(400).json({ error: 'journalistId, type, and status are required' });
-  }
-
+  const { journalistId, campaignId, type, status, notes } = parseBody(schemas.outreachCreate, req);
   const { rows: [journalist] } = await pool.query(
     'SELECT id FROM journalists WHERE id = $1 AND org_id = $2',
     [journalistId, req.orgId],
   );
   if (!journalist) return res.status(404).json({ error: 'Journalist not found' });
+  await assertOwned(pool, req.orgId!, 'campaigns', [campaignId]);
 
   const { rows: [row] } = await pool.query(
     `INSERT INTO outreach_logs (org_id, journalist_id, campaign_id, logged_by, type, status, notes)
@@ -59,7 +58,7 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { type, status, notes } = req.body as { type?: string; status?: string; notes?: string };
+  const { type, status, notes } = parseBody(schemas.outreachUpdate, req);
   const { rows: [row] } = await pool.query(
     `UPDATE outreach_logs SET
        type = COALESCE($1, type),

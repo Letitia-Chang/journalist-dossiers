@@ -2,8 +2,12 @@ import { Router } from 'express';
 import pool from '../db';
 import { runAiScoring } from '../services/scoringRunner';
 import { clientIp } from '../lib/clientIp';
+import { assertOwned } from '../lib/owned';
+import * as schemas from '../lib/schemas';
+import { parseBody, validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { id: 'int' });
 
 interface ScoreRow { dimensionId: number; score: number; rationale: string; evidence: string[] }
 
@@ -61,6 +65,7 @@ async function upsertScoresAndRecompute(
   journalistId: number,
   scores: { dimensionId: number; score: number }[],
 ) {
+  await assertOwned(client, orgId, 'scoring_dimensions', scores.map(s => s.dimensionId));
   for (const s of scores) {
     await client.query(
       `INSERT INTO journalist_scores (org_id, journalist_id, dimension_id, score)
@@ -80,11 +85,8 @@ async function upsertScoresAndRecompute(
 }
 
 router.post('/', async (req, res) => {
-  const { name, publicationId, email, twitter, linkedin, bio, beats, photoUrl, scores } = req.body as {
-    name?: string; publicationId?: number; email?: string; twitter?: string; linkedin?: string;
-    bio?: string; beats?: string[]; photoUrl?: string; scores?: { dimensionId: number; score: number }[];
-  };
-  if (!name) return res.status(400).json({ error: 'name is required' });
+  const { name, publicationId, email, twitter, linkedin, bio, beats, photoUrl, scores } = parseBody(schemas.journalistCreate, req);
+  await assertOwned(pool, req.orgId!, 'publications', [publicationId]);
 
   const client = await pool.connect();
   try {
@@ -103,19 +105,15 @@ router.post('/', async (req, res) => {
     res.status(201).json({ ...row, total_score: totalScore, scores: scores ?? [] });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[journalists] create failed', err);
-    res.status(500).json({ error: 'Failed to create journalist' });
+    throw err;
   } finally {
     client.release();
   }
 });
 
 router.put('/:id', async (req, res) => {
-  const { name, publicationId, email, twitter, linkedin, bio, beats, photoUrl, isFavorite, scores } = req.body as {
-    name?: string; publicationId?: number; email?: string; twitter?: string; linkedin?: string;
-    bio?: string; beats?: string[]; photoUrl?: string; isFavorite?: boolean;
-    scores?: { dimensionId: number; score: number }[];
-  };
+  const { name, publicationId, email, twitter, linkedin, bio, beats, photoUrl, isFavorite, scores } = parseBody(schemas.journalistUpdate, req);
+  await assertOwned(pool, req.orgId!, 'publications', [publicationId]);
 
   const client = await pool.connect();
   try {
@@ -149,8 +147,7 @@ router.put('/:id', async (req, res) => {
     res.json({ ...row, total_score: totalScore, scores: scoresByJournalist.get(row.id) ?? [] });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[journalists] update failed', err);
-    res.status(500).json({ error: 'Failed to update journalist' });
+    throw err;
   } finally {
     client.release();
   }

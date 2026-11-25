@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import pool from '../db';
 import { requireRole } from '../middleware/auth';
+import * as schemas from '../lib/schemas';
+import { parseBody, validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { id: 'int' });
 
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(
@@ -15,11 +18,7 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', requireRole('owner', 'admin'), async (req, res) => {
-  const { name, description, weight, displayOrder } = req.body as {
-    name?: string; description?: string; weight?: number; displayOrder?: number;
-  };
-  if (!name) return res.status(400).json({ error: 'name is required' });
-
+  const { name, description, weight, displayOrder } = parseBody(schemas.dimensionCreate, req);
   const { rows: [row] } = await pool.query(
     `INSERT INTO scoring_dimensions (org_id, name, description, weight, display_order)
      VALUES ($1, $2, $3, $4, $5)
@@ -30,9 +29,7 @@ router.post('/', requireRole('owner', 'admin'), async (req, res) => {
 });
 
 router.put('/:id', requireRole('owner', 'admin'), async (req, res) => {
-  const { name, description, weight, displayOrder } = req.body as {
-    name?: string; description?: string; weight?: number; displayOrder?: number;
-  };
+  const { name, description, weight, displayOrder } = parseBody(schemas.dimensionUpdate, req);
   const { rows: [row] } = await pool.query(
     `UPDATE scoring_dimensions SET
        name = COALESCE($1, name),

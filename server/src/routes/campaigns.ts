@@ -4,8 +4,12 @@ import { generateCampaignDraft } from '../services/campaignDraftService';
 import { getAuthedGmailClient, createGmailDraft } from '../services/gmailService';
 import { isDemo, limitMessage, liveAiStatus, takeLiveAi } from '../demo/limits';
 import { clientIp } from '../lib/clientIp';
+import { assertOwned } from '../lib/owned';
+import * as schemas from '../lib/schemas';
+import { parseBody, validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { id: 'int', journalistId: 'int' });
 
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(
@@ -33,9 +37,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { name, brief, campaignType } = req.body as { name?: string; brief?: string; campaignType?: string };
-  if (!name) return res.status(400).json({ error: 'name is required' });
-
+  const { name, brief, campaignType } = parseBody(schemas.campaignCreate, req);
   const { rows: [row] } = await pool.query(
     `INSERT INTO campaigns (org_id, name, brief, campaign_type)
      VALUES ($1, $2, $3, $4)
@@ -46,9 +48,7 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { name, brief, campaignType, status } = req.body as {
-    name?: string; brief?: string; campaignType?: string; status?: string;
-  };
+  const { name, brief, campaignType, status } = parseBody(schemas.campaignUpdate, req);
   const { rows: [row] } = await pool.query(
     `UPDATE campaigns SET
        name = COALESCE($1, name),
@@ -88,14 +88,13 @@ router.get('/:id/journalists', async (req, res) => {
 });
 
 router.post('/:id/journalists', async (req, res) => {
-  const { journalistIds } = req.body as { journalistIds?: number[] };
-  if (!journalistIds?.length) return res.status(400).json({ error: 'journalistIds is required' });
-
+  const { journalistIds } = parseBody(schemas.campaignAddJournalists, req);
   const { rows: [campaign] } = await pool.query(
     'SELECT id FROM campaigns WHERE id = $1 AND org_id = $2',
     [req.params.id, req.orgId],
   );
   if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+  await assertOwned(pool, req.orgId!, 'journalists', journalistIds);
 
   for (const journalistId of journalistIds) {
     await pool.query(
@@ -145,30 +144,35 @@ router.post('/:id/generate-drafts', async (req, res) => {
       + (skipped > 0 ? ` ${skipped} left for later (demo limit).` : ''),
   });
 
+  // The response is already sent, so nothing below may reject: one bad draft must not stop the rest.
   for (const target of runnable) {
-    const draft = await generateCampaignDraft({
-      orgId: req.orgId!,
-      journalistId: target.journalist_id,
-      campaignBrief: campaign.brief,
-      campaignType: campaign.campaign_type,
-    });
-    if (draft) {
-      await pool.query(
-        `UPDATE campaign_journalists SET draft_subject = $1, draft_body = $2, status = 'ready', updated_at = NOW()
-         WHERE id = $3`,
-        [draft.subject, draft.body, target.id],
-      );
-    } else {
-      await pool.query(
-        `UPDATE campaign_journalists SET status = 'failed', updated_at = NOW() WHERE id = $1`,
-        [target.id],
-      );
+    try {
+      const draft = await generateCampaignDraft({
+        orgId: req.orgId!,
+        journalistId: target.journalist_id,
+        campaignBrief: campaign.brief,
+        campaignType: campaign.campaign_type,
+      });
+      if (draft) {
+        await pool.query(
+          `UPDATE campaign_journalists SET draft_subject = $1, draft_body = $2, status = 'ready', updated_at = NOW()
+           WHERE id = $3`,
+          [draft.subject, draft.body, target.id],
+        );
+      } else {
+        await pool.query(
+          `UPDATE campaign_journalists SET status = 'failed', updated_at = NOW() WHERE id = $1`,
+          [target.id],
+        );
+      }
+    } catch (err) {
+      console.error(`[campaigns] draft for campaign_journalist ${target.id} failed`, err);
     }
   }
 });
 
 router.post('/:id/journalists/:journalistId/regenerate', async (req, res) => {
-  const { instructions } = req.body as { instructions?: string };
+  const { instructions } = parseBody(schemas.regenerate, req);
 
   const { rows: [campaign] } = await pool.query(
     'SELECT id, brief, campaign_type FROM campaigns WHERE id = $1 AND org_id = $2',
@@ -184,7 +188,7 @@ router.post('/:id/journalists/:journalistId/regenerate', async (req, res) => {
     journalistId: Number(req.params.journalistId),
     campaignBrief: campaign.brief,
     campaignType: campaign.campaign_type,
-    extraInstructions: instructions,
+    extraInstructions: instructions ?? undefined,
   });
   if (!draft) return res.status(502).json({ error: 'AI draft generation failed. Check ANTHROPIC_API_KEY and server logs.' });
 
@@ -199,7 +203,7 @@ router.post('/:id/journalists/:journalistId/regenerate', async (req, res) => {
 });
 
 router.put('/:id/journalists/:journalistId/draft', async (req, res) => {
-  const { draftSubject, draftBody } = req.body as { draftSubject?: string; draftBody?: string };
+  const { draftSubject, draftBody } = parseBody(schemas.draftUpdate, req);
   const { rows: [row] } = await pool.query(
     `UPDATE campaign_journalists SET
        draft_subject = COALESCE($1, draft_subject),

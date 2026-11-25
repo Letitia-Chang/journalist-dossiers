@@ -4,8 +4,10 @@ import { discoverAndSaveFeeds } from '../services/categoryFeedDiscovery';
 import { generatePublicationSuggestions } from '../services/publicationSuggestionService';
 import { requireRole } from '../middleware/auth';
 import { blockInDemo } from '../middleware/demo';
+import { validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { id: 'int' });
 const requireEditor = requireRole('owner', 'admin');
 
 router.get('/', async (req, res) => {

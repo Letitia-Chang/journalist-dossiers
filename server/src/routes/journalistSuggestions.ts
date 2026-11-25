@@ -6,8 +6,10 @@ import { runAiScoring } from '../services/scoringRunner';
 import { requireRole } from '../middleware/auth';
 import { blockInDemo } from '../middleware/demo';
 import { clientIp } from '../lib/clientIp';
+import { validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { id: 'int', publicationId: 'int' });
 const requireEditor = requireRole('owner', 'admin');
 
 router.get('/', async (req, res) => {

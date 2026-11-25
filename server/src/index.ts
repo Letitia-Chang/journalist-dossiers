@@ -3,6 +3,9 @@ import { app } from './app';
 import { bootstrap } from './lib/bootstrap';
 import { resetAndSeedDemo } from './demo/seed';
 
+// Express 5 handles rejected route handlers; this is the backstop for background work.
+process.on('unhandledRejection', err => console.error('[unhandledRejection]', err));
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 

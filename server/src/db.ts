@@ -7,7 +7,11 @@ const pool = new Pool({
   ssl: isProduction ? { rejectUnauthorized: false } : false,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000,
 });
+
+// An idle client losing its connection (Neon suspends idle databases) is emitted here; with no
+// listener Node would treat it as an uncaught exception and exit. The pool replaces the client.
+pool.on('error', err => console.error('[db] idle client error:', err.message));
 
 export default pool;

@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import pool from '../db';
+import { assertOwned } from '../lib/owned';
+import * as schemas from '../lib/schemas';
+import { parseBody, validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { id: 'int' });
 
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(
@@ -30,11 +34,9 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { title, url, notes, publishedAt, journalistId, campaignId } = req.body as {
-    title?: string; url?: string; notes?: string; publishedAt?: string;
-    journalistId?: number; campaignId?: number;
-  };
-  if (!title) return res.status(400).json({ error: 'title is required' });
+  const { title, url, notes, publishedAt, journalistId, campaignId } = parseBody(schemas.coverageCreate, req);
+  await assertOwned(pool, req.orgId!, 'journalists', [journalistId]);
+  await assertOwned(pool, req.orgId!, 'campaigns', [campaignId]);
 
   const { rows: [row] } = await pool.query(
     `INSERT INTO coverage (org_id, title, url, notes, published_at, journalist_id, campaign_id)
@@ -46,10 +48,10 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { title, url, notes, publishedAt, journalistId, campaignId } = req.body as {
-    title?: string; url?: string; notes?: string; publishedAt?: string;
-    journalistId?: number | null; campaignId?: number | null;
-  };
+  const { title, url, notes, publishedAt, journalistId, campaignId } = parseBody(schemas.coverageUpdate, req);
+  await assertOwned(pool, req.orgId!, 'journalists', [journalistId]);
+  await assertOwned(pool, req.orgId!, 'campaigns', [campaignId]);
+
   const { rows: [row] } = await pool.query(
     `UPDATE coverage SET
        title = COALESCE($1, title),

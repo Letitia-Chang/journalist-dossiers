@@ -2,8 +2,11 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import pool from '../db';
 import { requireRole } from '../middleware/auth';
+import * as schemas from '../lib/schemas';
+import { parseBody, validateParams } from '../lib/validate';
 
 const router = Router();
+validateParams(router, { id: 'uuid' });
 const requireOwner = requireRole('owner');
 
 function inviteLink(token: string): string {
@@ -20,10 +23,7 @@ router.get('/members', async (req, res) => {
 });
 
 router.put('/members/:id/role', requireOwner, async (req, res) => {
-  const { role } = req.body as { role?: string };
-  if (!role || !['owner', 'admin', 'member'].includes(role)) {
-    return res.status(400).json({ error: 'role must be owner, admin, or member' });
-  }
+  const { role } = parseBody(schemas.roleUpdate, req);
 
   const { rows: [target] } = await pool.query(
     'SELECT id, role FROM users WHERE id = $1 AND org_id = $2', [req.params.id, req.orgId],
@@ -72,20 +72,15 @@ router.get('/invites', requireOwner, async (req, res) => {
 });
 
 router.post('/invites', requireOwner, async (req, res) => {
-  const { email, role } = req.body as { email?: string; role?: string };
-  if (!email?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-    return res.status(400).json({ error: 'A valid email is required' });
-  }
-  const normalizedEmail = email.trim().toLowerCase();
-  const finalRole = role && ['owner', 'admin', 'member'].includes(role) ? role : 'member';
+  const { email, role } = parseBody(schemas.invite, req);
 
-  const { rows: [existingUser] } = await pool.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
+  const { rows: [existingUser] } = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
   if (existingUser) return res.status(409).json({ error: 'A user with that email already exists' });
 
   // Replace any prior pending invite for the same email in this org
   await pool.query(
     `UPDATE invites SET status = 'revoked' WHERE org_id = $1 AND email = $2 AND status = 'pending'`,
-    [req.orgId, normalizedEmail],
+    [req.orgId, email],
   );
 
   const token = crypto.randomBytes(24).toString('hex');
@@ -93,7 +88,7 @@ router.post('/invites', requireOwner, async (req, res) => {
     `INSERT INTO invites (org_id, email, role, token, invited_by, expires_at)
      VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '7 days')
      RETURNING id, email, role, status, expires_at, created_at, token`,
-    [req.orgId, normalizedEmail, finalRole, token, req.userId],
+    [req.orgId, email, role, token, req.userId],
   );
   res.status(201).json({ ...invite, link: inviteLink(invite.token) });
 });
