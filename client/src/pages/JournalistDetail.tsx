@@ -259,21 +259,21 @@ export default function JournalistDetail() {
           <div className="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="form-label">Type</label>
-                <select className="form-select" value={logForm.type} onChange={e => setLogForm(f => ({ ...f, type: e.target.value }))}>
+                <label className="form-label" htmlFor="journalist-detail-type">Type</label>
+                <select id="journalist-detail-type" className="form-select" value={logForm.type} onChange={e => setLogForm(f => ({ ...f, type: e.target.value }))}>
                   {OUTREACH_TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
                 </select>
               </div>
               <div>
-                <label className="form-label">Resulting status</label>
-                <select className="form-select" value={logForm.status} onChange={e => setLogForm(f => ({ ...f, status: e.target.value }))}>
+                <label className="form-label" htmlFor="journalist-detail-resulting-status">Resulting status</label>
+                <select id="journalist-detail-resulting-status" className="form-select" value={logForm.status} onChange={e => setLogForm(f => ({ ...f, status: e.target.value }))}>
                   {OUTREACH_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
             </div>
             <div>
-              <label className="form-label">Notes</label>
-              <textarea className="form-input" rows={2} value={logForm.notes} onChange={e => setLogForm(f => ({ ...f, notes: e.target.value }))} placeholder="What happened, what's next..." />
+              <label className="form-label" htmlFor="journalist-detail-notes">Notes</label>
+              <textarea id="journalist-detail-notes" className="form-input" rows={2} value={logForm.notes} onChange={e => setLogForm(f => ({ ...f, notes: e.target.value }))} placeholder="What happened, what's next..." />
             </div>
             <div className="flex items-center gap-2">
               <button className="btn-primary py-1.5 text-sm" onClick={handleLogOutreach} disabled={logging}>
@@ -302,7 +302,7 @@ export default function JournalistDetail() {
                   </div>
                   {o.notes && <p className="text-sm text-slate-600 mt-1">{o.notes}</p>}
                 </div>
-                <button onClick={() => handleDeleteLog(o.id)} className="p-1 rounded text-slate-300 hover:text-red-500 shrink-0">
+                <button aria-label="Delete log entry" onClick={() => handleDeleteLog(o.id)} className="p-1 rounded text-slate-300 hover:text-red-500 shrink-0">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>

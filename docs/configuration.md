@@ -32,7 +32,7 @@ Copy `company.config.example.json`. Shape:
 ```
 
 - Looked up at `COMPANY_CONFIG_PATH`, `./company.config.json`, then `../company.config.json`.
-- **Seeds only.** If a profile already exists it is left alone, so edits made in Settings survive restarts. Set `COMPANY_CONFIG_SYNC=true` to re-apply the file on every boot.
+- **Seeds only.** If a profile already exists it is left alone, so edits made under Company Profile survive restarts. Set `COMPANY_CONFIG_SYNC=true` to re-apply the file on every boot.
 - `scoringDimensions` are applied only when the org has none yet. Without them, the six defaults are created.
 - An invalid file stops the server at boot with a message naming the bad fields.
 - `company.config.json` is git-ignored.
@@ -49,12 +49,12 @@ See `server/.env.example` for the full annotated list.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DATABASE_URL` | – | Postgres connection string (required) |
+| `DATABASE_URL` | – | Postgres connection string (required). With `NODE_ENV=production` the connection uses TLS; add `?sslmode=verify-full` to check the certificate too, or `?sslmode=disable` for a local database without TLS |
 | `SESSION_SECRET` | – | JWT signing key (required; in production at least 32 characters, `openssl rand -hex 32`) |
 | `ANTHROPIC_API_KEY` | – | Claude key; AI features are disabled without it |
-| `ANTHROPIC_MODEL` | `claude-opus-4-8` | Model for all AI steps |
+| `ANTHROPIC_MODEL` | `claude-opus-4-8` | Model for all AI steps. It must support adaptive thinking, which every call uses |
 | `PORT` | `3001` | API port |
-| `FRONTEND_URL` | – | Allowed browser origin (CORS) and base for invite links |
+| `FRONTEND_URL` | – | Allowed browser origins (CORS), comma-separated. Invite links use the first |
 | `COMPANY_CONFIG_PATH`, `COMPANY_CONFIG_SYNC` | – | See above |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | – | Create the first owner on boot |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | – | Gmail drafts |
@@ -63,4 +63,4 @@ See `server/.env.example` for the full annotated list.
 | `CLIENT_IP_HEADER` | – | Header holding the real client address, for the demo's per-visitor limits when a CDN sits in front of the proxy (Render: `cf-connecting-ip`). Only set it if every request passes through that CDN, or clients could spoof it |
 | `DEMO_MODE`, `DEMO_AI_PER_HOUR`, `DEMO_AI_PER_DAY`, `DEMO_SANDBOX_HOURS` | – | See [demo-mode.md](demo-mode.md) |
 
-Client: `VITE_API_URL` (default `http://localhost:3001/api`).
+Client: `VITE_API_URL` (default `http://localhost:3001/api`). At build time, `SITE_URL` is the site's public address, used for the link-preview image (on Vercel it is worked out automatically).

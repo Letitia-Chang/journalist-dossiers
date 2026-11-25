@@ -1,6 +1,9 @@
 {
   "name": "press-dossier-server",
   "version": "1.0.0",
+  "private": true,
+  "description": "Press Dossier API",
+  "license": "MIT",
   "type": "commonjs",
   "engines": {
     "node": ">=22"

@@ -5,6 +5,7 @@ import { campaigns as cApi, journalists as jApi } from '../api';
 import type { Campaign, CampaignJournalist, Journalist } from '../types';
 import { campaignTypeLabel } from '../lib/campaignTypes';
 import { apiError } from '../lib/errors';
+import Modal from '../components/Modal';
 
 const DRAFT_STATUS_STYLE: Record<string, string> = {
   not_started: 'bg-slate-100 text-slate-500',
@@ -171,8 +172,8 @@ export default function CampaignDetail() {
         </div>
 
         <div className="mt-4">
-          <label className="form-label">Brief</label>
-          <textarea className="form-input" rows={3} value={briefDraft} onChange={e => setBriefDraft(e.target.value)} />
+          <label className="form-label" htmlFor="campaign-detail-brief">Brief</label>
+          <textarea id="campaign-detail-brief" className="form-input" rows={3} value={briefDraft} onChange={e => setBriefDraft(e.target.value)} />
           {briefDraft !== campaign.brief && (
             <button className="btn-primary py-1.5 text-sm mt-2" onClick={handleSaveBrief} disabled={savingBrief}>
               {savingBrief ? 'Saving…' : 'Save Brief'}
@@ -230,7 +231,7 @@ export default function CampaignDetail() {
         <div className="card p-4 mb-4">
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input className="form-input pl-9" placeholder="Search journalists..." value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} />
+            <input className="form-input pl-9" aria-label="Search journalists" placeholder="Search journalists..." value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} />
           </div>
           <div className="max-h-56 overflow-y-auto space-y-1">
             {pickerResults.length === 0 ? (
@@ -340,8 +341,7 @@ export default function CampaignDetail() {
       )}
 
       {demoPreviews && (
-        <div className="fixed inset-0 z-30 bg-slate-900/50 flex items-center justify-center p-4" onClick={() => setDemoPreviews(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <Modal label="Gmail drafts preview" onClose={() => setDemoPreviews(null)} className="max-w-2xl max-h-[85vh]">
             <div className="p-5 border-b border-slate-100">
               <h2 className="font-semibold text-slate-900 flex items-center gap-2"><Mail className="w-4 h-4" /> Gmail drafts preview</h2>
               <p className="text-sm text-slate-500 mt-1">
@@ -361,8 +361,7 @@ export default function CampaignDetail() {
             <div className="p-4 border-t border-slate-100 text-right">
               <button className="btn-primary" onClick={() => setDemoPreviews(null)}>Close</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

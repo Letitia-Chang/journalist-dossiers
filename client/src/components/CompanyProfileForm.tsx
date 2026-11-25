@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import type { CompanyProfile, NewsworthyItem, PressCoverageLink, Spokesperson } from '../types';
 
 type Errors = Record<string, string>;
@@ -37,10 +37,12 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
-function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: ReactNode }) {
+/** One labeled control (pass its id as htmlFor), or a labeled group of several. */
+function Field({ label, htmlFor, hint, error, children }: { label: string; htmlFor?: string; hint?: string; error?: string; children: ReactNode }) {
+  const id = useId();
   return (
-    <div>
-      <label className="form-label">{label}</label>
+    <div role={htmlFor ? undefined : 'group'} aria-labelledby={htmlFor ? undefined : id}>
+      {htmlFor ? <label className="form-label" htmlFor={htmlFor}>{label}</label> : <div className="form-label" id={id}>{label}</div>}
       {children}
       {hint && !error && <p className="text-xs text-slate-400 mt-1">{hint}</p>}
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
@@ -58,6 +60,7 @@ function StringList({ items, onChange, placeholder, readOnly, addLabel }: {
           <input
             className="form-input"
             value={item}
+            aria-label={`${addLabel.replace('Add ', '')} ${i + 1}`}
             placeholder={placeholder}
             disabled={readOnly}
             onChange={e => onChange(items.map((x, j) => (j === i ? e.target.value : x)))}
@@ -85,6 +88,7 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
   const set = <K extends keyof CompanyProfile>(key: K, v: CompanyProfile[K]) => onChange({ ...p, [key]: v });
   const text = (key: keyof CompanyProfile, extra?: { rows?: number; placeholder?: string }) => {
     const common = {
+      id: `company-${key}`,
       value: p[key] as string,
       disabled: readOnly,
       placeholder: extra?.placeholder,
@@ -103,19 +107,19 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
   return (
     <div className="space-y-5">
       <Section title="The basics" hint="Everything the AI knows about your company comes from this profile.">
-        <Field label="Company name *" error={errors.name}>{text('name', { placeholder: 'Acme Robotics' })}</Field>
+        <Field label="Company name *" htmlFor="company-name" error={errors.name}>{text('name', { placeholder: 'Acme Robotics' })}</Field>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Website" error={errors.website}>{text('website', { placeholder: 'https://example.com' })}</Field>
-          <Field label="Industry" error={errors.industry}>{text('industry', { placeholder: 'Climate tech, fintech, health…' })}</Field>
+          <Field label="Website" htmlFor="company-website" error={errors.website}>{text('website', { placeholder: 'https://example.com' })}</Field>
+          <Field label="Industry" htmlFor="company-industry" error={errors.industry}>{text('industry', { placeholder: 'e.g. Robotics, fintech, health' })}</Field>
         </div>
-        <Field label="One-liner" hint="One sentence a journalist would understand." error={errors.one_liner}>
+        <Field label="One-liner" htmlFor="company-one_liner" hint="One sentence a journalist would understand." error={errors.one_liner}>
           {text('one_liner', { placeholder: 'We build …' })}
         </Field>
       </Section>
 
       <Section title="What you offer and who it's for">
-        <Field label="Products and services" error={errors.products}>{text('products', { rows: 3 })}</Field>
-        <Field label="Target audience" hint="Who benefits? Who do you want to reach through the press?" error={errors.target_audience}>
+        <Field label="Products and services" htmlFor="company-products" error={errors.products}>{text('products', { rows: 3 })}</Field>
+        <Field label="Target audience" htmlFor="company-target_audience" hint="Who benefits? Who do you want to reach through the press?" error={errors.target_audience}>
           {text('target_audience', { rows: 2 })}
         </Field>
         <Field label="Regions" hint="Where you operate or want coverage.">
@@ -133,19 +137,19 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
             {p.newsworthy_items.map((n, i) => (
               <div key={i} className="border border-slate-200 rounded-lg p-3 space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                  <select className="form-input sm:col-span-3" value={n.type} disabled={readOnly}
+                  <select aria-label="Type" className="form-input sm:col-span-3" value={n.type} disabled={readOnly}
                     onChange={e => updateAt<NewsworthyItem>('newsworthy_items', i, { type: e.target.value as NewsworthyItem['type'] })}>
                     {ITEM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
-                  <input className="form-input sm:col-span-6" placeholder="Title" value={n.title} disabled={readOnly}
+                  <input className="form-input sm:col-span-6" placeholder="Title" aria-label="Title" value={n.title} disabled={readOnly}
                     onChange={e => updateAt<NewsworthyItem>('newsworthy_items', i, { title: e.target.value })} />
-                  <input className="form-input sm:col-span-3" placeholder="Date" value={n.date} disabled={readOnly}
+                  <input className="form-input sm:col-span-3" placeholder="Date" aria-label="Date" value={n.date} disabled={readOnly}
                     onChange={e => updateAt<NewsworthyItem>('newsworthy_items', i, { date: e.target.value })} />
                 </div>
-                <input className="form-input" placeholder="Description" value={n.description} disabled={readOnly}
+                <input className="form-input" placeholder="Description" aria-label="Description" value={n.description} disabled={readOnly}
                   onChange={e => updateAt<NewsworthyItem>('newsworthy_items', i, { description: e.target.value })} />
                 <div className="flex gap-2">
-                  <input className="form-input" placeholder="Link (optional)" value={n.url} disabled={readOnly}
+                  <input className="form-input" placeholder="Link (optional)" aria-label="Link (optional)" value={n.url} disabled={readOnly}
                     onChange={e => updateAt<NewsworthyItem>('newsworthy_items', i, { url: e.target.value })} />
                   {!readOnly && (
                     <button type="button" className="p-2 text-slate-400 hover:text-red-500" title="Remove" onClick={() => removeAt('newsworthy_items', i)}>
@@ -176,9 +180,9 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
             {p.press_coverage.map((c: PressCoverageLink, i) => (
               <div key={i}>
                 <div className="flex gap-2">
-                  <input className="form-input w-1/3" placeholder="Title (optional)" value={c.title} disabled={readOnly}
+                  <input className="form-input w-1/3" placeholder="Title (optional)" aria-label="Title (optional)" value={c.title} disabled={readOnly}
                     onChange={e => updateAt<PressCoverageLink>('press_coverage', i, { title: e.target.value })} />
-                  <input className="form-input" placeholder="https://…" value={c.url} disabled={readOnly}
+                  <input className="form-input" placeholder="https://…" aria-label="Link" value={c.url} disabled={readOnly}
                     onChange={e => updateAt<PressCoverageLink>('press_coverage', i, { url: e.target.value })} />
                   {!readOnly && (
                     <button type="button" className="p-2 text-slate-400 hover:text-red-500" title="Remove" onClick={() => removeAt('press_coverage', i)}>
@@ -203,11 +207,11 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
             {p.spokespeople.map((s: Spokesperson, i) => (
               <div key={i}>
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                  <input className="form-input sm:col-span-3" placeholder="Name" value={s.name} disabled={readOnly}
+                  <input className="form-input sm:col-span-3" placeholder="Name" aria-label="Name" value={s.name} disabled={readOnly}
                     onChange={e => updateAt<Spokesperson>('spokespeople', i, { name: e.target.value })} />
-                  <input className="form-input sm:col-span-3" placeholder="Title" value={s.title} disabled={readOnly}
+                  <input className="form-input sm:col-span-3" placeholder="Title" aria-label="Title" value={s.title} disabled={readOnly}
                     onChange={e => updateAt<Spokesperson>('spokespeople', i, { title: e.target.value })} />
-                  <input className="form-input sm:col-span-5" placeholder="Topics, comma separated" value={s.topics.join(', ')} disabled={readOnly}
+                  <input className="form-input sm:col-span-5" placeholder="Topics, comma separated" aria-label="Topics, comma separated" value={s.topics.join(', ')} disabled={readOnly}
                     onChange={e => updateAt<Spokesperson>('spokespeople', i, { topics: e.target.value.split(',').map(t => t.trimStart()) })} />
                   {!readOnly && (
                     <button type="button" className="sm:col-span-1 text-slate-400 hover:text-red-500" title="Remove" onClick={() => removeAt('spokespeople', i)}>
@@ -229,19 +233,19 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
       </Section>
 
       <Section title="Voice">
-        <Field label="Pitch tone" hint="e.g. warm and concise, no buzzwords." error={errors.pitch_tone}>{text('pitch_tone', { rows: 2 })}</Field>
-        <Field label="Email signature" hint="Added to the end of every pitch draft." error={errors.email_signature}>{text('email_signature', { rows: 3 })}</Field>
+        <Field label="Pitch tone" htmlFor="company-pitch_tone" hint="e.g. warm and concise, no buzzwords." error={errors.pitch_tone}>{text('pitch_tone', { rows: 2 })}</Field>
+        <Field label="Email signature" htmlFor="company-email_signature" hint="Added to the end of every pitch draft." error={errors.email_signature}>{text('email_signature', { rows: 3 })}</Field>
       </Section>
 
       <Section title="Branding" hint="Shown in the sidebar, login screen and browser tab.">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Field label="App name" error={errors.app_name}>{text('app_name', { placeholder: 'Press Dossier' })}</Field>
-          <Field label="Logo URL" error={errors.logo_url}>{text('logo_url', { placeholder: 'https://…/logo.png' })}</Field>
+          <Field label="App name" htmlFor="company-app_name" error={errors.app_name}>{text('app_name', { placeholder: 'Press Dossier' })}</Field>
+          <Field label="Logo URL" htmlFor="company-logo_url" error={errors.logo_url}>{text('logo_url', { placeholder: 'https://…/logo.png' })}</Field>
           <Field label="Brand color" error={errors.brand_color}>
             <div className="flex gap-2">
-              <input type="color" className="h-9 w-12 rounded border border-slate-200 bg-white p-1" value={/^#[0-9a-f]{6}$/i.test(p.brand_color) ? p.brand_color : '#4f46e5'}
+              <input type="color" aria-label="Pick a color" className="h-9 w-12 rounded border border-slate-200 bg-white p-1" value={/^#[0-9a-f]{6}$/i.test(p.brand_color) ? p.brand_color : '#4f46e5'}
                 disabled={readOnly} onChange={e => set('brand_color', e.target.value)} />
-              <input className="form-input" value={p.brand_color} disabled={readOnly} onChange={e => set('brand_color', e.target.value)} />
+              <input aria-label="Color code" className="form-input" value={p.brand_color} disabled={readOnly} onChange={e => set('brand_color', e.target.value)} />
             </div>
           </Field>
         </div>

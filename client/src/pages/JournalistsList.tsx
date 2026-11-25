@@ -162,7 +162,7 @@ export default function JournalistsList() {
           <h1 className="text-2xl font-bold text-slate-900">Journalists</h1>
           <p className="text-slate-500 mt-1">
             {filtered.length} journalist{filtered.length !== 1 ? 's' : ''}
-            {favOnly && <span className="ml-2 text-amber-600 font-medium">★ Favourites</span>}
+            {favOnly && <span className="ml-2 text-amber-600 font-medium">★ Favorites</span>}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -205,7 +205,7 @@ export default function JournalistsList() {
           }`}
         >
           <Star className={`w-3.5 h-3.5 ${favOnly ? 'fill-amber-500 text-amber-500' : ''}`} />
-          Favourites
+          Favorites
         </button>
         {view === 'list' && (
           <select aria-label="Sort" className="form-select w-auto" value={sortBy} onChange={e => update('sortBy', e.target.value)}>
@@ -224,7 +224,7 @@ export default function JournalistsList() {
           ) : filtered.length === 0 ? (
             <div className="p-8 text-center text-slate-400">
               {favOnly
-                ? <span>No favourites yet — click the ★ on any journalist to add them.</span>
+                ? <span>No favorites yet — click the ★ on any journalist to add them.</span>
                 : <span>No journalists found. <Link to="/journalists/new" className="text-brand-600 hover:underline">Add one.</Link></span>
               }
             </div>
@@ -251,7 +251,7 @@ export default function JournalistsList() {
                       <button
                         onClick={e => handleToggleFavorite(e, j)}
                         className="text-slate-300 hover:text-amber-400 transition-colors"
-                        title={j.is_favorite ? 'Remove from favourites' : 'Add to favourites'}
+                        title={j.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
                       >
                         <Star className={`w-4 h-4 ${j.is_favorite ? 'fill-amber-400 text-amber-400' : ''}`} />
                       </button>

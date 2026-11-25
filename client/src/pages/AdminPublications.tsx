@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useState, useId } from 'react';
 import { Link } from 'react-router-dom';
 import {
   HeartPulse,
@@ -11,6 +11,7 @@ import { publications as pubApi, suggestions as suggestApi, journalistSuggestion
 import { useAuth } from '../context/AuthContext';
 import type { Publication, PublicationSuggestion, PublicationFeed } from '../types';
 import { apiError } from '../lib/errors';
+import Modal from '../components/Modal';
 
 interface HealthWarning { id: number; name: string; url?: string; rss_url?: string }
 interface DiscoveredPublication {
@@ -425,13 +426,13 @@ export default function AdminPublications() {
               </button>
               <label
                 title="Import publications and feeds from an OPML file exported from Feedly, Inoreader, etc."
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm font-medium hover:border-slate-300 hover:text-slate-900 transition-all cursor-pointer">
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm font-medium hover:border-slate-300 hover:text-slate-900 transition-all cursor-pointer focus-within:ring-2 focus-within:ring-brand-400">
                 {importingOpml ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                 Import OPML
                 <input
                   type="file"
                   accept=".opml,.xml,text/xml,text/x-opml"
-                  className="hidden"
+                  className="sr-only"
                   disabled={importingOpml}
                   onChange={e => {
                     const file = e.target.files?.[0];
@@ -458,7 +459,7 @@ export default function AdminPublications() {
                 ? opmlResult.error
                 : `Imported ${opmlResult.added} publication${opmlResult.added === 1 ? '' : 's'} and ${opmlResult.feedsAdded} feed${opmlResult.feedsAdded === 1 ? '' : 's'}${opmlResult.skipped ? ` — ${opmlResult.skipped} already tracked` : ''}.`}
             </span>
-            <button onClick={() => setOpmlResult(null)} className="text-current opacity-60 hover:opacity-100">
+            <button aria-label="Dismiss" onClick={() => setOpmlResult(null)} className="text-current opacity-60 hover:opacity-100">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -473,7 +474,8 @@ export default function AdminPublications() {
             <div className="flex gap-2 mb-4">
               <input
                 className="form-input flex-1"
-                placeholder="e.g. climate policy"
+                placeholder="e.g. consumer robotics"
+                aria-label="Topic to search for"
                 value={discoverQuery}
                 onChange={e => setDiscoverQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleDiscover()}
@@ -589,7 +591,7 @@ export default function AdminPublications() {
           <div className="mb-4 px-4 py-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
             <RefreshCw className={`w-4 h-4 shrink-0 ${syncingFeeds ? 'animate-spin' : ''}`} />
             {syncFeedsMsg}
-            <button onClick={() => setSyncFeedsMsg('')} className="ml-auto text-emerald-500 hover:text-emerald-700"><X className="w-3.5 h-3.5" /></button>
+            <button aria-label="Dismiss" onClick={() => setSyncFeedsMsg('')} className="ml-auto text-emerald-500 hover:text-emerald-700"><X className="w-3.5 h-3.5" /></button>
           </div>
         )}
 
@@ -598,7 +600,7 @@ export default function AdminPublications() {
             <div className="flex items-center gap-3 px-5 py-3.5 border-b border-amber-100 bg-amber-50/60">
               <TriangleAlert className="w-4 h-4 text-amber-600" />
               <span className="text-sm font-semibold text-slate-800">Data health warnings</span>
-              <button onClick={() => setHealthWarnings({ unreachable: [], inactiveFeeds: [] })}
+              <button aria-label="Dismiss" onClick={() => setHealthWarnings({ unreachable: [], inactiveFeeds: [] })}
                 className="ml-auto text-slate-300 hover:text-slate-500"><X className="w-4 h-4" /></button>
             </div>
             <div className="px-5 py-3 flex flex-wrap gap-3 text-xs">
@@ -625,7 +627,7 @@ export default function AdminPublications() {
               ? <span>Staff scan of <strong>{staffScanResult.pubName}</strong>: {staffScanResult.error}</span>
               : <span>Staff scan of <strong>{staffScanResult.pubName}</strong>: found {staffScanResult.added} new journalist{staffScanResult.added !== 1 ? 's' : ''} from {staffScanResult.pageScanned}</span>
             }
-            <button onClick={() => setStaffScanResult(null)} className="ml-auto opacity-50 hover:opacity-100">
+            <button aria-label="Dismiss" onClick={() => setStaffScanResult(null)} className="ml-auto opacity-50 hover:opacity-100">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -635,7 +637,7 @@ export default function AdminPublications() {
           <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl border bg-violet-50 border-violet-200 text-sm text-violet-800">
             <Layers className="w-4 h-4 shrink-0" />
             <span>Feed discovery for <strong>{feedsDiscoveryResult.pubName}</strong> finished — click "Feeds" on the row to review.</span>
-            <button onClick={() => setFeedsDiscoveryResult(null)} className="ml-auto opacity-50 hover:opacity-100">
+            <button aria-label="Dismiss" onClick={() => setFeedsDiscoveryResult(null)} className="ml-auto opacity-50 hover:opacity-100">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -761,7 +763,7 @@ export default function AdminPublications() {
                           <RefreshCw className="w-3 h-3 animate-spin" /> Discovering…
                         </span>
                       ) : (
-                        <button onClick={() => toggleFeedsPanel(p.id)}
+                        <button aria-expanded={expandedFeedsPubId === p.id} onClick={() => toggleFeedsPanel(p.id)}
                           className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 transition-colors"
                           title="View / manage feeds">
                           <Layers className="w-3 h-3" />
@@ -771,7 +773,7 @@ export default function AdminPublications() {
                     </div>
                   </td>
                   <td className="px-4 py-3.5 text-center">
-                    <button onClick={() => canEdit && toggleActive(p)}
+                    <button role="switch" aria-checked={!!p.active} aria-label={`${p.name} active`} onClick={() => canEdit && toggleActive(p)}
                       disabled={!canEdit}
                       title={!canEdit ? (p.active ? 'Active' : 'Inactive') : p.active ? 'Active — click to deactivate' : 'Inactive — click to activate'}
                       className={`w-8 h-5 rounded-full transition-colors relative mx-auto block ${p.active ? 'bg-emerald-400' : 'bg-slate-200'} ${!canEdit ? 'cursor-default' : ''}`}>
@@ -779,7 +781,7 @@ export default function AdminPublications() {
                     </button>
                   </td>
                   <td className="px-3 py-3.5">
-                    <div className="flex items-center gap-0.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-0.5 justify-end lg:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                       <Link to={`/admin/publications/${p.id}`}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors" title="View journalists">
                         <Users className="w-3.5 h-3.5" />
@@ -842,6 +844,7 @@ export default function AdminPublications() {
                             <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                               <input
                                 type="url"
+                                aria-label="Feed URL"
                                 placeholder="https://example.com/section/feed/"
                                 value={manualFeedUrl}
                                 onChange={e => setManualFeedUrl(e.target.value)}
@@ -850,6 +853,7 @@ export default function AdminPublications() {
                               />
                               <input
                                 type="text"
+                                aria-label="Feed label"
                                 placeholder="Label"
                                 value={manualFeedLabel}
                                 onChange={e => setManualFeedLabel(e.target.value)}
@@ -903,13 +907,10 @@ export default function AdminPublications() {
         </div>
 
         {showHistory && (
-          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-6"
-            onClick={() => setShowHistory(false)}>
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[65vh] flex flex-col overflow-hidden"
-              onClick={e => e.stopPropagation()}>
+          <Modal label="Suggestion history" onClose={() => setShowHistory(false)} className="max-w-xl max-h-[65vh]">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                 <h2 className="font-semibold text-slate-900 text-sm">Suggestion History</h2>
-                <button onClick={() => setShowHistory(false)}
+                <button aria-label="Close" onClick={() => setShowHistory(false)}
                   className="w-7 h-7 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors">
                   <X className="w-4 h-4" />
                 </button>
@@ -944,8 +945,7 @@ export default function AdminPublications() {
                     </table>
                 }
               </div>
-            </div>
-          </div>
+          </Modal>
         )}
 
       </div>
@@ -957,41 +957,42 @@ function PublicationForm({ form, set, saving, onSave, onCancel }: {
   form: typeof empty; set: (k: string, v: string | boolean) => void;
   saving: boolean; onSave: () => void; onCancel: () => void;
 }) {
+  const id = useId();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
       <div className="sm:col-span-2">
-        <label className="form-label">Name *</label>
-        <input className="form-input" value={form.name}
+        <label className="form-label" htmlFor={`${id}-name`}>Name *</label>
+        <input id={`${id}-name`} className="form-input" value={form.name}
           onChange={e => set('name', e.target.value)} placeholder="Publication name" autoFocus />
       </div>
       <div className="sm:col-span-2">
-        <label className="form-label">Homepage URL</label>
-        <input className="form-input" value={form.url}
+        <label className="form-label" htmlFor={`${id}-homepage-url`}>Homepage URL</label>
+        <input id={`${id}-homepage-url`} className="form-input" value={form.url}
           onChange={e => set('url', e.target.value)} placeholder="https://..." />
       </div>
       <div className="sm:col-span-2">
-        <label className="form-label flex items-center gap-1">
+        <label className="form-label flex items-center gap-1" htmlFor={`${id}-rss`}>
           <Rss className="w-3 h-3 text-emerald-500" /> RSS Feed URL
         </label>
-        <input className="form-input" value={form.rssUrl}
+        <input id={`${id}-rss`} className="form-input" value={form.rssUrl}
           onChange={e => set('rssUrl', e.target.value)} placeholder="https://.../feed/" />
       </div>
       <div className="sm:col-span-2">
-        <label className="form-label">Tier</label>
-        <select className="form-select" value={form.tier} onChange={e => set('tier', e.target.value)}>
+        <label className="form-label" htmlFor={`${id}-tier`}>Tier</label>
+        <select id={`${id}-tier`} className="form-select" value={form.tier} onChange={e => set('tier', e.target.value)}>
           <option value="A">A — Major & National</option>
           <option value="B">B — Business / Mid-tier</option>
           <option value="C">C — Regional & Niche</option>
         </select>
       </div>
       <div className="sm:col-span-2">
-        <label className="form-label">Focus</label>
-        <input className="form-input" value={form.focus}
+        <label className="form-label" htmlFor={`${id}-focus`}>Focus</label>
+        <input id={`${id}-focus`} className="form-input" value={form.focus}
           onChange={e => set('focus', e.target.value)} placeholder="What they cover" />
       </div>
       <div className="sm:col-span-2">
-        <label className="form-label">Notes</label>
-        <input className="form-input" value={form.notes}
+        <label className="form-label" htmlFor={`${id}-notes`}>Notes</label>
+        <input id={`${id}-notes`} className="form-input" value={form.notes}
           onChange={e => set('notes', e.target.value)} placeholder="Internal notes…" />
       </div>
       <div className="sm:col-span-12 flex items-center gap-2 pt-1">

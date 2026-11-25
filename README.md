@@ -12,7 +12,7 @@ Most pitches fail because they're sent to the wrong person with the wrong angle.
 
 ## What it does
 
-- **Company profile as the single source of truth.** One profile (what you do, audience, regions, story angles, news, competitors, spokespeople, tone, signature) feeds every AI step. Set it up in a first-run wizard, in Settings, or from a `company.config.json` file with no UI at all.
+- **Company profile as the single source of truth.** One profile (what you do, audience, regions, story angles, news, competitors, spokespeople, tone, signature) feeds every AI step about your fit and your story. Set it up in a first-run wizard, under Company Profile, or from a `company.config.json` file with no UI at all.
 - **Configurable fit scoring.** Define your own dimensions (defaults: beat relevance, audience match, similar-company coverage, geography, outlet reach, responsiveness) with weights. Claude scores each journalist per dimension, writes a one-line rationale, and can cite the journalist's recorded articles. Cited URLs are kept only if they are in that journalist's article list. (It sees article titles, not full text: treat a score as a lead to check.)
 - **Dossiers.** Beats, bio, articles, outreach history and scores per journalist, with a pipeline and list view.
 - **Pitch drafts.** Built from your profile plus the journalist's dossier: the best-fitting story angle, a relevant news item, the most relevant spokesperson, your tone and signature. Edit, regenerate with instructions, or write your own.
@@ -59,14 +59,12 @@ Details in [docs/architecture.md](docs/architecture.md). Why it is built this wa
 You need **Node 22+**, **PostgreSQL** (local, Neon, Supabase, Render, …) and an **Anthropic API key**.
 
 ```bash
-git clone <this repo> press-dossier && cd press-dossier
+git clone https://github.com/Letitia-Chang/journalist-dossiers.git press-dossier && cd press-dossier
 npm install && npm install --prefix server && npm install --prefix client
 
-cp server/.env.example server/.env      # then edit it (below)
+createdb press_dossier                  # or create an empty database at your host
+cp server/.env.example server/.env
 cp client/.env.example client/.env      # only needed if the API isn't on localhost:3001
-
-npm run migrate:up --prefix server      # create the tables
-npm run dev                             # API on :3001, app on :5173
 ```
 
 Edit `server/.env`:
@@ -76,6 +74,13 @@ Edit `server/.env`:
 | `DATABASE_URL` | Postgres connection string |
 | `SESSION_SECRET` | Long random string (`openssl rand -hex 32`) |
 | `ANTHROPIC_API_KEY` | From [console.anthropic.com](https://console.anthropic.com) |
+
+Then create the tables and start it:
+
+```bash
+npm run migrate:up --prefix server
+npm run dev                             # API on :3001, app on :5173
+```
 
 Open <http://localhost:5173>. The first visit walks you through creating the owner account and describing your company. That's it.
 
@@ -115,6 +120,7 @@ CI runs lint, typecheck, tests against a Postgres service, the client build, and
 ## Limitations
 
 - **One company per deployment.** There is no multi-company account switching.
+- **No password change or reset in the app.** Ask an owner to remove and re-invite you; a locked-out sole owner needs database access.
 - **Scores are AI estimates, not facts, and have not been evaluated against human judgments.** The model sees the profile, the beat, the bio and article *titles*, not article text; with no articles the model is told to estimate cautiously and say so. Review them.
 - **Discovery is best-effort.** It depends on publishers exposing RSS and readable staff pages. Name extraction from staff pages is heuristic and noisy (expect job titles and non-editorial staff in the review queue). Substack/Feedly endpoints are unofficial and can change.
 - **No contact enrichment.** Emails are entered by hand or copied from a publication's own page. The app never guesses addresses.
@@ -129,7 +135,7 @@ This tool is for professional outreach to journalists. It is built to keep a hum
 - **Nothing is sent automatically.** The app only creates drafts, and only when you ask.
 - **Every pitch is reviewed by a person** before it leaves your Gmail.
 - **Every discovery suggestion** (journalist or publication) requires an explicit accept.
-- **Polite crawling.** Pages fetched from publisher sites (staff pages, homepages during feed discovery) are checked against `robots.txt` first, and requests identify themselves with a configurable User-Agent (`BOT_NAME`, `BOT_CONTACT_URL`) so site owners can reach you. Feeds are fetched with the same identification. There is no scraping behind logins.
+- **Polite crawling.** Pages fetched from publisher sites (staff pages, homepages during feed discovery) are checked against `robots.txt` first (no `robots.txt` means allowed; one that can't be loaded means no), and requests identify themselves with a configurable User-Agent (`BOT_NAME`, `BOT_CONTACT_URL`) so site owners can reach you. Feeds are fetched with the same identification. There is no scraping behind logins.
 - **Public, professional information only.** Don't store personal data you wouldn't want about yourself, and honor requests to be removed. Check the laws that apply to you (for example GDPR) before storing contact details of people in other jurisdictions.
 - **Be honest in outreach.** AI drafts are a starting point. Don't let them claim things that aren't true.
 

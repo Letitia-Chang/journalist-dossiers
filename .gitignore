@@ -9,11 +9,6 @@ server/node_modules/
 .env.production
 server/.env
 
-# Database — contains real data, keep local only
-data/*.db
-data/*.db-shm
-data/*.db-wal
-
 # Build outputs
 dist/
 client/dist/
@@ -38,6 +33,7 @@ Thumbs.db
 
 # Local tooling / agent config
 .claude/
+
 # Databases
 *.db
 *.sqlite

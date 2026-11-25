@@ -61,8 +61,8 @@ export default function PublicationDetail() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <TierBadge tier={pub.tier === 'A' ? 1 : pub.tier === 'B' ? 2 : 3} />
-              <span className="text-xs text-slate-400">{pub.tier === 'A' ? 'Tier A — Major' : pub.tier === 'B' ? 'Tier B — Business' : 'Tier C — Regional/Niche'}</span>
+              <TierBadge tier={pub.tier} />
+              <span className="text-xs text-slate-400">{pub.tier === 'A' ? 'Major' : pub.tier === 'B' ? 'Business' : 'Regional/Niche'}</span>
             </div>
             <h1 className="text-2xl font-bold text-slate-900">{pub.name}</h1>
             {pub.focus && <p className="text-slate-500 text-sm mt-1">{pub.focus}</p>}

@@ -19,10 +19,13 @@ export function botName(): string {
 // ── robots.txt ────────────────────────────────────────────────────────────────
 
 interface Rules { allow: string[]; disallow: string[] }
+const EVERYTHING: Rules = { allow: [], disallow: [] };
+const NOTHING: Rules = { allow: [], disallow: ['/'] };
 const ROBOTS_TTL_MS = 60 * 60 * 1000;
-const robotsCache = new Map<string, { rules: Rules | null; at: number }>();
+const UNREACHABLE_TTL_MS = 5 * 60 * 1000;
+const robotsCache = new Map<string, { rules: Rules; until: number }>();
 
-/** Parse the groups of a robots.txt that apply to `agent` (falls back to `*`). */
+/** Parse the groups of a robots.txt that name `agent` (its product token, ignoring case), or else `*`. */
 export function parseRobots(text: string, agent: string): Rules {
   const target = agent.toLowerCase();
   const groups: { agents: string[]; rules: Rules }[] = [];
@@ -42,7 +45,7 @@ export function parseRobots(text: string, agent: string): Rules {
         current = { agents: [], rules: { allow: [], disallow: [] } };
         groups.push(current);
       }
-      current.agents.push(value.toLowerCase());
+      current.agents.push(value.toLowerCase().replace(/\/.*$/, '').trim()); // "Name/1.0" names "Name"
       lastWasAgent = true;
     } else {
       lastWasAgent = false;
@@ -52,7 +55,7 @@ export function parseRobots(text: string, agent: string): Rules {
     }
   }
 
-  const specific = groups.filter(g => g.agents.some(a => a !== '*' && target.includes(a)));
+  const specific = groups.filter(g => g.agents.includes(target));
   const chosen = specific.length ? specific : groups.filter(g => g.agents.includes('*'));
   const merged: Rules = { allow: [], disallow: [] };
   for (const g of chosen) {
@@ -77,8 +80,9 @@ export function pathAllowed(rules: Rules, path: string): boolean {
 }
 
 /**
- * Returns false only when the site's robots.txt explicitly disallows this URL for us.
- * A missing/unreachable robots.txt means "allowed", as the standard prescribes.
+ * May we fetch this URL? As RFC 9309 prescribes, a site without a robots.txt (4xx) allows everything,
+ * and one whose robots.txt can't be reached (5xx, network error) allows nothing for now. We also wait
+ * when rate limited (429).
  */
 export async function isAllowedByRobots(url: string): Promise<boolean> {
   let u: URL;
@@ -86,20 +90,23 @@ export async function isAllowedByRobots(url: string): Promise<boolean> {
   const origin = u.origin;
 
   let entry = robotsCache.get(origin);
-  if (!entry || Date.now() - entry.at > ROBOTS_TTL_MS) {
-    let rules: Rules | null = null;
+  if (!entry || Date.now() > entry.until) {
+    let rules = NOTHING;
+    let ttl = UNREACHABLE_TTL_MS;
     try {
       const res = await axios.get(`${origin}/robots.txt`, {
         timeout: 5000,
         responseType: 'text',
         headers: { 'User-Agent': botUserAgent() },
-        validateStatus: s => s < 500,
+        validateStatus: () => true,
       });
-      if (res.status === 200 && typeof res.data === 'string') rules = parseRobots(res.data, botName());
-    } catch { /* unreachable → treat as allowed */ }
-    entry = { rules, at: Date.now() };
+      if (res.status < 500 && res.status !== 429) {
+        rules = res.status === 200 ? parseRobots(String(res.data), botName()) : EVERYTHING;
+        ttl = ROBOTS_TTL_MS;
+      }
+    } catch { /* unreachable */ }
+    entry = { rules, until: Date.now() + ttl };
     robotsCache.set(origin, entry);
   }
-  if (!entry.rules) return true;
   return pathAllowed(entry.rules, u.pathname + u.search);
 }

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import type { PoolClient } from 'pg';
 import pool, { inTransaction } from '../db';
 import { HttpError } from '../lib/httpError';
+import { appUrl } from '../lib/cors';
 import { requireRole } from '../middleware/auth';
 import * as schemas from '../lib/schemas';
 import { parseBody, validateParams } from '../lib/validate';
@@ -12,8 +13,7 @@ validateParams(router, { id: 'uuid' });
 const requireOwner = requireRole('owner');
 
 function inviteLink(token: string): string {
-  const base = process.env.FRONTEND_URL || 'http://localhost:5173';
-  return `${base}/accept-invite/${token}`;
+  return `${appUrl()}/accept-invite/${token}`;
 }
 
 router.get('/members', async (req, res) => {

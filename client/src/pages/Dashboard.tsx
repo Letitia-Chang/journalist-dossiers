@@ -10,7 +10,7 @@ function StatCard({ icon: Icon, label, value, color }: { icon: LucideIcon; label
   return (
     <div className="card p-5">
       <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${color}`}>
-        <Icon className="w-4.5 h-4.5" />
+        <Icon className="w-5 h-5" />
       </div>
       <div className="text-2xl font-bold text-slate-900">{value}</div>
       <div className="text-sm text-slate-500">{label}</div>

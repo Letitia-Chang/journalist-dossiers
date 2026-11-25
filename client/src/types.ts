@@ -1,10 +1,3 @@
-export interface User {
-  id: number;
-  name: string;
-  title: string;
-  email: string;
-}
-
 export interface AuthUser {
   id: string;
   email: string;
@@ -37,7 +30,7 @@ export interface PressCoverageLink {
   url: string;
 }
 
-/** The single source of truth every AI step reads from. */
+/** The single source of truth the scoring, pitch and suggestion prompts read from. */
 export interface CompanyProfile {
   name: string;
   website: string;

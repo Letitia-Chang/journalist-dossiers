@@ -2,7 +2,8 @@
  * rssDiagnostic.ts
  * Uses Claude to generate a plain-English explanation of why RSS discovery
  * failed for a publication, plus a practical recommendation.
- * Results are stored in publications.rssStatusNote.
+ * The result is stored in publications.rss_status_note. It needs no company profile: the question is
+ * about the publisher's site.
  */
 
 import pool from '../db';
@@ -44,7 +45,7 @@ What happened: ${situationDesc}
 
 Respond with ONLY a JSON object in this exact format (no markdown, no explanation outside the JSON):
 {
-  "analysis": "1–2 sentences explaining the most likely reason RSS discovery failed. Name the platform if you recognise it (e.g. Beehiiv, Substack, Cloudflare, paywall).",
+  "analysis": "1–2 sentences explaining the most likely reason RSS discovery failed. Name the platform if you recognize it (e.g. Beehiiv, Substack, Cloudflare, paywall).",
   "action": "One specific actionable next step for the team. Be concrete — include a URL to try, or say exactly what to do (e.g. 'Add key journalists manually', 'Try https://...', 'Deactivate this publication')."
 }`,
       }],

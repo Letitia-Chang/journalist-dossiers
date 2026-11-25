@@ -96,7 +96,7 @@ export const DEMO_JOURNALISTS: DemoJournalist[] = [
       { title: 'Why network-upgrade costs surprise developers', slug: 'network-upgrade-costs-surprise', date: '2026-09-18' },
       { title: 'Why the queue keeps growing', slug: 'why-the-queue-keeps-growing', date: '2026-08-12' },
     ],
-    hook: 'Your latest Queue Watch on study timelines hitting a new high lines up with data we have just finished analysing.',
+    hook: 'Your latest Queue Watch on study timelines hitting a new high lines up with data we have just finished analyzing.',
   },
   {
     name: 'Sunita Marchetti-Lowe', outlet: 'mb', email: 'sunita.marchetti-lowe@meridianbj.example.com',
@@ -143,7 +143,7 @@ export const DEMO_JOURNALISTS: DemoJournalist[] = [
       { title: 'Forecasting the queue: a technical look', slug: 'forecasting-the-queue', date: '2026-09-26' },
       { title: 'Five tools utilities actually use', slug: 'five-tools-utilities-use', date: '2026-08-19' },
     ],
-    hook: 'Your technical look at forecasting the queue is the best treatment of the modelling problem we have seen.',
+    hook: 'Your technical look at forecasting the queue is the best treatment of the modeling problem we have seen.',
   },
   {
     name: 'Odalys Thornbury', outlet: 'os', email: 'odalys.thornbury@opensourceenergy.example.com',

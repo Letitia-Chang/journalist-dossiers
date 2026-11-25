@@ -35,7 +35,7 @@ export default function SystemInfoPage() {
         <Row label="Send email">It only creates drafts in Gmail, and contains no code that sends. A person reviews and sends each one.</Row>
         <Row label="Add people by itself">Every discovered journalist or publication waits for someone to accept or reject it.</Row>
         <Row label="Guess addresses">Emails are typed in or copied from a publication's own page. No enrichment service is used.</Row>
-        <Row label="Hide who is crawling">Every request to a publisher says who is asking. Pages are only read when robots.txt allows it; RSS feeds and "is the site up" checks don't consult it.</Row>
+        <Row label="Hide who is crawling">Every request to a publisher says who is asking. Pages are only read when robots.txt allows it, and not when robots.txt can't be loaded; RSS feeds and "is the site up" checks don't consult it.</Row>
       </Section>
 
       <Section icon={Star} title="Fit scores" color="text-yellow-500">
@@ -71,7 +71,8 @@ export default function SystemInfoPage() {
       </Section>
 
       <Section icon={Cpu} title="Outside services" color="text-teal-500">
-        <Row label="Claude (Anthropic)">Scoring, pitch drafts and suggestions. Billed per use to the account that runs this app.</Row>
+        <Row label="Claude (Anthropic)">Scoring, pitch drafts, publication suggestions, and explaining why a publication's feeds couldn't be found. Billed per use to the account that runs this app.</Row>
+        <Row label="Feedly, Substack, Medium">Searched by keyword when someone uses Discover on the Publications page.</Row>
         <Row label="Gmail (Google)">Optional, for creating drafts.</Row>
       </Section>
     </div>

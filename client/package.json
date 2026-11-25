@@ -1,7 +1,9 @@
 {
   "name": "press-dossier-client",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.0.0",
+  "description": "Press Dossier web app",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

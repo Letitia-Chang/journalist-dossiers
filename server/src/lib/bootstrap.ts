@@ -68,7 +68,7 @@ function findConfigFile(): string | null {
 
 /**
  * Apply company.config.json. By default it only seeds a profile that doesn't exist yet, so
- * edits made in the Settings page are never overwritten on restart. Set COMPANY_CONFIG_SYNC=true
+ * edits made under Company Profile are never overwritten on restart. Set COMPANY_CONFIG_SYNC=true
  * to treat the file as the source of truth on every boot.
  */
 export async function applyConfigFile(orgId: string): Promise<'none' | 'applied' | 'skipped'> {

@@ -20,9 +20,9 @@ CI runs the same checks plus a gitleaks scan.
 ## Conventions
 
 - **Never commit secrets.** Use `server/.env.example` for placeholders. `.env`, `*.db` and `company.config.json` are ignored.
-- **Every AI prompt reads the company profile** through `profileToPrompt()`. Don't hard-code company details, positioning or example companies into prompts.
+- **Every AI prompt about fit or story reads the company profile** through `profileToPrompt()`. (The RSS diagnostic, which asks about a publisher's site, doesn't need it.) Don't hard-code company details, positioning or example companies into prompts.
 - **Migrations** live in `server/migrations` as CommonJS files (`exports.up` / `exports.down`); add a new one rather than editing an old one.
-- **Routes**: register specific paths before parameterised ones (`/discover` before `/:id`). Every query is scoped by `org_id`.
+- **Routes**: register specific paths before parameterized ones (`/discover` before `/:id`). Every query on an organization's data is scoped by `org_id`.
 - **Fetching third-party pages** goes through `server/src/lib/http.ts` (honest User-Agent, robots.txt check).
 - Keep a human in the loop: nothing is sent, added or published automatically.
 

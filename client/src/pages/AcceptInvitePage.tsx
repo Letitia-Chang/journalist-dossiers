@@ -6,7 +6,7 @@ import { apiError } from '../lib/errors';
 
 export default function AcceptInvitePage() {
   const { token } = useParams<{ token: string }>();
-  const { acceptInvite } = useAuth();
+  const { acceptInvite, user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const [invite, setInvite] = useState<{ email: string; role: string; orgName: string } | null>(null);
@@ -57,9 +57,14 @@ export default function AcceptInvitePage() {
             <p className="text-slate-400 text-sm text-center py-4">Checking invite…</p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {isAuthenticated && (
+                <p className="text-amber-800 text-sm bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  You're signed in as {user?.email}. Accepting this invite creates a separate account and switches to it.
+                </p>
+              )}
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">Email</label>
-                <input
+                <label className="block text-xs font-medium text-slate-700 mb-1.5" htmlFor="accept-invite-email">Email</label>
+                <input id="accept-invite-email"
                   type="email"
                   disabled
                   value={invite.email}
@@ -68,8 +73,8 @@ export default function AcceptInvitePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">Your name</label>
-                <input
+                <label className="block text-xs font-medium text-slate-700 mb-1.5" htmlFor="accept-invite-your-name">Your name</label>
+                <input id="accept-invite-your-name"
                   type="text"
                   required
                   autoFocus
@@ -81,8 +86,8 @@ export default function AcceptInvitePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">Password</label>
-                <input
+                <label className="block text-xs font-medium text-slate-700 mb-1.5" htmlFor="accept-invite-password">Password</label>
+                <input id="accept-invite-password"
                   type="password"
                   required
                   minLength={8}

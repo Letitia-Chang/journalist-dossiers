@@ -85,34 +85,34 @@ export default function CoveragePage() {
           <h3 className="font-semibold text-slate-900 mb-4">{editingId ? 'Edit Coverage' : 'New Coverage'}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <label className="form-label">Title *</label>
-              <input className="form-input" value={form.title} onChange={e => set('title', e.target.value)} placeholder="Article headline" autoFocus />
+              <label className="form-label" htmlFor="coverage-title">Title *</label>
+              <input id="coverage-title" className="form-input" value={form.title} onChange={e => set('title', e.target.value)} placeholder="Article headline" autoFocus />
             </div>
             <div>
-              <label className="form-label">URL</label>
-              <input className="form-input" value={form.url} onChange={e => set('url', e.target.value)} placeholder="https://..." />
+              <label className="form-label" htmlFor="coverage-url">URL</label>
+              <input id="coverage-url" className="form-input" value={form.url} onChange={e => set('url', e.target.value)} placeholder="https://..." />
             </div>
             <div>
-              <label className="form-label">Published date</label>
-              <input type="date" className="form-input" value={form.publishedAt} onChange={e => set('publishedAt', e.target.value)} />
+              <label className="form-label" htmlFor="coverage-published-date">Published date</label>
+              <input id="coverage-published-date" type="date" className="form-input" value={form.publishedAt} onChange={e => set('publishedAt', e.target.value)} />
             </div>
             <div>
-              <label className="form-label">Journalist</label>
-              <select className="form-select" value={form.journalistId} onChange={e => set('journalistId', e.target.value ? Number(e.target.value) : '')}>
+              <label className="form-label" htmlFor="coverage-journalist">Journalist</label>
+              <select id="coverage-journalist" className="form-select" value={form.journalistId} onChange={e => set('journalistId', e.target.value ? Number(e.target.value) : '')}>
                 <option value="">— None —</option>
                 {journalists.map(j => <option key={j.id} value={j.id}>{j.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="form-label">Campaign</label>
-              <select className="form-select" value={form.campaignId} onChange={e => set('campaignId', e.target.value ? Number(e.target.value) : '')}>
+              <label className="form-label" htmlFor="coverage-campaign">Campaign</label>
+              <select id="coverage-campaign" className="form-select" value={form.campaignId} onChange={e => set('campaignId', e.target.value ? Number(e.target.value) : '')}>
                 <option value="">— None —</option>
                 {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className="form-label">Notes</label>
-              <textarea className="form-input" rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} />
+              <label className="form-label" htmlFor="coverage-notes">Notes</label>
+              <textarea id="coverage-notes" className="form-input" rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} />
             </div>
           </div>
           <div className="flex gap-2 mt-4">
@@ -159,10 +159,10 @@ export default function CoveragePage() {
                 {item.notes && <p className="text-sm text-slate-600 mt-2">{item.notes}</p>}
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => startEdit(item)} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
+                <button aria-label={`Edit ${item.title}`} onClick={() => startEdit(item)} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
-                <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                <button aria-label={`Delete ${item.title}`} onClick={() => handleDelete(item.id)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>

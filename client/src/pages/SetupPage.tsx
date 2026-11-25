@@ -43,16 +43,16 @@ function AccountStep() {
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">Your name</label>
-              <input className={inputClass} required autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Jane Doe" />
+              <label className="block text-xs font-medium text-slate-700 mb-1.5" htmlFor="setup-your-name">Your name</label>
+              <input id="setup-your-name" className={inputClass} required autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Jane Doe" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">Email</label>
-              <input className={inputClass} type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" />
+              <label className="block text-xs font-medium text-slate-700 mb-1.5" htmlFor="setup-email">Email</label>
+              <input id="setup-email" className={inputClass} type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">Password</label>
-              <input className={inputClass} type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" />
+              <label className="block text-xs font-medium text-slate-700 mb-1.5" htmlFor="setup-password">Password</label>
+              <input id="setup-password" className={inputClass} type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" />
             </div>
             {error && <p className="text-red-600 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
             <button
@@ -69,7 +69,7 @@ function AccountStep() {
   );
 }
 
-/** Step 2: describe the company. Every AI step reads from this profile. */
+/** Step 2: describe the company. Scoring, pitches and suggestions all read from it. */
 function ProfileStep() {
   const { refresh } = useSetup();
   const navigate = useNavigate();
@@ -107,7 +107,7 @@ function ProfileStep() {
         <p className="text-xs font-semibold text-brand-600 uppercase tracking-wide">Step 2 of 2</p>
         <h1 className="text-2xl font-bold text-slate-900">Tell us about your company</h1>
         <p className="text-sm text-slate-500 mt-1 mb-6">
-          Only the company name is required. The more you add, the better the fit scores and pitch drafts. You can edit all of this later in Settings.
+          Only the company name is required. The more you add, the better the fit scores and pitch drafts. You can edit all of this later under Company Profile.
         </p>
 
         <CompanyProfileForm value={profile} onChange={setProfile} errors={errors} />
