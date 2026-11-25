@@ -137,7 +137,7 @@ export default function JournalistsList() {
     });
   }, []);
 
-  const filtered = list
+  const matching = list
     .filter(j => !favOnly || j.is_favorite)
     .filter(j => {
       if (!search) return true;
@@ -146,15 +146,14 @@ export default function JournalistsList() {
       return j.name.toLowerCase().includes(q)
         || pubName.toLowerCase().includes(q)
         || j.beats.some(b => b.toLowerCase().includes(q));
-    })
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'created_at') return b.created_at.localeCompare(a.created_at);
-      return b.total_score - a.total_score;
     });
+  const filtered = [...matching].sort((a, b) => {
+    if (sortBy === 'name') return a.name.localeCompare(b.name);
+    if (sortBy === 'created_at') return b.created_at.localeCompare(a.created_at);
+    return b.total_score - a.total_score;
+  });
 
-  const pipelineSource = favOnly ? list.filter(j => j.is_favorite) : list;
-  const grouped = Object.fromEntries(PIPELINE_COLS.map(s => [s, pipelineSource.filter(j => j.outreach_status === s)]));
+  const grouped = Object.fromEntries(PIPELINE_COLS.map(s => [s, matching.filter(j => j.outreach_status === s)]));
 
   return (
     <div className={`p-4 sm:p-8 ${view === 'pipeline' ? 'max-w-none' : 'max-w-6xl'} mx-auto`}>

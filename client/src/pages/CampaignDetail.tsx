@@ -14,6 +14,7 @@ const DRAFT_STATUS_STYLE: Record<string, string> = {
   not_started: 'bg-slate-100 text-slate-500',
   ready: 'bg-blue-50 text-blue-700',
   sent: 'bg-emerald-50 text-emerald-700',
+  drafting: 'bg-violet-50 text-violet-700',
   failed: 'bg-rose-50 text-rose-700',
 };
 
@@ -32,7 +33,7 @@ export default function CampaignDetail() {
   const [editedDrafts, setEditedDrafts] = useState<Record<number, { subject: string; body: string }>>({});
   const [creatingGmailDrafts, setCreatingGmailDrafts] = useState(false);
   const [demoPreviews, setDemoPreviews] = useState<{ journalist_name: string; to: string; subject: string; body: string }[] | null>(null);
-  const [gmailDraftsResult, setGmailDraftsResult] = useState<{ created: number; skippedNoEmail: number } | { error: string } | null>(null);
+  const [gmailDraftsResult, setGmailDraftsResult] = useState<{ created: number; skippedNoEmail: number; failed?: number } | { message: string } | { error: string } | null>(null);
 
   const loadCampaign = () => {
     if (!id) return;
@@ -48,6 +49,16 @@ export default function CampaignDetail() {
     loadCampaignJournalists();
     jApi.list().then(r => setAllJournalists(r.data));
   }, [id]);
+
+  // Drafts are written in the background: keep refreshing while any is in progress.
+  const isDrafting = campaignJournalists.some(cj => cj.status === 'drafting');
+  useEffect(() => {
+    if (!isDrafting || !id) return;
+    const timer = setInterval(() => { cApi.getJournalists(Number(id)).then(r => setCampaignJournalists(r.data)).catch(() => {}); }, 4000);
+    return () => clearInterval(timer);
+  }, [isDrafting, id]);
+
+  const clearEdits = (journalistId: number) => setEditedDrafts(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => Number(k) !== journalistId)));
 
   const addedIds = new Set(campaignJournalists.map(cj => cj.journalist_id));
   const pickerResults = allJournalists
@@ -78,14 +89,9 @@ export default function CampaignDetail() {
     setGenerating(true);
     setGmailDraftsResult(null);
     try {
-      await cApi.generateDrafts(Number(id));
-      // Drafts generate async server-side; poll a few times.
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-        loadCampaignJournalists();
-        if (attempts >= 6) clearInterval(interval);
-      }, 5000);
+      const res = await cApi.generateDrafts(Number(id));
+      setGmailDraftsResult({ message: res.data.message });
+      loadCampaignJournalists(); // rows now read "drafting", which keeps the list refreshing
     } catch (err) {
       setGmailDraftsResult({ error: apiError(err, 'Could not generate drafts.') });
     } finally {
@@ -117,6 +123,7 @@ export default function CampaignDetail() {
     try {
       setGmailDraftsResult(null);
       await cApi.regenerateDraft(Number(id), journalistId, regenInstructions[journalistId] ?? '');
+      clearEdits(journalistId); // show the new text, not what was typed over the old one
       loadCampaignJournalists();
     } catch (err) {
       setGmailDraftsResult({ error: apiError(err, 'Could not regenerate the draft.') });
@@ -129,18 +136,20 @@ export default function CampaignDetail() {
     const edited = editedDrafts[cj.journalist_id];
     if (!edited) return;
     await cApi.updateDraft(Number(id), cj.journalist_id, { draftSubject: edited.subject, draftBody: edited.body });
+    clearEdits(cj.journalist_id);
     loadCampaignJournalists();
   };
 
-  const handleSend = async (journalistId: number) => {
+  const handleSend = async (cj: CampaignJournalist) => {
     if (!confirm('Mark this pitch as sent? This logs a "Pitched" outreach entry for the journalist.')) return;
-    await cApi.markSent(Number(id), journalistId, campaign?.campaign_type ?? '');
+    if (editedDrafts[cj.journalist_id]) await handleSaveDraft(cj); // what gets recorded is what's on screen
+    await cApi.markSent(Number(id), cj.journalist_id);
     loadCampaignJournalists();
   };
 
   if (!campaign) return <div className="p-8 text-slate-400">Loading...</div>;
 
-  const notStartedCount = campaignJournalists.filter(cj => cj.status === 'not_started').length;
+  const notStartedCount = campaignJournalists.filter(cj => ['not_started', 'failed'].includes(cj.status) && !cj.draft_subject && !cj.draft_body).length;
   const draftableCount = campaignJournalists.filter(cj => cj.draft_subject && !cj.gmail_draft_id && cj.status !== 'sent').length;
 
   return (
@@ -185,10 +194,10 @@ export default function CampaignDetail() {
             <button
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 text-sm font-medium ring-1 ring-violet-200 disabled:opacity-50 transition-colors"
               onClick={handleGenerateDrafts}
-              disabled={generating}
+              disabled={generating || isDrafting}
             >
               <Sparkles className={`w-3.5 h-3.5 ${generating ? 'animate-pulse' : ''}`} />
-              {generating ? 'Starting…' : `Generate Drafts (${notStartedCount})`}
+              {generating ? 'Starting…' : isDrafting ? 'Writing…' : `Generate Drafts (${notStartedCount})`}
             </button>
           )}
           {draftableCount > 0 && (
@@ -206,14 +215,16 @@ export default function CampaignDetail() {
 
       {gmailDraftsResult && (
         <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm border flex items-center justify-between ${
-          'error' in gmailDraftsResult ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          'error' in gmailDraftsResult || ('failed' in gmailDraftsResult && gmailDraftsResult.failed) ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
         }`}>
           <span>
             {'error' in gmailDraftsResult
               ? gmailDraftsResult.error
-              : `Created ${gmailDraftsResult.created} Gmail draft${gmailDraftsResult.created === 1 ? '' : 's'}${gmailDraftsResult.skippedNoEmail ? ` — ${gmailDraftsResult.skippedNoEmail} skipped (no email on file)` : ''}.`}
+              : 'message' in gmailDraftsResult
+              ? gmailDraftsResult.message
+              : `Created ${gmailDraftsResult.created} Gmail draft${gmailDraftsResult.created === 1 ? '' : 's'}${gmailDraftsResult.skippedNoEmail ? ` — ${gmailDraftsResult.skippedNoEmail} skipped (no email on file)` : ''}${gmailDraftsResult.failed ? ` — ${gmailDraftsResult.failed} failed, so try again` : ''}.`}
           </span>
-          <button onClick={() => setGmailDraftsResult(null)} className="text-current opacity-60 hover:opacity-100">✕</button>
+          <button onClick={() => setGmailDraftsResult(null)} aria-label="Dismiss" className="text-current opacity-60 hover:opacity-100">✕</button>
         </div>
       )}
 
@@ -267,25 +278,29 @@ export default function CampaignDetail() {
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${DRAFT_STATUS_STYLE[cj.status] ?? DRAFT_STATUS_STYLE.not_started}`}>
                       {cj.status.replace('_', ' ')}
                     </span>
-                    {cj.status !== 'sent' && <button onClick={() => handleRemove(cj.journalist_id)} className="p-1 rounded text-slate-300 hover:text-red-500" title="Remove">
+                    {cj.status !== 'sent' && <button onClick={() => handleRemove(cj.journalist_id)} className="p-1 rounded text-slate-300 hover:text-red-500" title="Remove" aria-label={`Remove ${cj.journalist_name}`}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>}
                   </div>
                 </div>
 
-                {cj.status === 'not_started' ? (
-                  <p className="text-xs text-slate-400 italic">No draft yet — use "Generate Drafts" above.</p>
+                {cj.status === 'drafting' ? (
+                  <p className="text-xs text-slate-400 italic">Writing a draft…</p>
                 ) : (
                   <div className="space-y-2">
                     <input
                       className="form-input text-sm font-medium"
+                      aria-label={`Subject for ${cj.journalist_name}`}
+                      placeholder="Subject: write your own, or generate a draft"
                       value={subject}
                       readOnly={cj.status === 'sent'}
                       onChange={e => setEditedDrafts(prev => ({ ...prev, [cj.journalist_id]: { subject: e.target.value, body } }))}
                     />
                     <textarea
                       className="form-input text-sm"
-                      rows={5}
+                      rows={cj.draft_body || body ? 5 : 2}
+                      aria-label={`Pitch for ${cj.journalist_name}`}
+                      placeholder="Your pitch"
                       value={body}
                       readOnly={cj.status === 'sent'}
                       onChange={e => setEditedDrafts(prev => ({ ...prev, [cj.journalist_id]: { subject, body: e.target.value } }))}
@@ -298,7 +313,8 @@ export default function CampaignDetail() {
                       )}
                       <input
                         className="form-input text-xs flex-1 min-w-32"
-                        placeholder="Regeneration instructions (optional)"
+                        aria-label={`Instructions for ${cj.journalist_name}`}
+                        placeholder="Instructions for the AI (optional)"
                         value={regenInstructions[cj.journalist_id] ?? ''}
                         onChange={e => setRegenInstructions(prev => ({ ...prev, [cj.journalist_id]: e.target.value }))}
                       />
@@ -308,11 +324,13 @@ export default function CampaignDetail() {
                         disabled={regeneratingId === cj.journalist_id}
                       >
                         <RefreshCw className={`w-3 h-3 ${regeneratingId === cj.journalist_id ? 'animate-spin' : ''}`} />
-                        {regeneratingId === cj.journalist_id ? 'Regenerating…' : 'Regenerate'}
+                        {regeneratingId === cj.journalist_id ? 'Writing…' : cj.draft_body ? 'Regenerate' : 'Draft with AI'}
                       </button>
-                      <button className="btn-primary py-1 text-xs" onClick={() => handleSend(cj.journalist_id)}>
-                        <Send className="w-3 h-3" /> Mark Sent
-                      </button>
+                      {subject.trim() && body.trim() && (
+                        <button className="btn-primary py-1 text-xs" onClick={() => handleSend(cj)}>
+                          <Send className="w-3 h-3" /> Mark Sent
+                        </button>
+                      )}
                     </div>}
                   </div>
                 )}

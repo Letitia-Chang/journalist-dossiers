@@ -135,26 +135,45 @@ router.post('/:id/generate-drafts', async (req, res) => {
   );
   if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
-  const { rows: targets } = await pool.query(
-    `SELECT id, journalist_id FROM campaign_journalists
-     WHERE campaign_id = $1 AND org_id = $2 AND draft_subject = '' AND status <> 'sent'`,
+  // Claim the rows before paying for anything, so a second click can't generate the same draft twice.
+  // A claim older than ten minutes was interrupted (a restart) and can be taken again.
+  const { rows: claimed } = await pool.query(
+    `UPDATE campaign_journalists SET status = 'drafting', updated_at = NOW()
+     WHERE campaign_id = $1 AND org_id = $2 AND draft_subject = '' AND draft_body = ''
+       AND (status IN ('not_started', 'failed') OR (status = 'drafting' AND updated_at < NOW() - INTERVAL '10 minutes'))
+     RETURNING id, journalist_id`,
     [req.params.id, req.orgId],
   );
+  claimed.sort((a, b) => a.id - b.id);
+  const release = (ids: number[]) => pool.query(
+    `UPDATE campaign_journalists SET status = 'not_started', updated_at = NOW() WHERE id = ANY($1::int[]) AND status = 'drafting'`, [ids]);
 
   // Demo safeguard: each draft is one live Claude call; only run as many as this visitor has left.
-  const granted = targets.length > 0 ? await takeLiveAi(clientIp(req), targets.length) : 0;
-  if (targets.length > 0 && granted === 0) {
+  let granted = 0;
+  try {
+    if (claimed.length > 0) granted = await takeLiveAi(clientIp(req), claimed.length);
+  } catch (err) {
+    await release(claimed.map(c => c.id));
+    throw err;
+  }
+  const runnable = claimed.slice(0, granted);
+  const skipped = claimed.length - runnable.length;
+  if (skipped > 0) await release(claimed.slice(granted).map(c => c.id));
+  if (claimed.length > 0 && granted === 0) {
     return res.status(429).json({ error: limitMessage(await liveAiStatus(clientIp(req))) });
   }
-  const runnable = targets.slice(0, granted);
-  const skipped = targets.length - runnable.length;
 
   res.json({
-    message: `Generating drafts for ${runnable.length} journalist${runnable.length !== 1 ? 's' : ''}…`
-      + (skipped > 0 ? ` ${skipped} left for later (demo limit).` : ''),
+    generating: runnable.length,
+    skipped,
+    message: runnable.length === 0
+      ? 'There is nothing to generate: every journalist here has a draft, or one is being written.'
+      : `Generating drafts for ${runnable.length} journalist${runnable.length !== 1 ? 's' : ''}…`
+        + (skipped > 0 ? ` ${skipped} left for later (demo limit).` : ''),
   });
 
   // The response is already sent, so nothing below may reject: one bad draft must not stop the rest.
+  // Only a row still being drafted is written, so a pitch someone wrote or sent meanwhile is kept.
   for (const target of runnable) {
     try {
       const draft = await generateCampaignDraft({
@@ -163,21 +182,14 @@ router.post('/:id/generate-drafts', async (req, res) => {
         campaignBrief: campaign.brief,
         campaignType: campaign.campaign_type,
       });
-      if (draft) {
-        await pool.query(
-          `UPDATE campaign_journalists SET draft_subject = $1, draft_body = $2, status = 'ready', updated_at = NOW()
-           WHERE id = $3 AND status <> 'sent'`,
-          [draft.subject, draft.body, target.id],
-        );
-      } else {
-        await pool.query(
-          `UPDATE campaign_journalists SET status = 'failed', updated_at = NOW() WHERE id = $1 AND status <> 'sent'`,
-          [target.id],
-        );
-      }
+      await pool.query(
+        `UPDATE campaign_journalists SET draft_subject = $1, draft_body = $2, status = $3, updated_at = NOW()
+         WHERE id = $4 AND status = 'drafting'`,
+        [draft?.subject ?? '', draft?.body ?? '', draft ? 'ready' : 'failed', target.id],
+      );
     } catch (err) {
       console.error(`[campaigns] draft for campaign_journalist ${target.id} failed`, err);
-      await pool.query(`UPDATE campaign_journalists SET status = 'failed', updated_at = NOW() WHERE id = $1 AND status <> 'sent'`, [target.id]).catch(() => {});
+      await pool.query(`UPDATE campaign_journalists SET status = 'failed', updated_at = NOW() WHERE id = $1 AND status = 'drafting'`, [target.id]).catch(() => {});
     }
   }
 });
@@ -193,11 +205,12 @@ router.post('/:id/journalists/:journalistId/regenerate', async (req, res) => {
 
   // Check membership before spending a live call on a draft that could not be saved.
   const { rows: [member] } = await pool.query(
-    'SELECT id, status FROM campaign_journalists WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3',
+    `SELECT id, status, updated_at > NOW() - INTERVAL '10 minutes' AS fresh FROM campaign_journalists WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3`,
     [req.params.id, req.params.journalistId, req.orgId],
   );
   if (!member) return res.status(404).json({ error: 'Not found' });
   if (member.status === 'sent') return res.status(409).json({ error: ALREADY_SENT });
+  if (member.status === 'drafting' && member.fresh) return res.status(409).json({ error: 'A draft is already being written for this journalist.' });
 
   if ((await takeLiveAi(clientIp(req), 1)) === 0) {
     return res.status(429).json({ error: limitMessage(await liveAiStatus(clientIp(req))) });
@@ -212,7 +225,7 @@ router.post('/:id/journalists/:journalistId/regenerate', async (req, res) => {
   if (!draft) return res.status(502).json({ error: 'AI draft generation failed. Check ANTHROPIC_API_KEY and server logs.' });
 
   const { rows: [row] } = await pool.query(
-    `UPDATE campaign_journalists SET draft_subject = $1, draft_body = $2, status = 'ready', updated_at = NOW()
+    `UPDATE campaign_journalists SET draft_subject = $1, draft_body = $2, status = 'ready', gmail_draft_id = NULL, updated_at = NOW()
      WHERE campaign_id = $3 AND journalist_id = $4 AND org_id = $5 AND status <> 'sent'
      RETURNING id, campaign_id, journalist_id, draft_subject, draft_body, status, sent_at`,
     [draft.subject, draft.body, req.params.id, req.params.journalistId, req.orgId],
@@ -227,6 +240,9 @@ router.put('/:id/journalists/:journalistId/draft', async (req, res) => {
     `UPDATE campaign_journalists SET
        draft_subject = COALESCE($1, draft_subject),
        draft_body = COALESCE($2, draft_body),
+       -- A pitch someone wrote themselves is ready; an edited one no longer matches its copy in Gmail.
+       status = CASE WHEN COALESCE($1, draft_subject) <> '' AND COALESCE($2, draft_body) <> '' THEN 'ready' ELSE status END,
+       gmail_draft_id = CASE WHEN COALESCE($1, draft_subject) <> draft_subject OR COALESCE($2, draft_body) <> draft_body THEN NULL ELSE gmail_draft_id END,
        updated_at = NOW()
      WHERE campaign_id = $3 AND journalist_id = $4 AND org_id = $5 AND status <> 'sent'
      RETURNING id, campaign_id, journalist_id, draft_subject, draft_body, status, sent_at`,
@@ -300,6 +316,8 @@ router.post('/:id/create-gmail-drafts', async (req, res) => {
 
   let created = 0;
   let skippedNoEmail = 0;
+  let failed = 0;
+  let expired = false;
   for (const t of targets) {
     if (!t.journalist_email) { skippedNoEmail++; continue; }
     // Claim the row first, so a double click can't create the same draft twice.
@@ -312,11 +330,15 @@ router.post('/:id/create-gmail-drafts', async (req, res) => {
       created++;
     } catch (err: any) {
       console.error(`[Gmail] Draft creation failed for campaign_journalist ${t.id}:`, err.message);
+      failed++;
+      expired ||= /invalid_grant|invalid_token|unauthorized/i.test(`${err.message} ${err.code ?? ''}`) || Number(err.code ?? err.status) === 401;
       await pool.query(`UPDATE campaign_journalists SET gmail_draft_id = NULL WHERE id = $1 AND gmail_draft_id = '${CLAIM}'`, [t.id]);
+      if (expired) break; // every other one would fail the same way
     }
   }
 
-  res.json({ created, skippedNoEmail, total: targets.length });
+  if (expired && created === 0) return res.status(400).json({ error: 'The Gmail connection has expired. Reconnect it from House Style settings.' });
+  res.json({ created, skippedNoEmail, failed, total: targets.length });
 });
 
 export default router;

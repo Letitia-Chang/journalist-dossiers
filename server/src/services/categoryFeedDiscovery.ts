@@ -170,27 +170,14 @@ export async function discoverAndSaveFeeds(orgId: string, publicationId: number)
     );
   } else if (hasExistingFeeds) {
     // Feeds exist but discovery found nothing new.
-    // If ALL existing feeds are inactive (broken), delete them and reset to 'none' —
-    // keeping dead feed URLs is misleading; a clean "No RSS" state is more honest.
     const allInactive = existingFeeds.every((f: any) => f.rss_status === 'inactive');
-    if (allInactive) {
-      await pool.query(
-        'DELETE FROM publication_feeds WHERE publication_id = $1 AND org_id = $2',
-        [publicationId, orgId]
-      );
-      await pool.query(
-        `UPDATE publications SET rss_status = 'none', rss_status_note = $1, rss_last_checked = NOW() WHERE id = $2 AND org_id = $3`,
-        [`All previously saved feeds are broken. Auto-discovery found no replacements.`, publicationId, orgId]
-      );
-      generateRssDiagnosticNote(orgId, publicationId, pub.name, pub.url, {
-        failureType: 'no_feeds_found',
-      }).catch(() => {});
-    } else {
-      await pool.query(
-        `UPDATE publications SET rss_last_checked = NOW() WHERE id = $1 AND org_id = $2`,
-        [publicationId, orgId]
-      );
-    }
+    await pool.query(
+      allInactive
+        ? `UPDATE publications SET rss_status = 'inactive', rss_status_note = 'All saved feeds are failing, and discovery found no replacements', rss_last_checked = NOW() WHERE id = $1 AND org_id = $2`
+        : `UPDATE publications SET rss_last_checked = NOW() WHERE id = $1 AND org_id = $2`,
+      [publicationId, orgId],
+    );
+    if (allInactive) generateRssDiagnosticNote(orgId, publicationId, pub.name, pub.url, { failureType: 'no_feeds_found' }).catch(() => {});
   } else {
     // Truly no feeds anywhere — mark as none and generate diagnostic
     await pool.query(

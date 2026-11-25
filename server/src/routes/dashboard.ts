@@ -43,7 +43,7 @@ router.get('/', async (req, res) => {
          WHERE ol.journalist_id = j.id AND ol.org_id = j.org_id
          ORDER BY ol.logged_at DESC LIMIT 1
        ), 'Not Started') as outreach_status
-       FROM journalists j WHERE j.org_id = $1`,
+       FROM journalists j WHERE j.org_id = $1 ORDER BY j.total_score DESC, j.name`,
       [orgId],
     ),
   ]);

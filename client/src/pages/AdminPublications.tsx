@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  HeartPulse,
   Plus, Pencil, Trash2, ExternalLink, Check, X,
   Sparkles, RefreshCw, History, ChevronUp, ChevronDown,
   Globe, ChevronRight, Rss, AlertCircle, HelpCircle,
@@ -129,6 +130,7 @@ export default function AdminPublications() {
   const [jSuggestionCount, setJSuggestionCount] = useState(0);
   const [healthWarnings, setHealthWarnings] = useState<{ unreachable: HealthWarning[]; inactiveFeeds: HealthWarning[] }>({ unreachable: [], inactiveFeeds: [] });
   const [syncingFeeds, setSyncingFeeds] = useState(false);
+  const [checkingHealth, setCheckingHealth] = useState(false);
   const [syncFeedsMsg, setSyncFeedsMsg] = useState('');
 
   const [showDiscover, setShowDiscover]     = useState(false);
@@ -220,7 +222,12 @@ export default function AdminPublications() {
   const handleDiscoverFeeds = async (p: Publication) => {
     setDiscoveringFeedsId(p.id);
     setFeedsDiscoveryResult(null);
-    await pubApi.discoverFeeds(p.id);
+    try {
+      await pubApi.discoverFeeds(p.id);
+    } catch (err) {
+      setDiscoveringFeedsId(null);
+      throw err;
+    }
     setTimeout(async () => {
       const [feedRes] = await Promise.all([pubApi.getFeeds(p.id), loadPubs()]);
       setPubFeeds(prev => ({ ...prev, [p.id]: feedRes.data }));
@@ -312,8 +319,25 @@ export default function AdminPublications() {
 
   const handleRunNow = async () => {
     setRunningJob(true);
-    await suggestApi.runNow();
-    setTimeout(async () => { await loadSuggestions(); setRunningJob(false); }, 8000);
+    try {
+      await suggestApi.runNow();
+    } catch (err) {
+      setRunningJob(false);
+      throw err;
+    }
+    setTimeout(() => { loadSuggestions().finally(() => setRunningJob(false)); }, 15_000);
+  };
+
+  const handleHealthCheck = async () => {
+    setCheckingHealth(true);
+    try {
+      const res = await healthApi.runNow();
+      setSyncFeedsMsg(res.data.message);
+      setTimeout(() => { Promise.all([loadPubs(), loadHealth()]).catch(() => {}).finally(() => setCheckingHealth(false)); }, Math.min(90_000, 5_000 + pubs.length * 1_500));
+    } catch (err) {
+      setCheckingHealth(false);
+      throw err;
+    }
   };
 
   const handleSyncFeeds = async () => {
@@ -382,6 +406,12 @@ export default function AdminPublications() {
                 title="Sync Feeds — discovers RSS feeds for all publications, then verifies every feed URL. May take several minutes."
                 className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all">
                 <RefreshCw className={`w-4 h-4 ${syncingFeeds ? 'animate-spin' : ''}`} />
+              </button>
+              <button onClick={handleHealthCheck} disabled={checkingHealth}
+                title="Check sites — sees whether each publication's site responds"
+                aria-label="Check that publication sites respond"
+                className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition-all">
+                <HeartPulse className={`w-4 h-4 ${checkingHealth ? 'animate-pulse' : ''}`} />
               </button>
               <button
                 onClick={() => { setShowDiscover(v => !v); setDiscoverResults([]); setDiscoverError(''); }}
