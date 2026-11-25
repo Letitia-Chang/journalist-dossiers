@@ -4,7 +4,11 @@ Why Press Dossier is built the way it is, what went wrong along the way, and wha
 
 ## The problem
 
-Good pitches need three things in one place: what a journalist actually writes about, why they fit *this* company, and a draft that uses the company's real news and people. The risky parts are the AI ones: inventing sources, sounding sure without grounds, and sending things nobody read.
+Most startups struggle to get noticed. A founder has news worth sharing, such as a feature launch, a funding round or a milestone, and people who would want to hear it: investors, sponsors, customers, or someone who might join the team. Without a marketing specialist, that news often goes nowhere.
+
+Press is one way out, and it is easy to do badly. A good pitch needs three things in one place: what a journalist actually writes about, why they fit *this* company, and a draft that uses the company's real news and people. Press Dossier aims to give a small team all three without a marketing hire.
+
+The risky parts are the AI ones: inventing sources, sounding sure without grounds, and sending things nobody read.
 
 ## Decisions
 
@@ -43,4 +47,6 @@ Good pitches need three things in one place: what a journalist actually writes a
 
 ## How it was built
 
-With an AI coding assistant, with changes reviewed by separate AI reviewers told to break them. A person made the product decisions and approved every merge. See [architecture](architecture.md), [demo mode](demo-mode.md) and [deployment](deployment.md).
+The idea, the product design, the features, and the research into how to gather and combine the data are mine. AI coding tools wrote the implementation. I tested it, told them what was wrong, and had it fixed, round after round. Separate AI reviewers were also told to try to break the changes, and I approved every merge.
+
+See [architecture](architecture.md), [demo mode](demo-mode.md) and [deployment](deployment.md).
