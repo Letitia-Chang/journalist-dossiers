@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import pool from '../db';
 
 /**
- * The company profile is the single source of truth for every AI step
+ * The company profile is the single source of truth for every AI step about fit or story
  * (fit scoring, pitch drafts, publication suggestions). Nothing about the
  * company is hard-coded anywhere else.
  */

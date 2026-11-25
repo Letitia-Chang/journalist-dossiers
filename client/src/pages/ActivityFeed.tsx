@@ -89,12 +89,12 @@ export default function ActivityFeed() {
       <div className="card p-4 mb-5 flex flex-wrap items-center gap-3">
         <Filter className="w-4 h-4 text-slate-400 shrink-0" />
 
-        <select className="form-select text-sm flex-1 min-w-36" value={pubFilter} onChange={e => setPubFilter(e.target.value)}>
+        <select aria-label="Publication" className="form-select text-sm flex-1 min-w-36" value={pubFilter} onChange={e => setPubFilter(e.target.value)}>
           <option value="">All publications</option>
           {publications.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
 
-        <select className="form-select text-sm flex-1 min-w-36" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <select aria-label="Status" className="form-select text-sm flex-1 min-w-36" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="">All statuses</option>
           {OUTREACH_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>

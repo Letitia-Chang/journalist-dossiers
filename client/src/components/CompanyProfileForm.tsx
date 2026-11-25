@@ -243,9 +243,9 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
           <Field label="Logo URL" htmlFor="company-logo_url" error={errors.logo_url}>{text('logo_url', { placeholder: 'https://…/logo.png' })}</Field>
           <Field label="Brand color" error={errors.brand_color}>
             <div className="flex gap-2">
-              <input type="color" className="h-9 w-12 rounded border border-slate-200 bg-white p-1" value={/^#[0-9a-f]{6}$/i.test(p.brand_color) ? p.brand_color : '#4f46e5'}
+              <input type="color" aria-label="Pick a color" className="h-9 w-12 rounded border border-slate-200 bg-white p-1" value={/^#[0-9a-f]{6}$/i.test(p.brand_color) ? p.brand_color : '#4f46e5'}
                 disabled={readOnly} onChange={e => set('brand_color', e.target.value)} />
-              <input className="form-input" value={p.brand_color} disabled={readOnly} onChange={e => set('brand_color', e.target.value)} />
+              <input aria-label="Color code" className="form-input" value={p.brand_color} disabled={readOnly} onChange={e => set('brand_color', e.target.value)} />
             </div>
           </Field>
         </div>

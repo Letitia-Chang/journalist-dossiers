@@ -69,7 +69,7 @@ function AccountStep() {
   );
 }
 
-/** Step 2: describe the company. Every AI step reads from this profile. */
+/** Step 2: describe the company. Scoring, pitches and suggestions all read from it. */
 function ProfileStep() {
   const { refresh } = useSetup();
   const navigate = useNavigate();

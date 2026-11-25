@@ -16,21 +16,25 @@ export default function Modal({ label, onClose, className = '', children }: { la
       const first = items[0], last = items[items.length - 1];
       if (!first) { e.preventDefault(); return; }
       const active = document.activeElement;
-      if (e.shiftKey && (active === first || active === panel.current)) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+      const outside = !panel.current?.contains(active) || active === panel.current;
+      if (e.shiftKey && (active === first || outside)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (active === last || outside)) { e.preventDefault(); first.focus(); }
     };
     document.addEventListener('keydown', onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     panel.current?.focus();
     return () => {
+      document.body.style.overflow = overflow;
       document.removeEventListener('keydown', onKey);
       opener?.focus();
     };
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={panel} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
-        className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden focus:outline-none ${className}`} onClick={e => e.stopPropagation()}>
+        className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden focus:outline-none ${className}`}>
         {children}
       </div>
     </div>

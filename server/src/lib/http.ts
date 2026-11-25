@@ -81,7 +81,8 @@ export function pathAllowed(rules: Rules, path: string): boolean {
 
 /**
  * May we fetch this URL? As RFC 9309 prescribes, a site without a robots.txt (4xx) allows everything,
- * and one whose robots.txt can't be reached (5xx, rate limited, network error) allows nothing for now.
+ * and one whose robots.txt can't be reached (5xx, network error) allows nothing for now. We also wait
+ * when rate limited (429).
  */
 export async function isAllowedByRobots(url: string): Promise<boolean> {
   let u: URL;

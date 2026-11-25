@@ -99,6 +99,7 @@ export default function TeamPage() {
             </div>
             {isOwner ? (
               <select
+                aria-label={`Role of ${m.name}`}
                 className="form-input py-1 text-xs w-28"
                 value={m.role}
                 onChange={e => handleRoleChange(m.id, e.target.value)}
