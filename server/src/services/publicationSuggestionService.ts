@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import pool from '../db';
 import { loadProfile, profileToPrompt } from '../lib/companyProfile';
-import { CLAUDE_MODEL } from '../lib/claude';
+import { assertPromptSize, CLAUDE_MODEL } from '../lib/claude';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -60,7 +60,7 @@ Respond with ONLY a valid JSON array, no markdown, no prose:
       model: CLAUDE_MODEL,
       max_tokens: 1024,
       thinking: { type: 'adaptive' },
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: assertPromptSize(prompt) }],
     });
 
     const text = message.content

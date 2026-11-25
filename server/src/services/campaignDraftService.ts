@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import pool from '../db';
 import { loadProfile, profileToPrompt } from '../lib/companyProfile';
-import { CLAUDE_MODEL } from '../lib/claude';
+import { assertPromptSize, CLAUDE_MODEL } from '../lib/claude';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -96,6 +96,7 @@ WRITING GUIDELINES:
 
 Return ONLY valid JSON — no prose before or after:
 {"subject": "...", "body": "..."}`;
+  assertPromptSize(prompt);
 
   try {
     const message = await anthropic.messages.create({

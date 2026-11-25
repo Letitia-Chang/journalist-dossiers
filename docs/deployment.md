@@ -50,7 +50,6 @@ Open the site. You should see the "Enter the demo" screen.
 - For Gmail drafts, add your API origin's callback to the Google OAuth client: `https://<api-host>/auth/google/callback`, and set `GOOGLE_REDIRECT_URI` to match. The Gmail refresh token is stored unencrypted in the database, so use encryption at rest.
 - Set `BOT_NAME` and `BOT_CONTACT_URL` so publishers can see who is crawling them.
 - `TRUST_PROXY=true` if the API sits behind a reverse proxy. If a CDN sits in front of that proxy (Render is fronted by Cloudflare), `req.ip` is the CDN's edge address, so also set `CLIENT_IP_HEADER` (the blueprint sets `cf-connecting-ip`); otherwise the demo's per-visitor limits can't tell visitors apart.
-- Run **one** API instance if you use demo mode (its rate limits are in memory).
 
 ## Troubleshooting
 

@@ -119,7 +119,6 @@ CI runs lint, typecheck, tests against a Postgres service, the client build, and
 - **Discovery is best-effort.** It depends on publishers exposing RSS and readable staff pages. Name extraction from staff pages is heuristic and noisy (expect job titles and non-editorial staff in the review queue). Substack/Feedly endpoints are unofficial and can change.
 - **No contact enrichment.** Emails are entered by hand or copied from a publication's own page. The app never guesses addresses.
 - **Gmail** in Testing status expires tokens weekly; the connection is per deployment, not per user, and the refresh token is stored unencrypted in your database.
-- **Demo limits are in memory**, so they reset on restart and aren't shared across instances.
 - Login tokens live in the browser's `localStorage`; put the app behind HTTPS.
 - The free-tier demo host sleeps when idle, so the first request can take up to a minute.
 

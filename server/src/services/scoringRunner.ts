@@ -31,8 +31,8 @@ export async function runAiScoring(orgId: string, journalistId: number, actor = 
   }
 
   // Demo safeguard: over the limit, fall back to the saved (seeded) analysis if there is one.
-  if (takeLiveAi(actor, 1) === 0) {
-    const message = limitMessage(liveAiStatus(actor));
+  if ((await takeLiveAi(actor, 1)) === 0) {
+    const message = limitMessage(await liveAiStatus(actor));
     const { rows: saved } = await pool.query(
       'SELECT dimension_id, score, rationale, evidence FROM journalist_scores WHERE org_id = $1 AND journalist_id = $2',
       [orgId, journalistId],
