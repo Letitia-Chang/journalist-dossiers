@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { journalists as api, publications as pubApi, scoringDimensions as dimApi } from '../api';
+import { apiError } from '../lib/errors';
 import type { Publication, ScoringDimension } from '../types';
 
 const empty = {
@@ -72,6 +73,8 @@ export default function JournalistForm() {
         const res = await api.create(payload);
         navigate(`/journalists/${res.data.id}`);
       }
+    } catch (err) {
+      alert(apiError(err, 'Could not save this journalist.'));
     } finally {
       setSaving(false);
     }

@@ -2,7 +2,9 @@ import { Router } from 'express';
 import pool from '../db';
 import { runAiScoring } from '../services/scoringRunner';
 import { clientIp } from '../lib/clientIp';
+import { HttpError } from '../lib/httpError';
 import { assertOwned } from '../lib/owned';
+import { recomputeTotals } from '../lib/scores';
 import * as schemas from '../lib/schemas';
 import { parseBody, validateParams } from '../lib/validate';
 
@@ -14,8 +16,10 @@ interface ScoreRow { dimensionId: number; score: number; rationale: string; evid
 async function attachScores(orgId: string, journalistIds: number[]) {
   if (journalistIds.length === 0) return new Map<number, ScoreRow[]>();
   const { rows } = await pool.query(
-    `SELECT journalist_id, dimension_id, score, rationale, evidence FROM journalist_scores
-     WHERE org_id = $1 AND journalist_id = ANY($2::int[])`,
+    `SELECT s.journalist_id, s.dimension_id, s.score, s.rationale, s.evidence
+     FROM journalist_scores s JOIN scoring_dimensions d ON d.id = s.dimension_id
+     WHERE s.org_id = $1 AND s.journalist_id = ANY($2::int[])
+     ORDER BY d.display_order, d.id`,
     [orgId, journalistIds],
   );
   const map = new Map<number, ScoreRow[]>();
@@ -59,29 +63,30 @@ router.get('/:id', async (req, res) => {
   res.json({ ...row, scores: scoresByJournalist.get(row.id) ?? [] });
 });
 
-async function upsertScoresAndRecompute(
+/** Save hand-entered scores. Changing a score drops the AI's rationale, which no longer explains it. */
+async function saveManualScores(
   client: import('pg').PoolClient,
   orgId: string,
   journalistId: number,
   scores: { dimensionId: number; score: number }[],
 ) {
-  await assertOwned(client, orgId, 'scoring_dimensions', scores.map(s => s.dimensionId));
+  const { rows: dims } = await client.query('SELECT id, name, weight FROM scoring_dimensions WHERE org_id = $1', [orgId]);
+  const byId = new Map(dims.map(d => [d.id as number, d]));
   for (const s of scores) {
+    const dim = byId.get(s.dimensionId);
+    if (!dim) throw new HttpError(400, 'Unknown scoring dimension');
+    if (s.score > dim.weight) throw new HttpError(400, `${dim.name} can be at most ${dim.weight}`);
     await client.query(
       `INSERT INTO journalist_scores (org_id, journalist_id, dimension_id, score)
        VALUES ($1, $2, $3, $4)
-       ON CONFLICT (journalist_id, dimension_id)
-       DO UPDATE SET score = $4, updated_at = NOW()`,
+       ON CONFLICT (journalist_id, dimension_id) DO UPDATE SET
+         score = $4, updated_at = NOW(),
+         rationale = CASE WHEN journalist_scores.score = $4 THEN journalist_scores.rationale ELSE '' END,
+         evidence = CASE WHEN journalist_scores.score = $4 THEN journalist_scores.evidence ELSE '[]'::jsonb END`,
       [orgId, journalistId, s.dimensionId, s.score],
     );
   }
-  const { rows: [{ total }] } = await client.query(
-    `SELECT COALESCE(SUM(score), 0)::int as total FROM journalist_scores
-     WHERE org_id = $1 AND journalist_id = $2`,
-    [orgId, journalistId],
-  );
-  await client.query('UPDATE journalists SET total_score = $1, updated_at = NOW() WHERE id = $2', [total, journalistId]);
-  return total;
+  return recomputeTotals(client, orgId, journalistId);
 }
 
 router.post('/', async (req, res) => {
@@ -99,7 +104,7 @@ router.post('/', async (req, res) => {
     );
     let totalScore = 0;
     if (scores?.length) {
-      totalScore = await upsertScoresAndRecompute(client, req.orgId!, row.id, scores);
+      totalScore = await saveManualScores(client, req.orgId!, row.id, scores);
     }
     await client.query('COMMIT');
     res.status(201).json({ ...row, total_score: totalScore, scores: scores ?? [] });
@@ -120,7 +125,7 @@ router.put('/:id', async (req, res) => {
     await client.query('BEGIN');
     const { rows: [row] } = await client.query(
       `UPDATE journalists SET
-         publication_id = COALESCE($1, publication_id),
+         publication_id = CASE WHEN $12 THEN $1 ELSE publication_id END,
          name = COALESCE($2, name),
          email = COALESCE($3, email),
          twitter = COALESCE($4, twitter),
@@ -132,7 +137,7 @@ router.put('/:id', async (req, res) => {
          updated_at = NOW()
        WHERE id = $10 AND org_id = $11
        RETURNING id, publication_id, name, email, twitter, linkedin, bio, beats, total_score, is_favorite, photo_url, created_at, updated_at`,
-      [publicationId, name, email, twitter, linkedin, bio, beats, photoUrl, isFavorite, req.params.id, req.orgId],
+      [publicationId, name, email, twitter, linkedin, bio, beats, photoUrl, isFavorite, req.params.id, req.orgId, publicationId !== undefined],
     );
     if (!row) {
       await client.query('ROLLBACK');
@@ -140,7 +145,7 @@ router.put('/:id', async (req, res) => {
     }
     let totalScore = row.total_score;
     if (scores?.length) {
-      totalScore = await upsertScoresAndRecompute(client, req.orgId!, row.id, scores);
+      totalScore = await saveManualScores(client, req.orgId!, row.id, scores);
     }
     await client.query('COMMIT');
     const scoresByJournalist = await attachScores(req.orgId!, [row.id]);

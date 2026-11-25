@@ -3,13 +3,15 @@ import pool from '../db';
 
 const router = Router();
 
-function toCsv(rows: Record<string, any>[]): string {
+export function toCsv(rows: Record<string, any>[]): string {
   if (rows.length === 0) return '';
   const headers = Object.keys(rows[0]);
   const escape = (v: any) => {
     if (v === null || v === undefined) return '';
-    const s = Array.isArray(v) ? v.join('; ') : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    let s = v instanceof Date ? v.toISOString() : Array.isArray(v) ? v.join('; ') : String(v);
+    // A leading = + - @ would run as a formula when the file is opened in a spreadsheet.
+    if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [headers.join(',')];
   for (const row of rows) lines.push(headers.map(h => escape(row[h])).join(','));
@@ -17,7 +19,7 @@ function toCsv(rows: Record<string, any>[]): string {
 }
 
 function sendCsv(res: any, filename: string, rows: Record<string, any>[]) {
-  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(toCsv(rows));
 }

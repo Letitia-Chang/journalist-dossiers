@@ -1,4 +1,5 @@
 import pool from '../db';
+import { recomputeTotals } from '../lib/scores';
 import { loadProfile } from '../lib/companyProfile';
 import { scoreJournalistWithAI } from './journalistScoring';
 import { limitMessage, liveAiStatus, takeLiveAi } from '../demo/limits';
@@ -84,11 +85,7 @@ export async function runAiScoring(orgId: string, journalistId: number, actor = 
         [orgId, journalistId, s.dimensionId, s.score, s.rationale, JSON.stringify(s.evidence)],
       );
     }
-    const { rows: [{ total }] } = await client.query(
-      `SELECT COALESCE(SUM(score), 0)::int as total FROM journalist_scores WHERE org_id = $1 AND journalist_id = $2`,
-      [orgId, journalistId],
-    );
-    await client.query('UPDATE journalists SET total_score = $1, updated_at = NOW() WHERE id = $2', [total, journalistId]);
+    const total = await recomputeTotals(client, orgId, journalistId);
     await client.query('COMMIT');
     return { ok: true, total, scores: result.scores, reasoning: result.reasoning };
   } catch (err) {

@@ -1,12 +1,16 @@
 import { Router } from 'express';
-import pool from '../db';
+import type { Pool, PoolClient } from 'pg';
+import pool, { inTransaction } from '../db';
 import { generateCampaignDraft } from '../services/campaignDraftService';
 import { getAuthedGmailClient, createGmailDraft } from '../services/gmailService';
 import { isDemo, limitMessage, liveAiStatus, takeLiveAi } from '../demo/limits';
 import { clientIp } from '../lib/clientIp';
+import { HttpError } from '../lib/httpError';
 import { assertOwned } from '../lib/owned';
 import * as schemas from '../lib/schemas';
 import { parseBody, validateParams } from '../lib/validate';
+
+const ALREADY_SENT = 'This pitch was already sent, so its text is kept as a record.';
 
 const router = Router();
 validateParams(router, { id: 'int', journalistId: 'int' });
@@ -96,15 +100,17 @@ router.post('/:id/journalists', async (req, res) => {
   if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
   await assertOwned(pool, req.orgId!, 'journalists', journalistIds);
 
+  let added = 0;
   for (const journalistId of journalistIds) {
-    await pool.query(
+    const { rowCount } = await pool.query(
       `INSERT INTO campaign_journalists (org_id, campaign_id, journalist_id)
        VALUES ($1, $2, $3)
        ON CONFLICT (campaign_id, journalist_id) DO NOTHING`,
       [req.orgId, req.params.id, journalistId],
     );
+    added += rowCount ?? 0;
   }
-  res.status(201).json({ added: journalistIds.length });
+  res.status(201).json({ added });
 });
 
 router.delete('/:id/journalists/:journalistId', async (req, res) => {
@@ -127,7 +133,7 @@ router.post('/:id/generate-drafts', async (req, res) => {
 
   const { rows: targets } = await pool.query(
     `SELECT id, journalist_id FROM campaign_journalists
-     WHERE campaign_id = $1 AND org_id = $2 AND draft_subject = ''`,
+     WHERE campaign_id = $1 AND org_id = $2 AND draft_subject = '' AND status <> 'sent'`,
     [req.params.id, req.orgId],
   );
 
@@ -156,12 +162,12 @@ router.post('/:id/generate-drafts', async (req, res) => {
       if (draft) {
         await pool.query(
           `UPDATE campaign_journalists SET draft_subject = $1, draft_body = $2, status = 'ready', updated_at = NOW()
-           WHERE id = $3`,
+           WHERE id = $3 AND status <> 'sent'`,
           [draft.subject, draft.body, target.id],
         );
       } else {
         await pool.query(
-          `UPDATE campaign_journalists SET status = 'failed', updated_at = NOW() WHERE id = $1`,
+          `UPDATE campaign_journalists SET status = 'failed', updated_at = NOW() WHERE id = $1 AND status <> 'sent'`,
           [target.id],
         );
       }
@@ -182,10 +188,11 @@ router.post('/:id/journalists/:journalistId/regenerate', async (req, res) => {
 
   // Check membership before spending a live call on a draft that could not be saved.
   const { rows: [member] } = await pool.query(
-    'SELECT id FROM campaign_journalists WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3',
+    'SELECT id, status FROM campaign_journalists WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3',
     [req.params.id, req.params.journalistId, req.orgId],
   );
   if (!member) return res.status(404).json({ error: 'Not found' });
+  if (member.status === 'sent') return res.status(409).json({ error: ALREADY_SENT });
 
   if ((await takeLiveAi(clientIp(req), 1)) === 0) {
     return res.status(429).json({ error: limitMessage(await liveAiStatus(clientIp(req))) });
@@ -201,11 +208,11 @@ router.post('/:id/journalists/:journalistId/regenerate', async (req, res) => {
 
   const { rows: [row] } = await pool.query(
     `UPDATE campaign_journalists SET draft_subject = $1, draft_body = $2, status = 'ready', updated_at = NOW()
-     WHERE campaign_id = $3 AND journalist_id = $4 AND org_id = $5
+     WHERE campaign_id = $3 AND journalist_id = $4 AND org_id = $5 AND status <> 'sent'
      RETURNING id, campaign_id, journalist_id, draft_subject, draft_body, status, sent_at`,
     [draft.subject, draft.body, req.params.id, req.params.journalistId, req.orgId],
   );
-  if (!row) return res.status(404).json({ error: 'Not found' });
+  if (!row) return res.status(409).json({ error: ALREADY_SENT });
   res.json(row);
 });
 
@@ -216,31 +223,40 @@ router.put('/:id/journalists/:journalistId/draft', async (req, res) => {
        draft_subject = COALESCE($1, draft_subject),
        draft_body = COALESCE($2, draft_body),
        updated_at = NOW()
-     WHERE campaign_id = $3 AND journalist_id = $4 AND org_id = $5
+     WHERE campaign_id = $3 AND journalist_id = $4 AND org_id = $5 AND status <> 'sent'
      RETURNING id, campaign_id, journalist_id, draft_subject, draft_body, status, sent_at`,
     [draftSubject, draftBody, req.params.id, req.params.journalistId, req.orgId],
   );
-  if (!row) return res.status(404).json({ error: 'Not found' });
+  if (!row) throw await notFoundOrSent(pool, req.params.id, req.params.journalistId, req.orgId!);
   res.json(row);
 });
 
 router.post('/:id/journalists/:journalistId/send', async (req, res) => {
-  const { rows: [row] } = await pool.query(
-    `UPDATE campaign_journalists SET status = 'sent', sent_at = NOW(), updated_at = NOW()
-     WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3
-     RETURNING id, campaign_id, journalist_id, draft_subject, draft_body, status, sent_at`,
-    [req.params.id, req.params.journalistId, req.orgId],
-  );
-  if (!row) return res.status(404).json({ error: 'Not found' });
-
-  await pool.query(
-    `INSERT INTO outreach_logs (org_id, journalist_id, campaign_id, logged_by, type, status, notes)
-     VALUES ($1, $2, $3, $4, 'pitch', 'Pitched', $5)`,
-    [req.orgId, req.params.journalistId, req.params.id, req.userId, row.draft_subject],
-  );
-
+  const row = await inTransaction(async db => {
+    // The status check is in the UPDATE, so a double click logs one pitch, not two.
+    const { rows: [sent] } = await db.query(
+      `UPDATE campaign_journalists SET status = 'sent', sent_at = NOW(), updated_at = NOW()
+       WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3 AND status <> 'sent'
+       RETURNING id, campaign_id, journalist_id, draft_subject, draft_body, status, sent_at`,
+      [req.params.id, req.params.journalistId, req.orgId],
+    );
+    if (!sent) throw await notFoundOrSent(db, req.params.id, req.params.journalistId, req.orgId!);
+    await db.query(
+      `INSERT INTO outreach_logs (org_id, journalist_id, campaign_id, logged_by, type, status, notes)
+       VALUES ($1, $2, $3, $4, 'pitch', 'Pitched', $5)`,
+      [req.orgId, req.params.journalistId, req.params.id, req.userId, sent.draft_subject],
+    );
+    return sent;
+  });
   res.json(row);
 });
+
+async function notFoundOrSent(db: Pool | PoolClient, campaignId: unknown, journalistId: unknown, orgId: string): Promise<HttpError> {
+  const { rowCount } = await db.query(
+    'SELECT 1 FROM campaign_journalists WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3', [campaignId, journalistId, orgId],
+  );
+  return rowCount ? new HttpError(409, ALREADY_SENT) : new HttpError(404, 'Not found');
+}
 
 // ── Gmail draft creation ─────────────────────────────────────────────────────
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Newspaper, Plus, Trash2, Pencil, ExternalLink } from 'lucide-react';
 import { coverage as covApi, journalists as jApi, campaigns as campApi } from '../api';
+import { apiError } from '../lib/errors';
 import type { CoverageItem, Journalist, Campaign } from '../types';
 
 const empty = { title: '', url: '', notes: '', publishedAt: '', journalistId: '' as number | '', campaignId: '' as number | '' };
@@ -52,6 +53,8 @@ export default function CoveragePage() {
       else await covApi.create(payload);
       cancelForm();
       load();
+    } catch (err) {
+      alert(apiError(err, 'Could not save this item.'));
     } finally {
       setSaving(false);
     }

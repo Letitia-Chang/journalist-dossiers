@@ -280,15 +280,17 @@ export default function CampaignDetail() {
                     <input
                       className="form-input text-sm font-medium"
                       value={subject}
+                      readOnly={cj.status === 'sent'}
                       onChange={e => setEditedDrafts(prev => ({ ...prev, [cj.journalist_id]: { subject: e.target.value, body } }))}
                     />
                     <textarea
                       className="form-input text-sm"
                       rows={5}
                       value={body}
+                      readOnly={cj.status === 'sent'}
                       onChange={e => setEditedDrafts(prev => ({ ...prev, [cj.journalist_id]: { subject, body: e.target.value } }))}
                     />
-                    <div className="flex items-center gap-2 flex-wrap">
+                    {cj.status !== 'sent' && <div className="flex items-center gap-2 flex-wrap">
                       {hasEdits && (
                         <button className="btn-secondary py-1 text-xs" onClick={() => handleSaveDraft(cj)}>
                           <Save className="w-3 h-3" /> Save edits
@@ -308,12 +310,10 @@ export default function CampaignDetail() {
                         <RefreshCw className={`w-3 h-3 ${regeneratingId === cj.journalist_id ? 'animate-spin' : ''}`} />
                         {regeneratingId === cj.journalist_id ? 'Regenerating…' : 'Regenerate'}
                       </button>
-                      {cj.status !== 'sent' && (
-                        <button className="btn-primary py-1 text-xs" onClick={() => handleSend(cj.journalist_id)}>
-                          <Send className="w-3 h-3" /> Mark Sent
-                        </button>
-                      )}
-                    </div>
+                      <button className="btn-primary py-1 text-xs" onClick={() => handleSend(cj.journalist_id)}>
+                        <Send className="w-3 h-3" /> Mark Sent
+                      </button>
+                    </div>}
                   </div>
                 )}
               </div>

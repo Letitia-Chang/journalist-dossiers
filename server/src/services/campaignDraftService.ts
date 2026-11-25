@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import pool from '../db';
 import { loadProfile, profileToPrompt } from '../lib/companyProfile';
+import { headerLine } from '../lib/mime';
 import { assertPromptSize, CLAUDE_MODEL } from '../lib/claude';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -115,8 +116,8 @@ Return ONLY valid JSON — no prose before or after:
     if (!jsonMatch) return null;
 
     const parsed = JSON.parse(jsonMatch[0]);
-    if (!parsed.subject || !parsed.body) return null;
-    return { subject: parsed.subject, body: parsed.body };
+    if (typeof parsed.subject !== 'string' || typeof parsed.body !== 'string' || !parsed.subject.trim() || !parsed.body.trim()) return null;
+    return { subject: headerLine(parsed.subject).slice(0, 300), body: parsed.body.slice(0, 8000) };
   } catch (err: any) {
     console.error(`[CampaignDraftService] Error for journalist ${journalistId}:`, err.message);
     return null;
