@@ -74,6 +74,13 @@ describe('profile topics', () => {
     expect(has(topic('IT'), 'WHY IT MATTERS')).toBe(false);
   });
 
+  it('does not confuse words that only look alike, and ignores case where it can', () => {
+    for (const [industry, title] of [['Wine', 'Home team win again'], ['Cars', 'Child care costs rise'], ['Planes', 'The plan moves ahead'], ['Gene therapy', 'Gen Z shops less']]) expect([industry, pts(make({ industry }), title)]).toEqual([industry, 0]);
+    for (const [industry, text] of [['AI', 'ai'], ['AI', 'AI & ML'], ['AI', 'AI BOOM'], ['AI', 'AI芯片競賽'], ['EV', 'evs'], ['FOOD', 'Food prices'], ['HR software', 'hr']]) expect([industry, text, pts(make({ industry }), text) > 0]).toEqual([industry, text, true]);
+    expect(matchTopics(make({ industry: 'Future of work' }), 'The future of work', []).matched).toEqual(['future of work']);
+    expect(matchTopics(make({ industry: 'IT services' }), 'Why it matters', []).points).toBe(0);
+  });
+
   it('one shared word cannot lift anyone past low', () => {
     const t = make({ industry: 'Climate tech', spokespeople: [{ name: 'A', topics: ['small business'] }] });
     expect(author(t, UNRELATED.slice(0, 5), ['Business'])).toBeLessThan(3);
@@ -82,7 +89,7 @@ describe('profile topics', () => {
   });
 
   it('matches plurals, accents and other scripts, whole words only, and reports why', () => {
-    expect(matchTopics(food, 'A restaurant opens', []).matched).toEqual(['restaurant']);
+    expect(matchTopics(food, 'A restaurant opens', []).matched).toEqual(['restaurants']); // as the profile wrote it
     expect(pts(grid, 'Gridlock downtown')).toBe(0);
     expect(pts(make({ industry: 'Café culture' }), 'The cafe culture boom')).toBe(2);
     expect(pts(make({ industry: 'Tax' }), 'New taxes ahead')).toBeGreaterThan(0);

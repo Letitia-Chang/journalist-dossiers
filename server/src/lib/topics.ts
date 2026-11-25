@@ -8,7 +8,13 @@ import type { CompanyProfile } from './companyProfile';
  * fully, even when its words are common ("future of work"). One word of a longer term, or ordinary
  * words from the profile's sentences, count a little and can't lift anyone past "low".
  */
-export interface Topics { phrases: string[]; exact: RegExp[]; words: Set<string>; prose: Set<string> }
+export interface Topics {
+  /** Stemmed term → how the profile wrote it, for showing why something matched. */
+  phrases: Map<string, string>;
+  exact: RegExp[];
+  words: Map<string, string>;
+  prose: Map<string, string>;
+}
 
 /** Words with no subject of their own: a term made only of these can't be searched for. */
 const FUNCTION_WORDS = new Set(('a about after all also am an and any are as at be because before but by can did do for from had has have he her him his how if in into is it its just me more most my no not now of off on one only or other our out over own she so than that the their them then there these they this those to too up upon us was we were what when where which who why will with you your').split(' '));
@@ -29,56 +35,60 @@ const GENERIC = /^(software|service|services|platform|solution|solutions|tool|to
 /** Scripts written without spaces, where a word boundary means nothing. */
 const UNSPACED = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}]/u;
 
-const normalize = (s: string) => s.toLowerCase().normalize('NFKD').replace(/\p{M}+/gu, '').replace(/[^\p{L}\p{N}+#]+/gu, ' ').trim();
+const normalize = (s: string) => s.toLowerCase().normalize('NFKD').replace(/\p{M}+/gu, '')
+  .replace(/(?<=[a-z0-9])(?=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}])|(?<=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}])(?=[a-z0-9])/gu, ' ')
+  .replace(/[^\p{L}\p{N}+#]+/gu, ' ').trim();
 
 /** Very light stemming, so plural and singular meet: utilities/utility, EVs/EV, taxes/tax, buses/bus, caches/cache. */
 function stem(w: string): string {
   if (w.length < 4) return w.endsWith('s') && SHORT.test(w.slice(0, -1)) ? w.slice(0, -1) : w;
   const singular = w.length > 4 && /ies?$/.test(w) ? w.replace(/ies?$/, 'y') : w.replace(/([^su])s$/, '$1');
-  return singular.length > 3 ? singular.replace(/e$/, '') : singular;
+  return singular.length > 3 ? singular.replace(/(ch|sh|x|z|s)e$/, '$1') : singular; // cache and caches, but not wine and win
 }
 
 const wordsOf = (s: string) => normalize(s).split(' ').filter(Boolean);
-const significant = (s: string) => wordsOf(s)
-  .filter(w => (w.length >= 4 || SHORT.test(w) || SHORT.test(stem(w)) || (UNSPACED.test(w) && w.length >= 2)) && !STOPWORDS.has(w)).map(stem);
+/** Each meaningful word as [stem, word]. */
+const significantPairs = (s: string): [string, string][] => wordsOf(s)
+  .filter(w => (w.length >= 4 || SHORT.test(w) || SHORT.test(stem(w)) || (UNSPACED.test(w) && w.length >= 2)) && !STOPWORDS.has(w)).map(w => [stem(w), w]);
+const significant = (s: string) => significantPairs(s).map(([w]) => w);
 const stemmed = (s: string) => ` ${wordsOf(s).map(stem).join(' ')} `;
 
 const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-/** A short all-caps name ("IT", "5G", "SAP") only means itself when written that way, or plural. */
-const isAcronym = (t: string) => /^[\p{Lu}\p{N}&]{2,5}$/u.test(t) && /\p{Lu}/u.test(t);
+/** "IT" is a subject and "it" is not, so a name that is also a small word must be written as the profile wrote it. */
+const onlyInCapitals = (t: string) => /^\p{Lu}{2,4}$/u.test(t) && FUNCTION_WORDS.has(t.toLowerCase());
 const exactly = (t: string) => new RegExp(`(?<![\\p{L}\\p{N}])${escape(t)}(?:[’']?s)?(?![\\p{L}\\p{N}])`, 'u');
 
 export function topicsFrom(profile: CompanyProfile | null): Topics {
-  if (!profile) return { phrases: [], exact: [], words: new Set(), prose: new Set() };
+  if (!profile) return { phrases: new Map(), exact: [], words: new Map(), prose: new Map() };
   const trim = (list: string[]) => list.map(t => t.trim()).filter(Boolean);
   const subjects = trim([...profile.industry.split(/[,/|&;、，]|\band\b/i), ...profile.spokespeople.flatMap(s => s.topics)]);
   const competitors = trim(profile.competitors);
 
-  const phrases = new Set<string>();
+  const phrases = new Map<string, string>();
   const exact = new Map<string, RegExp>();
-  const add = (words: string[]) => { if (words.length) phrases.add(words.map(stem).join(' ')); };
+  const add = (words: string[], label: string) => { if (words.length && !phrases.has(words.map(stem).join(' '))) phrases.set(words.map(stem).join(' '), label.toLowerCase()); };
 
   for (const subject of subjects) {
-    if (isAcronym(subject)) { exact.set(subject, exactly(subject)); continue; }
+    if (onlyInCapitals(subject)) { exact.set(subject, exactly(subject)); continue; }
     const words = wordsOf(subject);
     if (words.every(w => FUNCTION_WORDS.has(w)) || words.join('').length < 2) continue;
-    add(words);
+    add(words, subject);
     const core = words.filter(w => !GENERIC.test(w));
-    if (core.length === 1 && core.length < words.length && !STOPWORDS.has(core[0])) {
-      const asWritten = subject.split(/\s+/).find(w => isAcronym(w));
-      if (asWritten) exact.set(asWritten, exactly(asWritten)); else add(core);
+    if (core.length === 1 && core.length < words.length) {
+      const asWritten = subject.split(/\s+/).find(onlyInCapitals);
+      if (asWritten) exact.set(asWritten, exactly(asWritten)); else if (!STOPWORDS.has(core[0])) add(core, core[0]);
     }
   }
   for (const rival of competitors) {
     const words = wordsOf(rival);
     if (words.length === 1 && rival.length < 4) {
       if (!FUNCTION_WORDS.has(words[0]) && !STOPWORDS.has(words[0])) exact.set(rival, exactly(rival));
-    } else if (words.some(w => !STOPWORDS.has(w))) add(words); // "Next" alone would match everything
+    } else if (words.some(w => !STOPWORDS.has(w))) add(words, rival); // "Next" alone would match everything
   }
 
-  const words = new Set(subjects.filter(t => !isAcronym(t)).flatMap(significant));
-  const prose = new Set([profile.one_liner, profile.products, profile.target_audience, ...profile.key_messages].flatMap(significant).filter(w => !words.has(w)));
-  return { phrases: [...phrases], exact: [...exact.values()], words, prose };
+  const words = new Map(subjects.filter(t => !onlyInCapitals(t)).flatMap(significantPairs));
+  const prose = new Map([profile.one_liner, profile.products, profile.target_audience, ...profile.key_messages].flatMap(significantPairs).filter(([w]) => !words.has(w)));
+  return { phrases, exact: [...exact.values()], words, prose };
 }
 
 /** `points`: whole listed terms. `partial`: one word of one. `weak`: ordinary words from sentences. */
@@ -91,16 +101,16 @@ export function matchTopics(topics: Topics, title: string, categories: string[])
   const score = (raw: string, full: number) => {
     const text = raw.slice(0, 500);
     const hay = stemmed(text);
-    const phrase = topics.phrases.find(p => (UNSPACED.test(p) ? hay.includes(p) : hay.includes(` ${p} `)));
-    if (phrase) { m.points += full; matched.add(phrase); return; }
+    const phrase = [...topics.phrases.keys()].find(p => (UNSPACED.test(p) ? hay.includes(p) : hay.includes(` ${p} `)));
+    if (phrase) { m.points += full; matched.add(topics.phrases.get(phrase)!); return; }
     // In an ALL-CAPS headline every word looks like an acronym.
     const hit = text !== text.toUpperCase() || wordsOf(text).length === 1 ? topics.exact.map(re => re.exec(text)?.[0]).find(Boolean) : undefined;
     if (hit) { m.points += full; matched.add(hit); return; }
     const found = [...new Set(significant(text))];
     const word = found.find(w => topics.words.has(w));
-    if (word) { m.partial += 1; matched.add(word); return; }
+    if (word) { m.partial += 1; matched.add(topics.words.get(word)!); return; }
     const ordinary = found.filter(w => topics.prose.has(w));
-    if (ordinary.length >= 2) { m.weak += 1; ordinary.slice(0, 2).forEach(w => matched.add(w)); }
+    if (ordinary.length >= 2) { m.weak += 1; ordinary.slice(0, 2).forEach(w => matched.add(topics.prose.get(w)!)); }
   };
   for (const c of categories.slice(0, 20)) score(c, 3);
   score(title, 2);
