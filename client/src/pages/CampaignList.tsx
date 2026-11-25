@@ -2,21 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Megaphone, Plus, Trash2, Calendar, Users, Archive, ArchiveRestore } from 'lucide-react';
 import { campaigns as api } from '../api';
-import type { Campaign, CampaignType } from '../types';
-
-const TYPE_LABELS: Record<CampaignType, string> = {
-  cold_intro:    'Cold Introduction',
-  event:         'Event Coverage',
-  hackathon:     'Hackathon',
-  founder_promo: 'Founder Spotlight',
-};
-
-const TYPE_COLORS: Record<CampaignType, string> = {
-  cold_intro:    'bg-slate-100 text-slate-700',
-  event:         'bg-blue-50 text-blue-700',
-  hackathon:     'bg-violet-50 text-violet-700',
-  founder_promo: 'bg-amber-50 text-amber-700',
-};
+import type { Campaign } from '../types';
+import { CAMPAIGN_TYPES, campaignTypeBadge, campaignTypeLabel } from '../lib/campaignTypes';
 
 const STATUS_COLORS: Record<string, string> = {
   draft:     'bg-slate-100 text-slate-600',
@@ -29,7 +16,7 @@ export default function CampaignList() {
   const [list, setList] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', type: 'cold_intro' as CampaignType, brief: '' });
+  const [form, setForm] = useState({ name: '', type: 'product_launch', brief: '' });
   const [saving, setSaving] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
@@ -46,7 +33,7 @@ export default function CampaignList() {
       setSaving(false);
     }
     setShowForm(false);
-    setForm({ name: '', type: 'cold_intro', brief: '' });
+    setForm({ name: '', type: 'product_launch', brief: '' });
     load();
   };
 
@@ -109,7 +96,7 @@ export default function CampaignList() {
               <label className="form-label">Campaign name</label>
               <input
                 className="form-input"
-                placeholder="e.g. Cold Intro — Q3 2026"
+                placeholder="e.g. Version 2 launch"
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               />
@@ -119,10 +106,10 @@ export default function CampaignList() {
               <select
                 className="form-select"
                 value={form.type}
-                onChange={e => setForm(f => ({ ...f, type: e.target.value as CampaignType }))}
+                onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
               >
-                {Object.entries(TYPE_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
+                {Object.entries(CAMPAIGN_TYPES).map(([v, t]) => (
+                  <option key={v} value={v}>{t.label}</option>
                 ))}
               </select>
             </div>
@@ -136,15 +123,7 @@ export default function CampaignList() {
               <textarea
                 className="form-textarea"
                 rows={4}
-                placeholder={
-                  form.type === 'cold_intro'
-                    ? "Introduce your company — who you are, what you do, why you're interesting to cover. Include any specific stories or angles you want journalists to know about."
-                    : form.type === 'event'
-                    ? "Event name, date, location, what's happening, why it's newsworthy, who's attending..."
-                    : form.type === 'hackathon'
-                    ? "Hackathon name, date, theme, prize, expected participants, what makes it unique..."
-                    : "Founder name, company, what they've built, traction, the story angle..."
-                }
+                placeholder={CAMPAIGN_TYPES[form.type]?.brief}
                 value={form.brief}
                 onChange={e => setForm(f => ({ ...f, brief: e.target.value }))}
               />
@@ -189,8 +168,8 @@ export default function CampaignList() {
               {/* Type + name */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLORS[c.campaign_type as CampaignType] ?? 'bg-slate-100 text-slate-700'}`}>
-                    {TYPE_LABELS[c.campaign_type as CampaignType] ?? c.campaign_type}
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${campaignTypeBadge(c.campaign_type)}`}>
+                    {campaignTypeLabel(c.campaign_type)}
                   </span>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[c.status] ?? 'bg-slate-100 text-slate-500'}`}>
                     {c.status}

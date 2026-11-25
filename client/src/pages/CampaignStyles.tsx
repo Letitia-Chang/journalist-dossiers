@@ -3,48 +3,11 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Save, Check, Sparkles, Mail, Unplug } from 'lucide-react';
 import { campaignStyles as api, auth as authApi } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { CAMPAIGN_TYPES, campaignTypeLabel } from '../lib/campaignTypes';
 import { apiError } from '../lib/errors';
 
-type CampaignType = 'cold_intro' | 'event' | 'hackathon' | 'founder_promo';
-
-const TYPE_META: Record<CampaignType, { label: string; color: string; placeholder: string }> = {
-  cold_intro: {
-    label: 'Cold Introduction',
-    color: 'border-slate-300 focus:border-slate-400',
-    placeholder: `Examples:
-- Always sign off as: [Your name], [Your title], [Company name]
-- End every email with: "Happy to send over more details if useful."
-- Never mention funding rounds or valuations.
-- Keep the intro to one sentence — journalists know who we are.`,
-  },
-  event: {
-    label: 'Event Coverage',
-    color: 'border-blue-200 focus:border-blue-400',
-    placeholder: `Examples:
-- Always include the event date and city in the first paragraph.
-- Offer a press pass or reserved seat in every email.
-- Mention that founders from [specific company] will be attending if relevant.`,
-  },
-  hackathon: {
-    label: 'Hackathon',
-    color: 'border-violet-200 focus:border-violet-400',
-    placeholder: `Examples:
-- Emphasise the prize pool and number of expected participants.
-- Lead with the problem statement the hackathon is solving, not the logistics.
-- Always include a link to last year's winner story if available.`,
-  },
-  founder_promo: {
-    label: 'Founder Spotlight',
-    color: 'border-amber-200 focus:border-amber-400',
-    placeholder: `Examples:
-- Lead with the founder's origin story before the company description.
-- Always reference traction metrics if the founder has provided them.
-- Avoid "disruptive" — use specific, concrete language about what they've built.`,
-  },
-};
-
 interface StyleRow {
-  campaign_type: CampaignType;
+  campaign_type: string;
   instructions: string;
   updated_at: string;
 }
@@ -53,14 +16,10 @@ export default function CampaignStyles() {
   const { user } = useAuth();
   const canEdit = user?.role === 'owner' || user?.role === 'admin';
   const isOwner = user?.role === 'owner';
-  const [styles, setStyles] = useState<Record<CampaignType, string>>({
-    cold_intro: '', event: '', hackathon: '', founder_promo: '',
-  });
-  const [savedAt, setSavedAt] = useState<Record<CampaignType, string>>({
-    cold_intro: '', event: '', hackathon: '', founder_promo: '',
-  });
-  const [saving, setSaving] = useState<CampaignType | null>(null);
-  const [justSaved, setJustSaved] = useState<CampaignType | null>(null);
+  const [styles, setStyles] = useState<Record<string, string>>({});
+  const [savedAt, setSavedAt] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState<string | null>(null);
   const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email: string | null; demo?: boolean } | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
 
@@ -68,8 +27,8 @@ export default function CampaignStyles() {
 
   useEffect(() => {
     api.list().then(r => {
-      const s: Record<CampaignType, string> = { cold_intro: '', event: '', hackathon: '', founder_promo: '' };
-      const d: Record<CampaignType, string> = { cold_intro: '', event: '', hackathon: '', founder_promo: '' };
+      const s: Record<string, string> = {};
+      const d: Record<string, string> = {};
       for (const row of r.data as StyleRow[]) {
         s[row.campaign_type] = row.instructions;
         d[row.campaign_type] = row.updated_at;
@@ -98,10 +57,13 @@ export default function CampaignStyles() {
     }
   };
 
-  const handleSave = async (type: CampaignType) => {
+  const handleSave = async (type: string) => {
     setSaving(type);
     try {
-      await api.update(type, styles[type]);
+      await api.update(type, styles[type] ?? '');
+    } catch (err) {
+      alert(apiError(err, 'Could not save these instructions.'));
+      return;
     } finally {
       setSaving(null);
     }
@@ -159,18 +121,20 @@ export default function CampaignStyles() {
       </div>
 
       <div className="space-y-6">
-        {(Object.keys(TYPE_META) as CampaignType[]).map(type => {
-          const meta = TYPE_META[type];
+        {/* Retired types keep their saved instructions, so so show any that were saved. */}
+        {[...new Set([...Object.keys(CAMPAIGN_TYPES), ...Object.keys(savedAt)])].map(type => {
+          const label = campaignTypeLabel(type);
+          const meta = CAMPAIGN_TYPES[type];
           const isSaving = saving === type;
           const isSaved = justSaved === type;
           const lastSaved = savedAt[type];
-          const hasContent = styles[type].trim().length > 0;
+          const hasContent = (styles[type] ?? '').trim().length > 0;
 
           return (
             <div key={type} className="card p-5">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2">
-                  <h2 className="font-semibold text-slate-900">{meta.label}</h2>
+                  <h2 className="font-semibold text-slate-900">{label}</h2>
                   {hasContent && (
                     <span className="text-xs bg-brand-50 text-brand-600 border border-brand-100 px-2 py-0.5 rounded-full font-medium">
                       active
@@ -203,17 +167,17 @@ export default function CampaignStyles() {
               </div>
 
               <textarea
-                className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-200 resize-none font-mono leading-relaxed disabled:bg-slate-50 disabled:text-slate-500 ${meta.color}`}
+                className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-200 resize-none font-mono leading-relaxed disabled:bg-slate-50 disabled:text-slate-500 ${meta?.border ?? 'border-slate-200'}`}
                 rows={6}
-                value={styles[type]}
+                value={styles[type] ?? ''}
                 onChange={e => setStyles(prev => ({ ...prev, [type]: e.target.value }))}
-                placeholder={meta.placeholder}
+                aria-label={`House style for ${label}`}
+                placeholder={meta?.style}
                 disabled={!canEdit}
               />
 
               <p className="text-xs text-slate-400 mt-2">
-                These instructions are appended to every Claude prompt for <strong>{meta.label}</strong> campaigns.
-                They take effect immediately on the next draft generation — no need to regenerate existing campaigns.
+                These instructions are added to the prompt for every <strong>{label}</strong> pitch. They apply from the next draft on; existing drafts stay as they are.
               </p>
             </div>
           );

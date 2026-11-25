@@ -70,8 +70,8 @@ export default function ScoringDimensions() {
           <Sparkles className="w-5 h-5 text-brand-500" /> Scoring Dimensions
         </h1>
         <p className="text-slate-500 mt-1 text-sm max-w-xl">
-          Define the axes Claude uses to score journalists — e.g. "Climate Relevance" or
-          "Enterprise Fit". Each journalist's total score is the sum of their scores across
+          Define the axes Claude uses to score journalists — e.g. "Beat relevance" or
+          "Audience match". Each journalist's total score is the sum of their scores across
           these dimensions.
         </p>
       </div>
@@ -148,7 +148,7 @@ function DimensionForm({ form, set, saving, onSave, onCancel }: {
     <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
       <div className="sm:col-span-3">
         <label className="form-label">Name *</label>
-        <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Climate Relevance" autoFocus />
+        <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Beat relevance" autoFocus />
       </div>
       <div className="sm:col-span-6">
         <label className="form-label">Description</label>

@@ -179,8 +179,6 @@ export interface PublicationSuggestion {
   created_at: string;
 }
 
-export const CAMPAIGN_TYPES = ['cold_intro', 'event', 'hackathon', 'founder_promo'] as const;
-export type CampaignType = typeof CAMPAIGN_TYPES[number];
 export type CampaignStatus = 'draft' | 'active' | 'completed' | 'archived';
 export type DraftStatus = 'not_started' | 'drafting' | 'ready' | 'sent' | 'failed';
 

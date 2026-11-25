@@ -193,7 +193,7 @@ export const DEMO_JOURNALISTS: DemoJournalist[] = [
 
 export const DEMO_CAMPAIGN = {
   name: 'Series A announcement',
-  type: 'cold_intro',
+  type: 'funding',
   brief: 'Announce the $12M Series A and the QueueScope 2.0 launch. Lead with the queue-delay data from State of the Queue.',
   styleInstructions: 'Keep it under 150 words. Name one spokesperson. Never use the words "revolutionary" or "game-changing".',
 };

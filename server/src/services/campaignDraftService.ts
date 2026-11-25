@@ -1,5 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import pool from '../db';
+import { campaignTypeName } from '../lib/campaignTypes';
 import { loadProfile, profileToPrompt } from '../lib/companyProfile';
 import { headerLine } from '../lib/mime';
 import { assertPromptSize, claudeClient, CLAUDE_MODEL } from '../lib/claude';
@@ -66,7 +67,7 @@ export async function generateCampaignDraft(params: {
 
 ${profileToPrompt(profile, 'pitch')}
 
-CAMPAIGN TYPE: ${campaignType}
+CAMPAIGN TYPE: ${campaignTypeName(campaignType)}
 CAMPAIGN BRIEF:
 ${campaignBrief}
 
