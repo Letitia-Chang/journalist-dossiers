@@ -39,6 +39,8 @@ export function bucketFor(kind: string, id: string): string {
   return `${kind}:${createHmac('sha256', process.env.SESSION_SECRET ?? '').update(id).digest('hex').slice(0, 32)}`;
 }
 
+const DENIED = new Error('rate limit reached');
+
 const windowStart = (c: Counter, now: number) => new Date(now - (now % c.windowMs));
 
 /**
@@ -48,24 +50,29 @@ const windowStart = (c: Counter, now: number) => new Date(now - (now % c.windowM
 export async function take(counters: Counter[], want = 1, now = Date.now()): Promise<number> {
   const sorted = [...counters].sort((a, b) => (a.bucket < b.bucket ? -1 : 1));
   // Any error propagates: no counter, no spend.
-  return inTransaction(async db => {
-    let granted = want;
-    for (const c of sorted) {
-      const { rows: [row] } = await db.query(
-        `INSERT INTO rate_limits (bucket, window_start, count) VALUES ($1, $2, 0)
-         ON CONFLICT (bucket, window_start) DO UPDATE SET count = rate_limits.count
-         RETURNING count`,
-        [c.bucket, windowStart(c, now)],
-      );
-      granted = Math.max(0, Math.min(granted, c.limit - row.count));
-    }
-    if (granted > 0) {
+  try {
+    return await inTransaction(async db => {
+      let granted = want;
+      for (const c of sorted) {
+        const { rows: [row] } = await db.query(
+          `INSERT INTO rate_limits (bucket, window_start, count) VALUES ($1, $2, 0)
+           ON CONFLICT (bucket, window_start) DO UPDATE SET count = rate_limits.count
+           RETURNING count`,
+          [c.bucket, windowStart(c, now)],
+        );
+        granted = Math.max(0, Math.min(granted, c.limit - row.count));
+      }
+      // Roll back, so refused requests (which anyone can make without limit) leave no rows behind.
+      if (granted === 0) throw DENIED;
       for (const c of sorted) {
         await db.query('UPDATE rate_limits SET count = count + $3 WHERE bucket = $1 AND window_start = $2', [c.bucket, windowStart(c, now), granted]);
       }
-    }
-    return granted;
-  });
+      return granted;
+    });
+  } catch (err) {
+    if (err === DENIED) return 0;
+    throw err;
+  }
 }
 
 /** Return one unit to each counter, for attempts that turned out not to count. */

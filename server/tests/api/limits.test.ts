@@ -43,6 +43,24 @@ describe.skipIf(!hasDb)('durable demo limits', () => {
     expect(await L.takeLiveAi('c', 1, T + 24 * HOUR)).toBe(1);
   });
 
+  it('one network cannot use up the day by rotating addresses', async () => {
+    process.env.DEMO_AI_PER_DAY = '100';
+    let got = 0;
+    for (let i = 0; i < 30; i++) got += await L.takeLiveAi(`2001:db8:1:${i}::1`, 1, T);
+    expect(got).toBe(L.AI_PER_NETWORK_DAY);
+    expect(await L.liveAiStatus('2001:db8:1:99::1', T)).toEqual({ remaining: 0, limit: 'network' });
+    expect(await L.takeLiveAi('2001:db8:2:1::1', 1, T)).toBe(1); // someone else still can
+  });
+
+  it('refused requests leave nothing in the database', async () => {
+    await L.takeLiveAi('a', 5, T);
+    await L.takeLiveAi('b', 5, T); // the day is used up
+    const count = async () => (await ctx.pool.query('SELECT 1 FROM rate_limits')).rowCount;
+    const before = await count();
+    for (let i = 0; i < 50; i++) expect(await L.takeLiveAi(`10.0.0.${i}`, 1, T)).toBe(0);
+    expect(await count()).toBe(before);
+  });
+
   it('never over-grants under concurrency', async () => {
     const grants = await Promise.all(Array.from({ length: 40 }, (_, i) => L.takeLiveAi(`v${i % 8}`, 1, T)));
     expect(grants.reduce((a, b) => a + b, 0)).toBe(5);
@@ -175,5 +193,6 @@ describe('limit messages', () => {
     const { limitMessage } = await import('../../src/demo/limits');
     expect(limitMessage({ remaining: 0, limit: 'hour' })).toMatch(/3 runs per hour/);
     expect(limitMessage({ remaining: 0, limit: 'day' })).toMatch(/today/);
+    expect(limitMessage({ remaining: 0, limit: 'network' })).toMatch(/tomorrow/);
   });
 });

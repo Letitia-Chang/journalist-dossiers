@@ -10,7 +10,7 @@
 | Company | **Lumen Grid**, a fictional climate-tech startup with a complete profile, 10 fictional journalists at 8 fictional outlets, made-up articles, finished dossiers, one sample pitch each, outreach history and a coverage item. Every URL and email is on `example.com`. |
 | Access | "Enter the demo" creates the sandbox and signs the visitor in as its **member** (no password). Sign-up, password login and invites are off. New sandboxes and writes are limited per visitor, per network and overall. |
 | Banner | "Demo data — fictional" is always visible. |
-| Live AI | Per-visitor limit per clock hour (`DEMO_AI_PER_HOUR`, default 5) and a server-wide daily cap (`DEMO_AI_PER_DAY`, default 150). Over the limit, scoring returns the saved analysis; with nothing saved it returns a friendly 429. Draft generation and regeneration share the budget. |
+| Live AI | Per-visitor limit per clock hour (`DEMO_AI_PER_HOUR`, default 5), 20 per network per day and a server-wide daily cap (`DEMO_AI_PER_DAY`, default 150). Over the limit, scoring returns the saved analysis; with nothing saved it returns a friendly 429. Draft generation and regeneration share the budget. |
 | Gmail | Disabled. "Create Gmail Drafts" opens a preview of the drafts and explains it works when self-hosted. |
 | Web discovery | Disabled (RSS/blog/staff-page scanning, health checks, AI publication suggestions). |
 
