@@ -21,8 +21,8 @@ export default function LoginPage() {
     try {
       await login(email, password);
       navigate('/dashboard');
-    } catch {
-      setError('Invalid email or password.');
+    } catch (err) {
+      setError(apiError(err, 'Could not sign in. Please try again.'));
     } finally {
       setLoading(false);
     }

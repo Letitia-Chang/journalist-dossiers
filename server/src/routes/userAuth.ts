@@ -11,6 +11,8 @@ import { bucketFor, HOUR_MS, normalizeIp, take } from '../lib/rateLimit';
 import * as schemas from '../lib/schemas';
 import { parseBody, validateParams } from '../lib/validate';
 
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
 const router = Router();
 // The demo has no accounts. Without this, the first visitor could sign up as its owner.
 router.use(['/signup', '/login', '/accept-invite'], blockInDemo);
@@ -116,16 +118,30 @@ router.post('/demo-login', async (req, res) => {
   res.json({ token: signToken({ sub: user.id, orgId: org.id, role: user.role }), user, org });
 });
 
+// Hash of a discarded random value, compared against when the email is unknown so both cases take
+// the same time.
+const DUMMY_HASH = '$2b$12$cEbFpgHZNHwrm281DpHnm.SWkSGlhDmCyKySRSyrmC7eO04dgBEOq';
+
 router.post('/login', async (req, res) => {
   const { email, password } = parseBody(schemas.login, req);
+
+  // Per account *and* address, so a stranger can't lock the owner out, plus a wider limit per address.
+  const ip = normalizeIp(clientIp(req));
+  const granted = await take([
+    { bucket: bucketFor('login', `${email}|${ip}`), windowMs: LOGIN_WINDOW_MS, limit: 10 },
+    { bucket: bucketFor('login-ip', ip), windowMs: LOGIN_WINDOW_MS, limit: 50 },
+  ]);
+  if (granted === 0) return res.status(429).json({ error: 'Too many sign-in attempts. Please wait 15 minutes and try again.' });
+
   const { rows } = await pool.query(
     `SELECT u.id, u.email, u.name, u.role, u.password_hash, o.id as org_id, o.name as org_name, o.slug as org_slug
      FROM users u JOIN organizations o ON o.id = u.org_id
-     WHERE u.email = $1`,
+     WHERE LOWER(u.email) = $1`,
     [email],
   );
   const row = rows[0];
-  if (!row || !(await bcrypt.compare(password, row.password_hash))) {
+  const matches = await bcrypt.compare(password, row?.password_hash ?? DUMMY_HASH);
+  if (!row || !matches) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 

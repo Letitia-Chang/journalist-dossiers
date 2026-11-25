@@ -5,6 +5,7 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     globalSetup: ['tests/setup/globalSetup.ts'],
     hookTimeout: 30_000,
+    testTimeout: 30_000, // bcrypt at production cost is slow on CI
     env: {
       SESSION_SECRET: 'test-secret-not-for-production-0123456789',
       DEMO_MODE: 'false',

@@ -50,11 +50,9 @@ app.use('/api/auth', json, userAuthRouter);
 app.use('/api/setup', setupRouter);
 app.get('/api/health', (_req, res) => { res.json({ status: 'ok' }); });
 
-// Gmail OAuth — mounted at the bare /auth path (not /api) since /auth/google and
-// /auth/google/callback are plain browser redirects that can't carry an
-// Authorization header. Auth for those two routes is handled via a signed JWT
-// passed as a query param instead; /auth/gmail/status and /auth/gmail (delete)
-// apply requireAuth internally since those are normal XHR calls.
+// Gmail OAuth — at /auth, not /api: Google redirects the browser to /auth/google/callback, which
+// can't carry an Authorization header and is verified by its signed, short-lived state instead.
+// The other routes in this router apply requireAuth themselves.
 app.use('/auth', googleAuthRouter);
 
 // Authenticate before parsing, so an anonymous request can't make us read a body.

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Save, Check, Sparkles, Mail, Unplug } from 'lucide-react';
 import { campaignStyles as api, auth as authApi } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { apiError } from '../lib/errors';
 
 type CampaignType = 'cold_intro' | 'event' | 'hackathon' | 'founder_promo';
 
@@ -146,7 +147,7 @@ export default function CampaignStyles() {
             )}
           </div>
         ) : isOwner ? (
-          <button className="btn-primary py-1.5 text-sm" onClick={() => authApi.connectGmail()}>
+          <button className="btn-primary py-1.5 text-sm" onClick={() => authApi.connectGmail().catch(err => alert(apiError(err, 'Could not start the Gmail connection.')))}>
             <Mail className="w-3.5 h-3.5" /> Connect Gmail
           </button>
         ) : (

@@ -50,7 +50,7 @@ See `server/.env.example` for the full annotated list.
 | Variable | Default | Purpose |
 |---|---|---|
 | `DATABASE_URL` | – | Postgres connection string (required) |
-| `SESSION_SECRET` | – | JWT signing key (required) |
+| `SESSION_SECRET` | – | JWT signing key (required; in production at least 32 characters, `openssl rand -hex 32`) |
 | `ANTHROPIC_API_KEY` | – | Claude key; AI features are disabled without it |
 | `ANTHROPIC_MODEL` | `claude-opus-4-8` | Model for all AI steps |
 | `PORT` | `3001` | API port |

@@ -124,9 +124,17 @@ export const campaigns = {
 
 export const auth = {
   gmailStatus: () => api.get('/auth/gmail/status', { baseURL: API_ORIGIN }),
-  connectGmail: () => {
-    const token = getToken();
-    window.open(`${API_ORIGIN}/auth/google?token=${encodeURIComponent(token ?? '')}`, '_blank', 'width=500,height=600');
+  // Open the popup before awaiting, or the browser blocks it as not user-initiated.
+  connectGmail: async () => {
+    const popup = window.open('', '_blank', 'width=500,height=600');
+    try {
+      const { data } = await api.post<{ url: string }>('/auth/google/start', null, { baseURL: API_ORIGIN });
+      if (popup) popup.location.href = data.url;
+      else window.location.href = data.url;
+    } catch (err) {
+      popup?.close();
+      throw err;
+    }
   },
   disconnectGmail: () => api.delete('/auth/gmail', { baseURL: API_ORIGIN }),
 };

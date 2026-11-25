@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { app } from './app';
 import { bootstrap } from './lib/bootstrap';
+import { assertSessionSecret } from './middleware/auth';
 import { sweepSandboxes } from './demo/seed';
 import { HOUR_MS, pruneRateLimits } from './lib/rateLimit';
 
@@ -9,6 +10,8 @@ process.on('unhandledRejection', err => console.error('[unhandledRejection]', er
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
+
+assertSessionSecret();
 
 bootstrap()
   .then(() => {

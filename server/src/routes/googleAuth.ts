@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import pool from '../db';
-import { requireAuth, requireRole, verifyToken } from '../middleware/auth';
-import type { AuthTokenPayload } from '../middleware/auth';
+import { currentRole, requireAuth, requireRole, signOAuthState, verifyOAuthState } from '../middleware/auth';
+import { blockInDemo } from '../middleware/demo';
 import { isDemo } from '../demo/limits';
 
 const router = Router();
@@ -15,47 +15,32 @@ function getOAuthClient() {
   );
 }
 
-// GET /auth/google — kicks off the consent flow. Reached via a plain browser
-// navigation (popup window), so auth comes via a ?token= query param instead
-// of an Authorization header.
-router.get('/google', (req, res) => {
-  if (isDemo()) return res.status(403).send('Gmail is disabled in the demo. It works when you self-host.');
-  const token = req.query.token as string | undefined;
-  if (!token) return res.status(401).send('Missing token');
-
-  let payload: AuthTokenPayload;
-  try {
-    payload = verifyToken(token);
-  } catch {
-    return res.status(401).send('Invalid or expired session — refresh the page and try again.');
-  }
-  if (payload.role !== 'owner') {
-    return res.status(403).send('Only the organization owner can connect Gmail.');
-  }
-
-  const oauth2Client = getOAuthClient();
-  const url = oauth2Client.generateAuthUrl({
+// POST /auth/google/start — returns the consent URL. The session token stays in the Authorization
+// header: it must never appear in a URL, where it would reach logs, history and Google.
+router.post('/google/start', requireAuth, requireRole('owner'), blockInDemo, (req, res) => {
+  const url = getOAuthClient().generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
     scope: ['https://www.googleapis.com/auth/gmail.compose'],
-    state: token,
+    state: signOAuthState(req.userId!, req.orgId!),
   });
-  res.redirect(url);
+  res.json({ url });
 });
 
-// GET /auth/google/callback — exchange code for tokens, store refresh token for the org.
-router.get('/google/callback', async (req, res) => {
-  const code = req.query.code as string | undefined;
-  const state = req.query.state as string | undefined;
-  if (!code || !state) return res.status(400).send('Missing code or state');
+// GET /auth/google/callback — Google redirects the popup here. Replies in plain text: this route
+// reflects errors and is reachable by anyone, so nothing in it may be rendered as HTML.
+router.get('/google/callback', blockInDemo, async (req, res) => {
+  res.type('text/plain');
+  const { code, state } = req.query;
+  if (typeof code !== 'string' || typeof state !== 'string') return res.status(400).send('Gmail was not connected. Close this tab and try again.');
 
-  let payload: AuthTokenPayload;
+  let payload: { sub: string; orgId: string };
   try {
-    payload = verifyToken(state);
+    payload = verifyOAuthState(state);
   } catch {
-    return res.status(401).send('Invalid or expired session — refresh the page and try again.');
+    return res.status(401).send('This sign-in link expired. Close this tab and connect Gmail again.');
   }
-  if (payload.role !== 'owner') {
+  if ((await currentRole(payload.sub, payload.orgId)) !== 'owner') {
     return res.status(403).send('Only the organization owner can connect Gmail.');
   }
 
@@ -79,9 +64,10 @@ router.get('/google/callback', async (req, res) => {
       [payload.orgId, profile.data.emailAddress, tokens.refresh_token, payload.sub],
     );
 
-    res.send('<script>window.close();</script><p>Gmail connected! You can close this tab.</p>');
+    res.send('Gmail connected. You can close this tab.');
   } catch (err: any) {
-    res.status(500).send(`OAuth error: ${err.message}`);
+    console.error('[google] callback failed:', err.message);
+    res.status(502).send('Google did not accept the sign-in. Close this tab and try again.');
   }
 });
 
