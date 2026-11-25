@@ -79,4 +79,4 @@ A journalist's outreach status is derived from their latest `outreach_logs` row 
 - Secrets live in environment variables only. `.env`, `*.db` and `company.config.json` are git-ignored; CI runs gitleaks.
 - The Gmail refresh token is stored **unencrypted** in `gmail_connections`. Use a database with encryption at rest and restrict access to it.
 - The browser keeps the JWT in `localStorage`; serve the app over HTTPS.
-- Gmail access is limited to `gmail.compose` (create drafts). The app has no code path that sends mail.
+- Gmail access uses `gmail.compose`, Google's narrowest scope for drafts. It would also permit sending; the app only creates drafts and has no code path that sends.

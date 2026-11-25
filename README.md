@@ -16,7 +16,7 @@ Most pitches fail because they're sent to the wrong person with the wrong angle.
 - **Configurable fit scoring.** Define your own dimensions (defaults: beat relevance, audience match, similar-company coverage, geography, outlet reach, responsiveness) with weights. Claude scores each journalist per dimension, writes a one-line rationale, and can cite the journalist's recorded articles. Cited URLs are kept only if they are in that journalist's article list. (It sees article titles, not full text: treat a score as a lead to check.)
 - **Dossiers.** Beats, bio, articles, outreach history and scores per journalist, with a pipeline and list view.
 - **Pitch drafts.** Built from your profile plus the journalist's dossier: the best-fitting story angle, a relevant news item, the most relevant spokesperson, your tone and signature. Edit, regenerate with instructions, or write your own.
-- **Gmail drafts, never sends.** Optionally create drafts in your own Gmail with the `gmail.compose` scope (create drafts only). A person reviews and sends from Gmail.
+- **Gmail drafts, never sends.** Optionally create drafts in your own Gmail with the `gmail.compose` scope. Google lets that scope send too, but the app only ever creates drafts and has no code that sends. A person reviews and sends from Gmail.
 - **Discovery** (self-hosted): RSS auto-discovery, blog/newsletter search (Feedly, Substack, Medium), staff-page scanning, RSS byline detection, feed health checks, AI publication suggestions, and OPML import. Every suggestion needs explicit accept/reject.
 - **Campaigns, outreach log, press coverage, CSV export, team invites with owner/admin/member roles.**
 
@@ -52,7 +52,7 @@ flowchart LR
   Routes -->|"gmail.compose"| Gmail
 ```
 
-Details in [docs/architecture.md](docs/architecture.md).
+Details in [docs/architecture.md](docs/architecture.md). Why it is built this way, and what went wrong: [docs/design.md](docs/design.md).
 
 ## Self-host in 5 minutes
 
@@ -89,7 +89,7 @@ Open <http://localhost:5173>. The first visit walks you through creating the own
 4. Put the client ID and secret in `server/.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`).
 5. In the app: **House Style → Connect Gmail** (owner only), then **Create Gmail Drafts** on a campaign.
 
-While the OAuth app is in *Testing* status, only listed test users can connect and Google expires refresh tokens after 7 days. Publishing the app requires Google's verification because `gmail.compose` is a sensitive scope.
+While the OAuth app is in *Testing* status, only listed test users can connect and Google expires refresh tokens after 7 days. Publishing the app requires Google's verification because `gmail.compose` is a restricted scope.
 
 ### Deploying
 
@@ -130,7 +130,7 @@ This tool is for professional outreach to journalists. It is built to keep a hum
 - **Every pitch is reviewed by a person** before it leaves your Gmail.
 - **Every discovery suggestion** (journalist or publication) requires an explicit accept.
 - **Polite crawling.** Pages fetched from publisher sites (staff pages, homepages during feed discovery) are checked against `robots.txt` first, and requests identify themselves with a configurable User-Agent (`BOT_NAME`, `BOT_CONTACT_URL`) so site owners can reach you. Feeds are fetched with the same identification. There is no scraping behind logins.
-- **Public, professional information only.** Don't store personal data you wouldn't want about yourself, and honour requests to be removed. Check the laws that apply to you (for example GDPR) before storing contact details of people in other jurisdictions.
+- **Public, professional information only.** Don't store personal data you wouldn't want about yourself, and honor requests to be removed. Check the laws that apply to you (for example GDPR) before storing contact details of people in other jurisdictions.
 - **Be honest in outreach.** AI drafts are a starting point. Don't let them claim things that aren't true.
 
 ## License
