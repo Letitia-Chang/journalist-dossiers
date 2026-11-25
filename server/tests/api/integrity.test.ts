@@ -114,7 +114,15 @@ describe.skipIf(!hasDb)('data integrity', () => {
       gmail.fail = true;
       expect((await go()).body.created).toBe(0);
       gmail.fail = false;
-      await Promise.all([go(), go(), go()]);
+      // Hold the row so all three requests have read it as unclaimed before any can claim it.
+      const lock = await ctx.pool.connect();
+      await lock.query('BEGIN');
+      await lock.query('SELECT 1 FROM campaign_journalists WHERE campaign_id = $1 FOR UPDATE', [c]);
+      const all = Promise.all([go(), go(), go()].map(r => r.then(x => x)));
+      await new Promise(r => setTimeout(r, 500));
+      await lock.query('COMMIT');
+      lock.release();
+      await all;
       expect(gmail.created).toEqual(['j@example.com']);
       expect((await api('get', `/api/campaigns/${c}/journalists`)).body[0].gmail_draft_id).toBe('draft-1');
       await ctx.pool.query(`UPDATE campaign_journalists SET gmail_draft_id = NULL, status = 'sent' WHERE campaign_id = $1`, [c]);

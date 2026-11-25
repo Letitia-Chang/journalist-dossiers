@@ -99,8 +99,10 @@ describe('bad input never crashes or 500s the server', () => {
   });
 
   it('survives every database connection dropping, idle or in the middle of a transaction', async () => {
+    await Promise.all(Array.from({ length: 5 }, () => ctx.pool.query('SELECT pg_sleep(0.05)'))); // leaves idle connections
     const db = await ctx.pool.connect();
     await db.query('BEGIN');
+    expect(ctx.pool.idleCount).toBeGreaterThan(1);
     const { Client } = await import('pg');
     const killer = new Client({ connectionString: process.env.DATABASE_URL });
     await killer.connect();
