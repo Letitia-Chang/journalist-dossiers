@@ -443,7 +443,7 @@ export default function AdminPublications() {
             <div className="flex gap-2 mb-4">
               <input
                 className="form-input flex-1"
-                placeholder="e.g. AI startup machine learning"
+                placeholder="e.g. climate policy"
                 value={discoverQuery}
                 onChange={e => setDiscoverQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleDiscover()}
@@ -812,7 +812,7 @@ export default function AdminPublications() {
                             <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                               <input
                                 type="url"
-                                placeholder="https://techcrunch.com/category/artificial-intelligence/feed/"
+                                placeholder="https://example.com/section/feed/"
                                 value={manualFeedUrl}
                                 onChange={e => setManualFeedUrl(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && handleAddFeedManually(p.id)}
@@ -932,7 +932,7 @@ function PublicationForm({ form, set, saving, onSave, onCancel }: {
       <div className="sm:col-span-2">
         <label className="form-label">Name *</label>
         <input className="form-input" value={form.name}
-          onChange={e => set('name', e.target.value)} placeholder="e.g. TechCrunch" autoFocus />
+          onChange={e => set('name', e.target.value)} placeholder="Publication name" autoFocus />
       </div>
       <div className="sm:col-span-2">
         <label className="form-label">Homepage URL</label>
@@ -957,7 +957,7 @@ function PublicationForm({ form, set, saving, onSave, onCancel }: {
       <div className="sm:col-span-2">
         <label className="form-label">Focus</label>
         <input className="form-input" value={form.focus}
-          onChange={e => set('focus', e.target.value)} placeholder="AI funding, startups…" />
+          onChange={e => set('focus', e.target.value)} placeholder="What they cover" />
       </div>
       <div className="sm:col-span-2">
         <label className="form-label">Notes</label>

@@ -123,7 +123,7 @@ export default function JournalistForm() {
 
         <div>
           <label className="form-label">Beats <span className="text-slate-400 font-normal">(comma-separated)</span></label>
-          <input className="form-input" value={form.beats} onChange={e => set('beats', e.target.value)} placeholder="AI, climate tech, enterprise SaaS" />
+          <input className="form-input" value={form.beats} onChange={e => set('beats', e.target.value)} placeholder="energy policy, local business" />
         </div>
 
         <div>

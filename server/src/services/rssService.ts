@@ -2,7 +2,7 @@ import Parser from 'rss-parser';
 import { clip, clipDate, clipUrl } from '../lib/clip';
 import pool from '../db';
 import { loadProfile } from '../lib/companyProfile';
-import { commonCategory, matchTopics, topicsFrom, type Topics } from '../lib/topics';
+import { commonCategory, matchTopics, relevance, topicsFrom, type Topics } from '../lib/topics';
 import { generateRssDiagnosticNote } from './rssDiagnostic';
 import { botUserAgent } from '../lib/http';
 
@@ -24,17 +24,15 @@ interface ArticleData { title: string; url: string; date: string; categories: st
 interface AuthorRelevance { relevanceScore: number; matchedTags: string[]; bestArticle: ArticleData; articleCount: number }
 
 function scoreAuthor(articles: ArticleData[], topics: Topics): AuthorRelevance {
-  let total = 0;
-  let best = -1;
-  let bestArticle = articles[0];
-  const matched = new Set<string>();
-  for (const article of articles) {
-    const m = matchTopics(topics, article.title, article.categories);
-    total += m.points;
-    m.matched.forEach(t => matched.add(t));
-    if (m.points > best) { best = m.points; bestArticle = article; }
-  }
-  return { relevanceScore: Math.min(10, total), matchedTags: [...matched].slice(0, 8), bestArticle, articleCount: articles.length };
+  const matches = articles.map(a => matchTopics(topics, a.title, a.categories));
+  const strength = (i: number) => matches[i].points + matches[i].weak / 10;
+  const best = matches.reduce((b, _m, i) => (strength(i) > strength(b) ? i : b), 0);
+  return {
+    relevanceScore: relevance(matches),
+    matchedTags: [...new Set(matches.flatMap(m => m.matched))].slice(0, 8),
+    bestArticle: articles[best],
+    articleCount: articles.length,
+  };
 }
 
 function extractAuthor(item: any): string | null {

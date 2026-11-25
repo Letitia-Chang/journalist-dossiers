@@ -1,16 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import { companyProfileSchema } from '../src/lib/companyProfile';
-import { commonCategory, matchTopics, topicsFrom } from '../src/lib/topics';
+import { commonCategory, matchTopics, relevance, searchTags, topicsFrom } from '../src/lib/topics';
+import { sectionCandidates } from '../src/services/categoryFeedDiscovery';
 
-const grid = topicsFrom(companyProfileSchema.parse({
-  name: 'Lumen', industry: 'Climate tech / grid software', one_liner: 'Gets clean-energy projects connected to the grid sooner.',
+const make = (p: Record<string, unknown>) => topicsFrom(companyProfileSchema.parse({ name: 'X', ...p }));
+const grid = make({
+  industry: 'Climate tech / grid software', one_liner: 'Gets clean-energy projects connected to the grid sooner.',
   products: 'An interconnection-queue analytics platform.', spokespeople: [{ name: 'A', topics: ['interconnection', 'state policy'] }], competitors: ['Gridwell'],
-}));
-const food = topicsFrom(companyProfileSchema.parse({
-  name: 'Crumb', industry: 'Bakery & food retail', one_liner: 'Fresh bread delivered to restaurants.',
-  products: 'Wholesale sourdough.', spokespeople: [{ name: 'B', topics: ['restaurants', 'food safety'] }],
-}));
+});
+const food = make({ industry: 'Bakery & food retail', one_liner: 'Fresh bread delivered to restaurants.', products: 'Wholesale sourdough.', spokespeople: [{ name: 'B', topics: ['restaurants', 'food safety'] }] });
+const hr = make({
+  industry: 'HR software', one_liner: 'We help people leaders keep their best staff and grow across every office.',
+  products: 'A second look at real performance data: surveys, reviews, goal setting and pay planning in one place, kept up to date so managers act early. Dashboards show trends by team, date and location.',
+  target_audience: 'People leaders at growing companies who want to move quickly without losing the human side of work, from the first hire to a thousand staff.',
+  key_messages: ['Good managers make the real difference', 'Most surveys are read too late to matter'],
+});
 const pts = (t: typeof grid, title: string, cats: string[] = []) => matchTopics(t, title, cats).points;
+const author = (t: typeof grid, titles: string[], cats: string[] = []) => relevance(titles.map(x => matchTopics(t, x, cats)));
+
+const UNRELATED = [
+  'City council votes on new park budget', 'Local team wins second straight title', 'Why the best recipes start with butter', 'Storm moves across the coast overnight',
+  'A real look at life on the farm', 'How to keep houseplants alive', 'Museum sets opening date for new wing', 'Film festival returns to the old theater', 'Ten trails to hike this fall', 'The actor who would not quit',
+  'Bridge repairs to finish early', 'Volcano shows signs of new activity', 'Chess champion retires at 30', 'Songwriter talks about her first album', 'Ferry service resumes after fog',
+];
 
 describe('profile topics', () => {
   it('ranks by the company, not by any fixed subject', () => {
@@ -22,27 +34,84 @@ describe('profile topics', () => {
     for (const t of ['Startup raises Series A', 'OpenAI ships a new LLM', 'Enterprise SaaS funding']) expect([pts(grid, t), pts(food, t)]).toEqual([0, 0]);
   });
 
-  it('counts phrases over single words, and feed categories over headlines', () => {
-    expect(pts(grid, 'New state policy on permits')).toBeGreaterThan(pts(grid, 'Clean power rises'));
+  it('keeps unrelated journalists low, even for a wordy profile', () => {
+    for (const t of [grid, food, hr]) {
+      for (let i = 0; i + 10 <= UNRELATED.length; i++) expect(author(t, UNRELATED.slice(i, i + 10))).toBeLessThan(3);
+    }
+  });
+
+  it('still separates a specialist from an occasional mention', () => {
+    const specialist = ['Interconnection queue hits record', 'Grid operators weigh faster study', 'State policy shifts on transmission', 'Climate tech funding slows'];
+    expect(author(grid, specialist, ['Energy'])).toBeGreaterThanOrEqual(6);
+    expect(author(grid, [...UNRELATED.slice(0, 9), 'Grid operators prepare for winter'])).toBeLessThan(3);
+    expect(author(hr, ['New HR rules for small firms', 'HR chiefs on hiring', 'What HR gets wrong', 'HR tech spending dips', 'Inside HR', 'HR in 2027'])).toBeGreaterThanOrEqual(6);
+  });
+
+  it('counts phrases over words, and feed categories over headlines', () => {
+    expect(pts(grid, 'New state policy on permits')).toBeGreaterThan(pts(grid, 'Policy notes'));
     expect(pts(grid, '', ['Interconnection'])).toBeGreaterThan(pts(grid, 'Interconnection'));
   });
 
-  it('matches plurals and accents, whole words only, and reports why', () => {
+  it('ignores names and industries that are ordinary words', () => {
+    const t = make({ industry: 'IT', competitors: ['On', 'The One', 'Next'] });
+    for (const x of ['Why it matters', 'On the road', 'What happens next', 'The one that got away']) expect(pts(t, x)).toBe(0);
+    expect(pts(make({ competitors: ['Next Insurance'] }), 'Next Insurance cuts staff')).toBe(2);
+    expect(pts(make({ competitors: ['Next Insurance'] }), 'Insurance rates climb')).toBe(0); // a rival's words aren't our subject
+  });
+
+  it('matches plurals, accents and other scripts, whole words only, and reports why', () => {
     expect(matchTopics(food, 'A restaurant opens', []).matched).toEqual(['restaurant']);
     expect(pts(grid, 'Gridlock downtown')).toBe(0);
-    const pr = topicsFrom(companyProfileSchema.parse({ name: 'X', industry: 'Café culture' }));
-    expect(pts(pr, 'The cafe culture boom')).toBeGreaterThan(0);
+    expect(pts(make({ industry: 'Café culture' }), 'The cafe culture boom')).toBe(2);
+    expect(pts(make({ industry: 'Tax' }), 'New taxes ahead')).toBeGreaterThan(0);
+    expect(pts(make({ industry: 'Movies' }), 'A movie worth seeing')).toBeGreaterThan(0);
+    expect(pts(make({ industry: '再生能源' }), '台灣再生能源新政策')).toBe(2);
+    expect(pts(make({ industry: 'Энергетика' }), 'Новая энергетика России')).toBe(2);
+    expect(pts(make({ industry: '再生能源' }), '職棒總冠軍賽')).toBe(0);
   });
 
-  it('copes with no profile, an empty one, and odd text', () => {
+  it('copes with no profile, an empty one, odd text and huge input', () => {
     expect(pts(topicsFrom(null), 'Anything', ['x'])).toBe(0);
-    expect(pts(topicsFrom(companyProfileSchema.parse({ name: 'X' })), 'Anything about data and software')).toBe(0);
+    expect(pts(make({}), 'Anything about data and software')).toBe(0);
     expect(pts(grid, '', ['', '  ', '💡'])).toBe(0);
-    expect(pts(topicsFrom(companyProfileSchema.parse({ name: 'X', industry: 'Tools' })), 'New tools for teams')).toBe(0); // filler
+    const t = Date.now();
+    matchTopics(hr, 'word '.repeat(50_000), Array(5000).fill('category'));
+    expect(Date.now() - t).toBeLessThan(500);
   });
+});
 
-  it('takes a beat from what the publication calls it', () => {
+describe('commonCategory', () => {
+  it('takes a beat from what the publication calls it, ignoring labels that are not subjects', () => {
     expect(commonCategory([['Energy', 'Policy'], ['Energy'], []])).toBe('Energy');
+    expect(commonCategory([['Uncategorized', 'Energy']])).toBe('Energy');
+    expect(commonCategory([['energy'], ['Energy'], ['Politics']])).toBe('energy');
+    expect(commonCategory([['News', '12345', '2025/11', ' ']])).toBe('');
     expect(commonCategory([[], []])).toBe('');
+  });
+});
+
+describe('searchTags', () => {
+  it('uses only meaningful words from the search', () => {
+    expect(searchTags('climate tech')).toEqual(['climate-tech', 'climate', 'tech']);
+    expect(searchTags('EV and VC')).toEqual(['ev-vc', 'ev', 'vc']);
+    expect(searchTags('café')).toEqual(['cafe']);
+    expect(searchTags('AI')).toEqual(['ai']);
+    expect(searchTags('再生能源')).toEqual(['再生能源']);
+    expect(searchTags('--- and the')).toEqual([]);
+    expect(searchTags('climate tech policy for small cities')).not.toContain('climate-tech-policy-small-cities');
+  });
+});
+
+describe('sectionCandidates', () => {
+  const links = (hrefs: string[]) => hrefs.map(h => `<a href="${h}">x</a>`).join('');
+  it('prefers matching sections, falls back to a few, and skips what is not a section', () => {
+    const html = links(['/#main', '/?s=', '/about-us', '/privacy-policy', '/contact', '/sports', '/culture', '/climate-tech', '/climate-tech?x=1#y', '/img.png', 'https://other.example/climate-tech', 'mailto:a@b.co', 'javascript:1', '/a/b/c/d']);
+    const got = sectionCandidates(html, 'https://news.example/', grid).map(([u]) => u);
+    expect(got).toEqual(['https://news.example/climate-tech', 'https://news.example/sports', 'https://news.example/culture']);
+  });
+  it('stays polite on a huge page, and works with no profile', () => {
+    const html = links(Array.from({ length: 500 }, (_, i) => `/grid-${i}`));
+    expect(sectionCandidates(html, 'https://news.example', grid)).toHaveLength(12);
+    expect(sectionCandidates(html, 'https://news.example', topicsFrom(null))).toHaveLength(5);
   });
 });

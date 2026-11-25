@@ -11,18 +11,44 @@ import { botUserAgent, isAllowedByRobots } from '../lib/http';
 const parser = new Parser({ timeout: 8000, headers: { 'User-Agent': botUserAgent() } });
 
 /** Each candidate can cost several requests, so stay polite. */
-const MAX_MATCHED = 20;
+const MAX_MATCHED = 12;
 const MAX_UNMATCHED = 5;
 
 const RSS_SUFFIXES = [
   '/rss/index.xml', '/feed/', '/feed', '/rss/', '/rss', '/feed.xml', '/atom.xml',
   '?format=rss', '?rss=y', '?feed=rss2',
 ];
-const IGNORE_PATHS = new Set([
-  '/', '/about', '/contact', '/advertise', '/subscribe', '/newsletter',
-  '/login', '/signup', '/account', '/search', '/sitemap', '/privacy', '/terms',
-  '/careers', '/jobs', '/events', '/store', '/shop',
-]);
+/** Pages that are never a section of articles, with or without more words ("about-us", "privacy-policy"). */
+const NOT_A_SECTION = /^(about|contact|advertis|subscri|newsletter|log-?in|sign-?(in|up)|regist|account|profile|search|sitemap|privacy|terms|cookie|legal|careers?|jobs?|events?|store|shop|cart|donate|support|help|faq|feed|rss|author|staff|team|masthead|press-?kit|my-|user|wp-)/i;
+
+/** Links on a homepage worth trying for a feed: matching sections first, then a few others. */
+export function sectionCandidates(html: string, homepage: string, topics: Topics): [string, string][] {
+  const base = new URL(homepage);
+  const $ = cheerio.load(html);
+  const matched = new Map<string, string>();
+  const others = new Map<string, string>();
+
+  $('a[href]').each((_i, el) => {
+    let url: URL;
+    try { url = new URL($(el).attr('href') || '', base.origin); } catch { return; }
+    if (url.hostname !== base.hostname || !/^https?:$/.test(url.protocol)) return;
+    const segments = url.pathname.split('/').filter(Boolean);
+    // The query and fragment don't make it a different section, and "#top" is just the homepage again.
+    if (segments.length === 0 || segments.length > 3 || NOT_A_SECTION.test(segments[0])) return;
+    if (/\.\w{2,5}$/.test(url.pathname)) return;
+    const section = `${url.origin}/${segments.join('/')}`;
+    if (matched.has(section) || others.has(section)) return;
+
+    let slug = segments.join(' ');
+    try { slug = decodeURIComponent(slug); } catch { /* keep it encoded */ }
+    const text = clip($(el).text(), 100);
+    const label = clip((slug.split(' ').pop() ?? text).replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), 60) || 'Section';
+    const m = matchTopics(topics, `${text} ${slug.replace(/[-_]/g, ' ')}`, []);
+    if (m.points > 0) matched.set(section, label);
+    else if (segments.length === 1) others.set(section, label);
+  });
+  return [...[...matched].slice(0, MAX_MATCHED), ...[...others].slice(0, Math.max(0, MAX_UNMATCHED - matched.size))];
+}
 
 export interface DiscoveredFeed {
   feedUrl: string;
@@ -48,29 +74,7 @@ export async function discoverCategoryFeeds(publicationUrl: string, topics: Topi
     throw new Error(`Failed to fetch ${publicationUrl}: ${err.message}`, { cause: err });
   }
 
-  const $ = cheerio.load(html);
-  // Sections that match what the company does, then, so a publication is never skipped, a few others.
-  const matched = new Map<string, string>();
-  const others = new Map<string, string>();
-
-  $('a[href]').each((_i, el) => {
-    const rawHref = $(el).attr('href') || '';
-    const text = $(el).text().trim();
-    let absUrl: string;
-    try { absUrl = new URL(rawHref, baseUrl.origin).href; } catch { return; }
-    try { const u = new URL(absUrl); if (u.hostname !== baseUrl.hostname) return; } catch { return; }
-    const path = absUrl.replace(/^https?:\/\/[^/]+/, '').replace(/\/$/, '') || '/';
-    if (IGNORE_PATHS.has(path)) return;
-    const segments = path.split('/').filter(Boolean);
-    if (segments.length > 3) return;
-    if (/\.(html?|php|aspx|jpg|png|pdf)$/i.test(path)) return;
-    if (matched.has(absUrl) || others.has(absUrl)) return;
-    const label = clip(segments[segments.length - 1]?.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || text || 'Section', 60);
-    const isMatch = matchTopics(topics, `${text.slice(0, 100)} ${segments.join(' ').replace(/[-_]/g, ' ')}`, []).points > 0;
-    if (isMatch) matched.set(absUrl, label);
-    else if (segments.length === 1) others.set(absUrl, label);
-  });
-  const candidates = [...[...matched].slice(0, MAX_MATCHED), ...(matched.size >= MAX_UNMATCHED ? [] : [...others].slice(0, MAX_UNMATCHED - matched.size))];
+  const candidates = sectionCandidates(html, publicationUrl, topics);
 
   console.log(`[FeedDiscovery] ${baseUrl.hostname}: ${candidates.length} candidate section URLs`);
 
