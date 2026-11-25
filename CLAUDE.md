@@ -12,7 +12,7 @@ npm run lint && npm run typecheck && npm test && npm run build
 npm run migrate:up --prefix server   # apply migrations (needs DATABASE_URL)
 ```
 
-Tests need `DATABASE_URL` pointing at a migrated Postgres for the API smoke test. Use a throwaway database, never a real one.
+Tests need `DATABASE_URL` pointing at any local Postgres server. They create, migrate and drop their own databases and never touch the one it names.
 
 ## Rules of the codebase
 
