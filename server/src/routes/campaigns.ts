@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import type { Pool, PoolClient } from 'pg';
 import pool, { inTransaction } from '../db';
 import { generateCampaignDraft } from '../services/campaignDraftService';
@@ -13,8 +13,16 @@ import { parseBody, validateParams } from '../lib/validate';
 const ALREADY_SENT = 'This pitch was already sent, so it is kept as a record.';
 
 const CLAIM = 'creating';
+/** A claim this old was interrupted (a restart), so the work can be taken again. */
+const STALE = `updated_at < NOW() - INTERVAL '10 minutes'`;
 /** No Gmail draft yet, or one whose creation was interrupted. */
-const UNCLAIMED = `(cj.gmail_draft_id IS NULL OR (cj.gmail_draft_id = '${CLAIM}' AND cj.updated_at < NOW() - INTERVAL '10 minutes'))`;
+const UNCLAIMED = `(gmail_draft_id IS NULL OR (gmail_draft_id = '${CLAIM}' AND ${STALE}))`;
+const CREATING = `(gmail_draft_id = '${CLAIM}' AND NOT (${STALE}))`;
+const WRITING = `(status = 'drafting' AND NOT (${STALE}))`;
+const HAS_TEXT = `(draft_subject ~ '\\S' AND draft_body ~ '\\S')`;
+const NO_TEXT = `(draft_subject !~ '\\S' AND draft_body !~ '\\S')`;
+/** What a row is when nobody is writing it. */
+const IDLE_STATUS = `CASE WHEN ${HAS_TEXT} THEN 'ready' ELSE 'not_started' END`;
 
 const router = Router();
 validateParams(router, { id: 'int', journalistId: 'int' });
@@ -82,7 +90,8 @@ router.delete('/:id', async (req, res) => {
 
 router.get('/:id/journalists', async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT cj.id, cj.campaign_id, cj.journalist_id, cj.draft_subject, cj.draft_body, cj.status, cj.sent_at, NULLIF(cj.gmail_draft_id, '${CLAIM}') AS gmail_draft_id,
+    `SELECT cj.id, cj.campaign_id, cj.journalist_id, cj.draft_subject, cj.draft_body,
+            CASE WHEN cj.status = 'drafting' AND cj.${STALE} THEN ${IDLE_STATUS} ELSE cj.status END AS status, cj.sent_at, NULLIF(cj.gmail_draft_id, '${CLAIM}') AS gmail_draft_id,
             j.name as journalist_name, j.email as journalist_email, j.beats as journalist_beats,
             p.name as publication_name
      FROM campaign_journalists cj
@@ -122,7 +131,7 @@ router.delete('/:id/journalists/:journalistId', async (req, res) => {
     `DELETE FROM campaign_journalists WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3 AND status <> 'sent'`,
     [req.params.id, req.params.journalistId, req.orgId],
   );
-  if (result.rowCount === 0) throw await notFoundOrSent(pool, req.params.id, req.params.journalistId, req.orgId!);
+  if (result.rowCount === 0) throw await whyNot(pool, req);
   res.status(204).end();
 });
 
@@ -136,12 +145,11 @@ router.post('/:id/generate-drafts', async (req, res) => {
   if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
   // Claim the rows before paying for anything, so a second click can't generate the same draft twice.
-  // A claim older than ten minutes was interrupted (a restart) and can be taken again.
   const { rows: claimed } = await pool.query(
     `UPDATE campaign_journalists SET status = 'drafting', updated_at = NOW()
-     WHERE campaign_id = $1 AND org_id = $2 AND draft_subject = '' AND draft_body = ''
-       AND (status IN ('not_started', 'failed') OR (status = 'drafting' AND updated_at < NOW() - INTERVAL '10 minutes'))
-     RETURNING id, journalist_id`,
+     WHERE campaign_id = $1 AND org_id = $2 AND ${NO_TEXT}
+       AND (status IN ('not_started', 'failed') OR (status = 'drafting' AND ${STALE}))
+     RETURNING id, journalist_id, updated_at::text AS token`,
     [req.params.id, req.orgId],
   );
   claimed.sort((a, b) => a.id - b.id);
@@ -173,9 +181,19 @@ router.post('/:id/generate-drafts', async (req, res) => {
   });
 
   // The response is already sent, so nothing below may reject: one bad draft must not stop the rest.
-  // Only a row still being drafted is written, so a pitch someone wrote or sent meanwhile is kept.
-  for (const target of runnable) {
+  // Every row of the batch is claimed again before each call, which keeps a long batch from looking
+  // interrupted and skips rows that were removed, written by hand or sent meanwhile before paying for them.
+  let token: string | undefined = claimed[0]?.token;
+  for (const [i, target] of runnable.entries()) {
     try {
+      const { rows: held } = await pool.query(
+        `UPDATE campaign_journalists SET updated_at = NOW()
+         WHERE id = ANY($1::int[]) AND status = 'drafting' AND updated_at = $2::timestamptz
+         RETURNING id, updated_at::text AS token`,
+        [runnable.slice(i).map(r => r.id), token],
+      );
+      token = held[0]?.token ?? token;
+      if (!held.some(h => h.id === target.id)) continue;
       const draft = await generateCampaignDraft({
         orgId: req.orgId!,
         journalistId: target.journalist_id,
@@ -184,12 +202,12 @@ router.post('/:id/generate-drafts', async (req, res) => {
       });
       await pool.query(
         `UPDATE campaign_journalists SET draft_subject = $1, draft_body = $2, status = $3, updated_at = NOW()
-         WHERE id = $4 AND status = 'drafting'`,
-        [draft?.subject ?? '', draft?.body ?? '', draft ? 'ready' : 'failed', target.id],
+         WHERE id = $4 AND status = 'drafting' AND updated_at = $5::timestamptz`,
+        [draft?.subject ?? '', draft?.body ?? '', draft ? 'ready' : 'failed', target.id, token],
       );
     } catch (err) {
       console.error(`[campaigns] draft for campaign_journalist ${target.id} failed`, err);
-      await pool.query(`UPDATE campaign_journalists SET status = 'failed', updated_at = NOW() WHERE id = $1 AND status = 'drafting'`, [target.id]).catch(() => {});
+      await pool.query(`UPDATE campaign_journalists SET status = 'failed', updated_at = NOW() WHERE id = $1 AND status = 'drafting' AND updated_at = $2::timestamptz`, [target.id, token]).catch(() => {});
     }
   }
 });
@@ -203,34 +221,53 @@ router.post('/:id/journalists/:journalistId/regenerate', async (req, res) => {
   );
   if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
-  // Check membership before spending a live call on a draft that could not be saved.
-  const { rows: [member] } = await pool.query(
-    `SELECT id, status, updated_at > NOW() - INTERVAL '10 minutes' AS fresh FROM campaign_journalists WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3`,
-    [req.params.id, req.params.journalistId, req.orgId],
+  // Claim the row before paying, as above. The old text stays until there is a new one.
+  const key = [req.params.id, req.params.journalistId, req.orgId];
+  const { rows: [claim] } = await pool.query(
+    `UPDATE campaign_journalists SET status = 'drafting', updated_at = NOW()
+     FROM (SELECT id AS old_id, status AS old_status FROM campaign_journalists
+           WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3 FOR UPDATE) old
+     WHERE id = old_id AND status <> 'sent' AND NOT ${WRITING} AND NOT COALESCE(${CREATING}, false)
+     RETURNING id, old_status, updated_at::text AS token`,
+    key,
   );
-  if (!member) return res.status(404).json({ error: 'Not found' });
-  if (member.status === 'sent') return res.status(409).json({ error: ALREADY_SENT });
-  if (member.status === 'drafting' && member.fresh) return res.status(409).json({ error: 'A draft is already being written for this journalist.' });
+  if (!claim) throw await whyNot(pool, req);
+  const release = (status: string) => pool.query(
+    `UPDATE campaign_journalists SET status = CASE WHEN ${HAS_TEXT} THEN 'ready' ELSE $2 END, updated_at = NOW()
+     WHERE id = $1 AND status = 'drafting' AND updated_at = $3::timestamptz`,
+    [claim.id, status, claim.token],
+  );
+  const before = claim.old_status === 'failed' ? 'failed' : 'not_started';
 
-  if ((await takeLiveAi(clientIp(req), 1)) === 0) {
-    return res.status(429).json({ error: limitMessage(await liveAiStatus(clientIp(req))) });
+  let draft: Awaited<ReturnType<typeof generateCampaignDraft>>;
+  try {
+    if ((await takeLiveAi(clientIp(req), 1)) === 0) {
+      await release(before);
+      return res.status(429).json({ error: limitMessage(await liveAiStatus(clientIp(req))) });
+    }
+    draft = await generateCampaignDraft({
+      orgId: req.orgId!,
+      journalistId: Number(req.params.journalistId),
+      campaignBrief: campaign.brief,
+      campaignType: campaign.campaign_type,
+      extraInstructions: instructions ?? undefined,
+    });
+  } catch (err) {
+    await release(before);
+    throw err;
   }
-  const draft = await generateCampaignDraft({
-    orgId: req.orgId!,
-    journalistId: Number(req.params.journalistId),
-    campaignBrief: campaign.brief,
-    campaignType: campaign.campaign_type,
-    extraInstructions: instructions ?? undefined,
-  });
-  if (!draft) return res.status(502).json({ error: 'AI draft generation failed. Check ANTHROPIC_API_KEY and server logs.' });
+  if (!draft) {
+    await release('failed');
+    return res.status(502).json({ error: 'AI draft generation failed. Check ANTHROPIC_API_KEY and server logs.' });
+  }
 
   const { rows: [row] } = await pool.query(
     `UPDATE campaign_journalists SET draft_subject = $1, draft_body = $2, status = 'ready', gmail_draft_id = NULL, updated_at = NOW()
-     WHERE campaign_id = $3 AND journalist_id = $4 AND org_id = $5 AND status <> 'sent'
+     WHERE id = $3 AND status = 'drafting' AND updated_at = $4::timestamptz
      RETURNING id, campaign_id, journalist_id, draft_subject, draft_body, status, sent_at`,
-    [draft.subject, draft.body, req.params.id, req.params.journalistId, req.orgId],
+    [draft.subject, draft.body, claim.id, claim.token],
   );
-  if (!row) return res.status(409).json({ error: ALREADY_SENT });
+  if (!row) return res.status(409).json({ error: 'This pitch was changed while the AI was writing, so that version was kept.' });
   res.json(row);
 });
 
@@ -240,15 +277,16 @@ router.put('/:id/journalists/:journalistId/draft', async (req, res) => {
     `UPDATE campaign_journalists SET
        draft_subject = COALESCE($1, draft_subject),
        draft_body = COALESCE($2, draft_body),
-       -- A pitch someone wrote themselves is ready; an edited one no longer matches its copy in Gmail.
-       status = CASE WHEN COALESCE($1, draft_subject) <> '' AND COALESCE($2, draft_body) <> '' THEN 'ready' ELSE status END,
+       -- A pitch someone wrote themselves is ready, and any AI draft in progress gives way to it.
+       -- An edited one no longer matches its copy in Gmail.
+       status = CASE WHEN COALESCE($1, draft_subject) ~ '\\S' AND COALESCE($2, draft_body) ~ '\\S' THEN 'ready' ELSE 'not_started' END,
        gmail_draft_id = CASE WHEN COALESCE($1, draft_subject) <> draft_subject OR COALESCE($2, draft_body) <> draft_body THEN NULL ELSE gmail_draft_id END,
        updated_at = NOW()
-     WHERE campaign_id = $3 AND journalist_id = $4 AND org_id = $5 AND status <> 'sent'
+     WHERE campaign_id = $3 AND journalist_id = $4 AND org_id = $5 AND status <> 'sent' AND NOT COALESCE(${CREATING}, false)
      RETURNING id, campaign_id, journalist_id, draft_subject, draft_body, status, sent_at`,
     [draftSubject, draftBody, req.params.id, req.params.journalistId, req.orgId],
   );
-  if (!row) throw await notFoundOrSent(pool, req.params.id, req.params.journalistId, req.orgId!);
+  if (!row) throw await whyNot(pool, req);
   res.json(row);
 });
 
@@ -261,7 +299,7 @@ router.post('/:id/journalists/:journalistId/send', async (req, res) => {
        RETURNING id, campaign_id, journalist_id, draft_subject, draft_body, status, sent_at`,
       [req.params.id, req.params.journalistId, req.orgId],
     );
-    if (!sent) throw await notFoundOrSent(db, req.params.id, req.params.journalistId, req.orgId!);
+    if (!sent) throw await whyNot(db, req);
     await db.query(
       `INSERT INTO outreach_logs (org_id, journalist_id, campaign_id, logged_by, type, status, notes)
        VALUES ($1, $2, $3, $4, 'pitch', 'Pitched', $5)`,
@@ -272,11 +310,17 @@ router.post('/:id/journalists/:journalistId/send', async (req, res) => {
   res.json(row);
 });
 
-async function notFoundOrSent(db: Pool | PoolClient, campaignId: unknown, journalistId: unknown, orgId: string): Promise<HttpError> {
-  const { rowCount } = await db.query(
-    'SELECT 1 FROM campaign_journalists WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3', [campaignId, journalistId, orgId],
+/** Why a change to a campaign's journalist matched no row. */
+async function whyNot(db: Pool | PoolClient, req: Request): Promise<HttpError> {
+  const { rows: [row] } = await db.query(
+    `SELECT status, ${WRITING} AS writing FROM campaign_journalists WHERE campaign_id = $1 AND journalist_id = $2 AND org_id = $3`,
+    [req.params.id, req.params.journalistId, req.orgId],
   );
-  return rowCount ? new HttpError(409, ALREADY_SENT) : new HttpError(404, 'Not found');
+  if (!row) return new HttpError(404, 'Not found');
+  if (row.status === 'sent') return new HttpError(409, ALREADY_SENT);
+  return new HttpError(409, row.writing
+    ? 'A draft is already being written for this journalist.'
+    : 'A Gmail draft is being made from this pitch. Try again in a moment.');
 }
 
 // ── Gmail draft creation ─────────────────────────────────────────────────────
@@ -293,7 +337,7 @@ router.post('/:id/create-gmail-drafts', async (req, res) => {
     const { rows: previews } = await pool.query(
       `SELECT j.name AS journalist_name, j.email AS "to", cj.draft_subject AS subject, cj.draft_body AS body
        FROM campaign_journalists cj JOIN journalists j ON j.id = cj.journalist_id
-       WHERE cj.campaign_id = $1 AND cj.org_id = $2 AND cj.draft_subject != '' AND j.email != '' AND cj.status <> 'sent'
+       WHERE cj.campaign_id = $1 AND cj.org_id = $2 AND ${HAS_TEXT} AND j.email != '' AND cj.status <> 'sent'
        ORDER BY cj.created_at ASC`,
       [req.params.id, req.orgId],
     );
@@ -306,11 +350,12 @@ router.post('/:id/create-gmail-drafts', async (req, res) => {
   }
 
   const { rows: targets } = await pool.query(
-    `SELECT cj.id, cj.draft_subject, cj.draft_body, j.email as journalist_email
+    `SELECT cj.id, j.email as journalist_email
      FROM campaign_journalists cj
      JOIN journalists j ON j.id = cj.journalist_id
      WHERE cj.campaign_id = $1 AND cj.org_id = $2
-       AND cj.draft_subject != '' AND cj.status <> 'sent' AND ${UNCLAIMED}`,
+       AND ${HAS_TEXT} AND cj.status <> 'sent' AND NOT (cj.status = 'drafting' AND NOT (cj.${STALE}))
+       AND (cj.gmail_draft_id IS NULL OR (cj.gmail_draft_id = '${CLAIM}' AND cj.${STALE}))`,
     [req.params.id, req.orgId],
   );
 
@@ -320,13 +365,16 @@ router.post('/:id/create-gmail-drafts', async (req, res) => {
   let expired = false;
   for (const t of targets) {
     if (!t.journalist_email) { skippedNoEmail++; continue; }
-    // Claim the row first, so a double click can't create the same draft twice.
-    const { rowCount: claimed } = await pool.query(
-      `UPDATE campaign_journalists cj SET gmail_draft_id = '${CLAIM}', updated_at = NOW() WHERE cj.id = $1 AND cj.status <> 'sent' AND ${UNCLAIMED}`, [t.id]);
-    if (!claimed) continue;
+    // Claim the row first, so a double click can't create the same draft twice and its text can't
+    // change before Gmail has it. Read the text now: it may have been edited since the list was made.
+    const { rows: [pitch] } = await pool.query(
+      `UPDATE campaign_journalists SET gmail_draft_id = '${CLAIM}', updated_at = NOW()
+       WHERE id = $1 AND status <> 'sent' AND NOT ${WRITING} AND ${HAS_TEXT} AND ${UNCLAIMED}
+       RETURNING draft_subject, draft_body`, [t.id]);
+    if (!pitch) continue;
     try {
-      const draftId = await createGmailDraft(gmail, t.journalist_email, t.draft_subject, t.draft_body);
-      await pool.query(`UPDATE campaign_journalists SET gmail_draft_id = $1, updated_at = NOW() WHERE id = $2`, [draftId, t.id]);
+      const draftId = await createGmailDraft(gmail, t.journalist_email, pitch.draft_subject, pitch.draft_body);
+      await pool.query(`UPDATE campaign_journalists SET gmail_draft_id = $1, updated_at = NOW() WHERE id = $2 AND gmail_draft_id = '${CLAIM}'`, [draftId, t.id]);
       created++;
     } catch (err: any) {
       console.error(`[Gmail] Draft creation failed for campaign_journalist ${t.id}:`, err.message);
@@ -338,7 +386,7 @@ router.post('/:id/create-gmail-drafts', async (req, res) => {
   }
 
   if (expired && created === 0) return res.status(400).json({ error: 'The Gmail connection has expired. Reconnect it from House Style settings.' });
-  res.json({ created, skippedNoEmail, failed, total: targets.length });
+  res.json({ created, skippedNoEmail, failed, expired, total: targets.length });
 });
 
 export default router;

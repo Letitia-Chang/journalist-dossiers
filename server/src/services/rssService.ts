@@ -1,7 +1,7 @@
 import Parser from 'rss-parser';
 import { clip, clipDate, clipUrl } from '../lib/clip';
 import pool from '../db';
-import { isPersonName } from '../lib/personName';
+import { personName } from '../lib/personName';
 import { loadProfile } from '../lib/companyProfile';
 import { commonCategory, matchTopics, relevance, strength, topicsFrom, type Topics } from '../lib/topics';
 import { generateRssDiagnosticNote } from './rssDiagnostic';
@@ -40,7 +40,7 @@ function extractAuthor(item: any): string | null {
   if (!raw || typeof raw !== 'string') return null;
   const name = raw.replace(/^[^\s(]+@[^\s(]+\s*/, '').replace(/<[^>]+>/g, '').replace(/\(([^)]+)\)/, '$1').trim();
   if (/'\d{2}$/.test(name)) return null; // "Jane Roe '25"
-  return isPersonName(name) ? name.normalize('NFC') : null;
+  return personName(name);
 }
 
 async function scanFeedUrl(feedUrl: string, feedId: number): Promise<{ items: any[]; error?: string }> {

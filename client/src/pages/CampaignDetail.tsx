@@ -28,12 +28,12 @@ export default function CampaignDetail() {
   const [generating, setGenerating] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
-  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
+  const [regenerating, setRegenerating] = useState<Set<number>>(new Set());
   const [regenInstructions, setRegenInstructions] = useState<Record<number, string>>({});
   const [editedDrafts, setEditedDrafts] = useState<Record<number, { subject: string; body: string }>>({});
   const [creatingGmailDrafts, setCreatingGmailDrafts] = useState(false);
   const [demoPreviews, setDemoPreviews] = useState<{ journalist_name: string; to: string; subject: string; body: string }[] | null>(null);
-  const [gmailDraftsResult, setGmailDraftsResult] = useState<{ created: number; skippedNoEmail: number; failed?: number } | { message: string } | { error: string } | null>(null);
+  const [gmailDraftsResult, setGmailDraftsResult] = useState<{ created: number; skippedNoEmail: number; failed?: number; expired?: boolean } | { message: string } | { error: string } | null>(null);
 
   const loadCampaign = () => {
     if (!id) return;
@@ -118,17 +118,19 @@ export default function CampaignDetail() {
     }
   };
 
-  const handleRegenerate = async (journalistId: number) => {
-    setRegeneratingId(journalistId);
+  const handleRegenerate = async (journalistId: number, hasUnsaved: boolean) => {
+    if (hasUnsaved && !confirm('Replace the text you haven’t saved with an AI draft?')) return;
+    setRegenerating(prev => new Set(prev).add(journalistId));
     try {
       setGmailDraftsResult(null);
       await cApi.regenerateDraft(Number(id), journalistId, regenInstructions[journalistId] ?? '');
       clearEdits(journalistId); // show the new text, not what was typed over the old one
       loadCampaignJournalists();
     } catch (err) {
+      loadCampaignJournalists();
       setGmailDraftsResult({ error: apiError(err, 'Could not regenerate the draft.') });
     } finally {
-      setRegeneratingId(null);
+      setRegenerating(prev => new Set([...prev].filter(x => x !== journalistId)));
     }
   };
 
@@ -149,8 +151,8 @@ export default function CampaignDetail() {
 
   if (!campaign) return <div className="p-8 text-slate-400">Loading...</div>;
 
-  const notStartedCount = campaignJournalists.filter(cj => ['not_started', 'failed'].includes(cj.status) && !cj.draft_subject && !cj.draft_body).length;
-  const draftableCount = campaignJournalists.filter(cj => cj.draft_subject && !cj.gmail_draft_id && cj.status !== 'sent').length;
+  const notStartedCount = campaignJournalists.filter(cj => ['not_started', 'failed'].includes(cj.status) && !cj.draft_subject.trim() && !cj.draft_body.trim()).length;
+  const draftableCount = campaignJournalists.filter(cj => cj.draft_subject.trim() && cj.draft_body.trim() && !cj.gmail_draft_id && !['sent', 'drafting'].includes(cj.status)).length;
 
   return (
     <div className="p-4 sm:p-8 max-w-4xl mx-auto">
@@ -222,7 +224,7 @@ export default function CampaignDetail() {
               ? gmailDraftsResult.error
               : 'message' in gmailDraftsResult
               ? gmailDraftsResult.message
-              : `Created ${gmailDraftsResult.created} Gmail draft${gmailDraftsResult.created === 1 ? '' : 's'}${gmailDraftsResult.skippedNoEmail ? ` — ${gmailDraftsResult.skippedNoEmail} skipped (no email on file)` : ''}${gmailDraftsResult.failed ? ` — ${gmailDraftsResult.failed} failed, so try again` : ''}.`}
+              : `Created ${gmailDraftsResult.created} Gmail draft${gmailDraftsResult.created === 1 ? '' : 's'}${gmailDraftsResult.skippedNoEmail ? ` — ${gmailDraftsResult.skippedNoEmail} skipped (no email on file)` : ''}${gmailDraftsResult.failed ? ` — ${gmailDraftsResult.failed} failed, ${gmailDraftsResult.expired ? 'because the connection expired: reconnect it under House Style' : 'so try again'}` : ''}.`}
           </span>
           <button onClick={() => setGmailDraftsResult(null)} aria-label="Dismiss" className="text-current opacity-60 hover:opacity-100">✕</button>
         </div>
@@ -261,6 +263,7 @@ export default function CampaignDetail() {
             const edited = editedDrafts[cj.journalist_id];
             const subject = edited?.subject ?? cj.draft_subject;
             const body = edited?.body ?? cj.draft_body;
+            const busy = regenerating.has(cj.journalist_id);
             const hasEdits = edited && (edited.subject !== cj.draft_subject || edited.body !== cj.draft_body);
             return (
               <div key={cj.id} className="card p-4">
@@ -284,7 +287,7 @@ export default function CampaignDetail() {
                   </div>
                 </div>
 
-                {cj.status === 'drafting' ? (
+                {cj.status === 'drafting' && !busy ? (
                   <p className="text-xs text-slate-400 italic">Writing a draft…</p>
                 ) : (
                   <div className="space-y-2">
@@ -293,7 +296,7 @@ export default function CampaignDetail() {
                       aria-label={`Subject for ${cj.journalist_name}`}
                       placeholder="Subject: write your own, or generate a draft"
                       value={subject}
-                      readOnly={cj.status === 'sent'}
+                      readOnly={cj.status === 'sent' || busy}
                       onChange={e => setEditedDrafts(prev => ({ ...prev, [cj.journalist_id]: { subject: e.target.value, body } }))}
                     />
                     <textarea
@@ -302,11 +305,11 @@ export default function CampaignDetail() {
                       aria-label={`Pitch for ${cj.journalist_name}`}
                       placeholder="Your pitch"
                       value={body}
-                      readOnly={cj.status === 'sent'}
+                      readOnly={cj.status === 'sent' || busy}
                       onChange={e => setEditedDrafts(prev => ({ ...prev, [cj.journalist_id]: { subject, body: e.target.value } }))}
                     />
                     {cj.status !== 'sent' && <div className="flex items-center gap-2 flex-wrap">
-                      {hasEdits && (
+                      {hasEdits && !busy && (
                         <button className="btn-secondary py-1 text-xs" onClick={() => handleSaveDraft(cj)}>
                           <Save className="w-3 h-3" /> Save edits
                         </button>
@@ -320,13 +323,13 @@ export default function CampaignDetail() {
                       />
                       <button
                         className="btn-secondary py-1 text-xs"
-                        onClick={() => handleRegenerate(cj.journalist_id)}
-                        disabled={regeneratingId === cj.journalist_id}
+                        onClick={() => handleRegenerate(cj.journalist_id, !!hasEdits)}
+                        disabled={busy}
                       >
-                        <RefreshCw className={`w-3 h-3 ${regeneratingId === cj.journalist_id ? 'animate-spin' : ''}`} />
-                        {regeneratingId === cj.journalist_id ? 'Writing…' : cj.draft_body ? 'Regenerate' : 'Draft with AI'}
+                        <RefreshCw className={`w-3 h-3 ${busy ? 'animate-spin' : ''}`} />
+                        {busy ? 'Writing…' : cj.draft_body ? 'Regenerate' : 'Draft with AI'}
                       </button>
-                      {subject.trim() && body.trim() && (
+                      {subject.trim() && body.trim() && !busy && (
                         <button className="btn-primary py-1 text-xs" onClick={() => handleSend(cj)}>
                           <Send className="w-3 h-3" /> Mark Sent
                         </button>

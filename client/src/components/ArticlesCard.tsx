@@ -13,14 +13,19 @@ export default function ArticlesCard({ journalistId }: { journalistId: number })
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     let current = true;
-    api.byJournalist(journalistId).then(r => { if (current) setList(r.data); });
+    api.byJournalist(journalistId)
+      .then(r => { if (current) setList(r.data); })
+      .catch(err => { if (current) setLoadError(apiError(err, 'Could not load the articles.')); });
     return () => { current = false; };
   }, [journalistId]);
 
-  const reload = () => api.byJournalist(journalistId).then(r => setList(r.data));
+  const reload = () => api.byJournalist(journalistId)
+    .then(r => { setList(r.data); setLoadError(''); })
+    .catch(err => setLoadError(apiError(err, 'Could not load the articles.')));
   const open = (a?: Article) => {
     setError('');
     setEditing(a ? a.id : 'new');
@@ -84,7 +89,8 @@ export default function ArticlesCard({ journalistId }: { journalistId: number })
         </form>
       )}
 
-      {list === null ? (
+      {loadError && <p className="text-sm text-red-600 mb-2">{loadError} <button className="underline" onClick={reload}>Try again</button></p>}
+      {list === null ? loadError ? null : (
         <p className="text-sm text-slate-400">Loading…</p>
       ) : list.length === 0 ? (
         <p className="text-sm text-slate-400">No articles recorded, so AI scores can only go on the beat, outlet and bio. Add a few for better scores.</p>

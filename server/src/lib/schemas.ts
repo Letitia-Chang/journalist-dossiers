@@ -24,16 +24,17 @@ export const link = z.string().trim().max(2000, 'URL is too long')
     return !scheme || scheme === 'http' || scheme === 'https' || scheme.includes('.');
   }, 'Must be an http(s) URL');
 
-// Free-form on purpose: people record "a@x.com; b@x.com" or a note. One line, so it is header-safe.
 /** A web address we will fetch or link to: a bare domain becomes a real URL. */
 export const webUrl = link.transform(s => (s === '' || /^https?:\/\//i.test(s) ? s : `https://${s.replace(/^\/+/, '')}`));
 
+// Free-form on purpose: people record "a@x.com; b@x.com" or a note. One line, so it is header-safe.
 const email = line(254).trim();
 
 const id = z.number().int().positive().max(2147483647);
 const date = z.preprocess(
   v => (v === '' ? null : v),
-  z.string().max(40).refine(s => /^\d{4}-\d{2}-\d{2}/.test(s) && !Number.isNaN(Date.parse(s)), 'Invalid date').nullish(),
+  z.string().max(40).refine(s => /^\d{4}-\d{2}-\d{2}/.test(s) && !Number.isNaN(Date.parse(s)), 'Invalid date')
+    .transform(s => (s.length === 10 ? `${s}T00:00:00Z` : s)).nullish(), // a day is the same day in any time zone
 );
 const name = line(200).trim().min(1, 'Required');
 const score = z.object({ dimensionId: id, score: z.number().min(0).max(1000).transform(Math.round) });

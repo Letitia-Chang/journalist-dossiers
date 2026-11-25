@@ -1,8 +1,12 @@
 /**
  * Publications saved with an RSS address but no feed row were never scanned. Give each one its row.
+ * Addresses saved as a bare domain can't be fetched, so make them real URLs first.
  * @param pgm {import('node-pg-migrate').MigrationBuilder}
  */
 exports.up = (pgm) => {
+  for (const column of ['url', 'rss_url']) {
+    pgm.sql(`UPDATE publications SET ${column} = 'https://' || LTRIM(BTRIM(${column}), '/') WHERE ${column} ~ '\\S' AND BTRIM(${column}) !~* '^https?://'`);
+  }
   pgm.sql(`
     INSERT INTO publication_feeds (org_id, publication_id, feed_url, feed_label, feed_type)
     SELECT p.org_id, p.id, p.rss_url, 'Main', 'main' FROM publications p
@@ -11,5 +15,5 @@ exports.up = (pgm) => {
   `);
 };
 
-/** Nothing to undo: the rows are ordinary feeds. */
+/** Nothing to undo: the rows are ordinary feeds and the addresses are the same ones. */
 exports.down = () => {};

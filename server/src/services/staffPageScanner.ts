@@ -8,7 +8,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import pool from '../db';
-import { isPersonName } from '../lib/personName';
+import { personName } from '../lib/personName';
 import { botUserAgent, isAllowedByRobots } from '../lib/http';
 
 const STAFF_PAGE_PATHS = [
@@ -54,12 +54,14 @@ function extractNamesFromHtml(html: string, _baseUrl: string): string[] {
     const isAuthorLink = AUTHOR_LINK_PATTERNS.some(p => p.test(href));
     if (!isAuthorLink) return;
     const text = $(el).text().trim() || $(el).attr('aria-label')?.trim() || $(el).attr('title')?.trim() || '';
-    if (text && !isGenericName(text) && isPersonName(text)) names.add(text);
+    const name = isGenericName(text) ? null : personName(text);
+    if (name) names.add(name);
   });
   if (names.size < 3) {
     $('[class*="name"], [class*="author"], [class*="writer"], [itemprop="name"]').each((_i, el) => {
       const text = $(el).text().trim();
-      if (text && !isGenericName(text) && isPersonName(text)) names.add(text);
+      const name = isGenericName(text) ? null : personName(text);
+      if (name) names.add(name);
     });
   }
   $('script[type="application/ld+json"]').each((_i, el) => {
@@ -68,8 +70,8 @@ function extractNamesFromHtml(html: string, _baseUrl: string): string[] {
       const items = Array.isArray(data) ? data : [data];
       for (const item of items) {
         if (item['@type'] === 'Person' && item.name) {
-          const n = item.name.trim();
-          if (!isGenericName(n) && isPersonName(n)) names.add(n);
+          const name = isGenericName(item.name) ? null : personName(item.name);
+          if (name) names.add(name);
         }
       }
     } catch { /* ignore */ }

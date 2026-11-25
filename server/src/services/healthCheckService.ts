@@ -17,7 +17,8 @@ export async function runHealthChecks(orgId: string): Promise<HealthCheckResult>
   for (const pub of pubs) {
     const status: 'healthy' | 'unreachable' = await axios
       .head(pub.url, { timeout: 8000, maxRedirects: 3, validateStatus: () => true, headers: { 'User-Agent': botUserAgent() } })
-      .then(res => (res.status >= 200 && res.status < 400 ? ('healthy' as const) : ('unreachable' as const)))
+      // A site that refuses bots or HEAD requests (401, 403, 405, 429) is still up.
+      .then(res => (res.status < 500 && res.status !== 404 && res.status !== 410 ? ('healthy' as const) : ('unreachable' as const)))
       .catch(() => 'unreachable' as const);
     if (status === 'unreachable') unreachable++;
     await pool.query(

@@ -205,11 +205,16 @@ router.post('/:id/feeds', requireEditor, async (req, res) => {
 });
 
 router.delete('/:id/feeds/:feedId', requireEditor, async (req, res) => {
-  const result = await pool.query(
-    'DELETE FROM publication_feeds WHERE id = $1 AND publication_id = $2 AND org_id = $3',
-    [req.params.feedId, req.params.id, req.orgId],
-  );
-  if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  const deleted = await inTransaction(async db => {
+    const { rows: [feed] } = await db.query(
+      'DELETE FROM publication_feeds WHERE id = $1 AND publication_id = $2 AND org_id = $3 RETURNING feed_url',
+      [req.params.feedId, req.params.id, req.orgId],
+    );
+    // If it was the main feed, forget the address too, or the next scan would add it back.
+    if (feed) await db.query(`UPDATE publications SET rss_url = '' WHERE id = $1 AND org_id = $2 AND rss_url = $3`, [req.params.id, req.orgId, feed.feed_url]);
+    return feed;
+  });
+  if (!deleted) return res.status(404).json({ error: 'Not found' });
   res.status(204).end();
 });
 

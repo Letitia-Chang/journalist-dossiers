@@ -40,10 +40,10 @@ describe.skipIf(!hasDb)('upgrade and rollback', () => {
     await db.query(`INSERT INTO journalist_scores (org_id, journalist_id, dimension_id, score) SELECT j.org_id, j.id, d.id, 2000000000 FROM journalists j JOIN scoring_dimensions d ON d.org_id = j.org_id WHERE j.org_id = $1`, [big.id]);
     for (const t of ['a', 'b']) await db.query(`INSERT INTO invites (org_id, email, token, expires_at) VALUES ($1, 'i@example.com', $2, NOW() + INTERVAL '1 day')`, [org.id, t]);
 
-    await db.query(`INSERT INTO publications (org_id, name, rss_url) VALUES ($1, 'Unscanned', 'https://u.example/rss'), ($1, 'None', '')`, [org.id]);
+    await db.query(`INSERT INTO publications (org_id, name, rss_url) VALUES ($1, 'Unscanned', 'https://u.example/rss'), ($1, 'Bare', 'b.example/rss'), ($1, 'None', '')`, [org.id]);
 
     await migrate('up', Infinity);
-    expect((await db.query('SELECT p.name, f.feed_url FROM publications p JOIN publication_feeds f ON f.publication_id = p.id')).rows).toEqual([{ name: 'Unscanned', feed_url: 'https://u.example/rss' }]);
+    expect((await db.query('SELECT p.name, f.feed_url FROM publications p JOIN publication_feeds f ON f.publication_id = p.id ORDER BY p.name')).rows).toEqual([{ name: 'Bare', feed_url: 'https://b.example/rss' }, { name: 'Unscanned', feed_url: 'https://u.example/rss' }]);
     expect((await db.query('SELECT email FROM users ORDER BY email COLLATE "C"')).rows.map(r => r.email)).toEqual(['Twin@example.com', 'mixed@example.com', 'twin@example.com']);
     expect((await db.query(`SELECT total_score FROM journalists WHERE name = 'absurd'`)).rows).toEqual([{ total_score: 2000 }]);
     expect((await db.query(`SELECT total_score, LENGTH(bio) AS len FROM journalists WHERE name = 'j'`)).rows).toEqual([{ total_score: 10, len: 9000 }]);
