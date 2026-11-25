@@ -4,7 +4,7 @@ Thanks for helping. Small, focused pull requests are easiest to review.
 
 ## Setup
 
-See the [self-host guide](README.md#self-host-in-5-minutes). You need Node 20+ and a Postgres database. Run a throwaway one locally (Docker, or `initdb`) and point `DATABASE_URL` at it.
+See the [self-host guide](README.md#self-host-in-5-minutes). You need Node 22+ and a Postgres database. Run a throwaway one locally (Docker, or `initdb`) and point `DATABASE_URL` at it.
 
 ## Before you open a PR
 

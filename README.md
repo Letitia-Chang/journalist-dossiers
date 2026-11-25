@@ -56,7 +56,7 @@ Details in [docs/architecture.md](docs/architecture.md).
 
 ## Self-host in 5 minutes
 
-You need **Node 20+**, **PostgreSQL** (local, Neon, Supabase, Render, …) and an **Anthropic API key**.
+You need **Node 22+**, **PostgreSQL** (local, Neon, Supabase, Render, …) and an **Anthropic API key**.
 
 ```bash
 git clone <this repo> press-dossier && cd press-dossier
