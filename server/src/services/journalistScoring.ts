@@ -141,7 +141,7 @@ export async function scoreJournalistWithAI(input: ScoringInput): Promise<Journa
   try {
     const message = await claudeClient().messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 2048,
+      max_tokens: 4096, // includes thinking
       thinking: { type: 'adaptive' },
       messages: [{ role: 'user', content: prompt }],
     });

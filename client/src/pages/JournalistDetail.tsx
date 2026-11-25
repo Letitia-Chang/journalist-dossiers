@@ -7,6 +7,11 @@ import { OUTREACH_TYPES, OUTREACH_STATUSES } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import { apiError } from '../lib/errors';
 
+/** People enter "@handle" or a bare domain as often as a full URL. */
+function profileUrl(value: string, base: string): string {
+  return /^https?:\/\//i.test(value) ? value : base + value.replace(/^@/, '');
+}
+
 export default function JournalistDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -96,14 +101,14 @@ export default function JournalistDetail() {
   const detailByDimension = new Map(journalist.scores.map(s => [s.dimensionId, s]));
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-4xl mx-auto">
       <Link to="/journalists" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-5">
         <ChevronLeft className="w-4 h-4" /> Back to journalists
       </Link>
 
       {/* Header */}
       <div className="card p-6 mb-5">
-        <div className="flex items-start gap-4">
+        <div className="flex flex-wrap items-start gap-4">
           <div className="shrink-0">
             {journalist.photo_url ? (
               <img
@@ -135,24 +140,24 @@ export default function JournalistDetail() {
 
           <div className="flex gap-2 shrink-0">
             <Link to={`/journalists/${id}/edit`} className="btn-secondary"><Edit2 className="w-4 h-4" /> Edit</Link>
-            <button onClick={handleDelete} className="btn-danger"><Trash2 className="w-4 h-4" /></button>
+            <button onClick={handleDelete} aria-label="Delete journalist" className="btn-danger"><Trash2 className="w-4 h-4" /></button>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4">
           {journalist.email && (
-            <button onClick={handleCopyEmail} className="btn-secondary text-xs" title="Click to copy email address">
+            <button onClick={handleCopyEmail} className="btn-secondary text-xs max-w-full break-all" title="Click to copy email address">
               {copiedEmail ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
               {copiedEmail ? 'Copied!' : journalist.email}
             </button>
           )}
           {journalist.twitter && (
-            <a href={journalist.twitter} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
+            <a href={profileUrl(journalist.twitter, 'https://x.com/')} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
               <AtSign className="w-3 h-3" /> Twitter/X
             </a>
           )}
           {journalist.linkedin && (
-            <a href={journalist.linkedin} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
+            <a href={profileUrl(journalist.linkedin, 'https://')} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
               <Link2 className="w-3 h-3" /> LinkedIn
             </a>
           )}
@@ -244,7 +249,7 @@ export default function JournalistDetail() {
 
         {showLogForm && (
           <div className="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Type</label>
                 <select className="form-select" value={logForm.type} onChange={e => setLogForm(f => ({ ...f, type: e.target.value }))}>

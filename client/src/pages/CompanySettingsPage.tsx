@@ -39,7 +39,7 @@ export default function CompanySettingsPage() {
   if (!profile) return <div className="p-8 text-slate-400">Loading…</div>;
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <Building2 className="w-5 h-5 text-brand-600" /> Company Profile

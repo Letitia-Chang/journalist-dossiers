@@ -26,10 +26,10 @@ export default function Dashboard() {
   if (!data) return <div className="p-8 text-slate-400">Loading...</div>;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-6xl mx-auto">
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Dashboard</h1>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <StatCard icon={Users} label="Journalists" value={data.totalJournalists} color="bg-brand-50 text-brand-600" />
         <StatCard icon={TrendingUp} label="Avg. Score" value={data.avgScore} color="bg-violet-50 text-violet-600" />
         <StatCard icon={Megaphone} label="Active Campaigns" value={data.activeCampaigns} color="bg-blue-50 text-blue-600" />

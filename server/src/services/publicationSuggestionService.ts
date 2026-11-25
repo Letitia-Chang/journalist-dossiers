@@ -57,7 +57,7 @@ Respond with ONLY a valid JSON array, no markdown, no prose:
   try {
     const message = await claudeClient().messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 1024,
+      max_tokens: 4096, // includes thinking
       thinking: { type: 'adaptive' },
       messages: [{ role: 'user', content: assertPromptSize(prompt) }],
     });

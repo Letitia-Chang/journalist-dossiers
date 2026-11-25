@@ -100,7 +100,7 @@ Return ONLY valid JSON — no prose before or after:
   try {
     const message = await claudeClient().messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 1024,
+      max_tokens: 4096, // includes thinking
       thinking: { type: 'adaptive' },
       messages: [{ role: 'user', content: prompt }],
     });

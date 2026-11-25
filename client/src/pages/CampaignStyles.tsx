@@ -111,7 +111,7 @@ export default function CampaignStyles() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       <Link to="/campaigns" className="text-sm text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-5">
         <ArrowLeft className="w-3.5 h-3.5" /> Back to campaigns
       </Link>
@@ -168,7 +168,7 @@ export default function CampaignStyles() {
 
           return (
             <div key={type} className="card p-5">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2">
                   <h2 className="font-semibold text-slate-900">{meta.label}</h2>
                   {hasContent && (

@@ -18,7 +18,7 @@ export default function ExportPage() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold text-slate-900 mb-2">Export Data</h1>
       <p className="text-slate-500 mb-8">Download your data as CSV files for use in spreadsheets or other tools.</p>
 

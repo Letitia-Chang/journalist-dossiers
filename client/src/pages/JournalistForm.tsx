@@ -81,18 +81,18 @@ export default function JournalistForm() {
   };
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-2xl mx-auto">
       <Link to={isEdit ? `/journalists/${id}` : '/journalists'} className="text-sm text-slate-400 hover:text-slate-600 flex items-center gap-1 mb-5">
         <ChevronLeft className="w-3.5 h-3.5" /> {isEdit ? 'Back to journalist' : 'Back to journalists'}
       </Link>
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-xl font-bold text-slate-900">{isEdit ? 'Edit Journalist' : 'Add Journalist'}</h1>
         <div className="text-sm text-slate-500">Score: <strong className="text-brand-600">{totalScore}</strong></div>
       </div>
 
       <div className="card p-6 space-y-5">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="form-label">Name *</label>
             <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} autoFocus />
@@ -106,7 +106,7 @@ export default function JournalistForm() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="form-label">Email</label>
             <input className="form-input" value={form.email} onChange={e => set('email', e.target.value)} />
@@ -138,7 +138,7 @@ export default function JournalistForm() {
 
         {/* ── Scoring ── */}
         <div className="pt-2 border-t border-slate-100">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <label className="form-label mb-0">Scores</label>
             <span className="text-xs font-mono text-slate-500">{totalScore} total</span>
           </div>
@@ -150,7 +150,7 @@ export default function JournalistForm() {
             <div className="space-y-3">
               {dimensions.map(d => (
                 <div key={d.id} className="flex items-center gap-3">
-                  <div className="w-40 shrink-0">
+                  <div className="w-24 sm:w-40 shrink-0">
                     <div className="text-sm font-medium text-slate-800">{d.name}</div>
                     <div className="text-xs text-slate-400">out of {d.weight}</div>
                   </div>
@@ -160,7 +160,7 @@ export default function JournalistForm() {
                     max={d.weight}
                     value={scores[d.id] ?? 0}
                     onChange={e => setScores(s => ({ ...s, [d.id]: Number(e.target.value) }))}
-                    className="flex-1"
+                    className="flex-1 min-w-0"
                   />
                   <input
                     type="number"

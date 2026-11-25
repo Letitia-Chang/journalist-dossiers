@@ -76,7 +76,7 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       <div className="mb-7">
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <UsersIcon className="w-5 h-5 text-brand-500" /> Team

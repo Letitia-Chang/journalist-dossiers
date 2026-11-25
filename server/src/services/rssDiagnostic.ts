@@ -32,7 +32,7 @@ export async function generateRssDiagnosticNote(
 
     const response = await claudeClient().messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 300,
+      max_tokens: 2048, // includes thinking
       thinking: { type: 'adaptive' },
       messages: [{
         role: 'user',

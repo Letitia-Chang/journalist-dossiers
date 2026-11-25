@@ -144,7 +144,7 @@ export default function CampaignDetail() {
   const draftableCount = campaignJournalists.filter(cj => cj.draft_subject && !cj.gmail_draft_id && cj.status !== 'sent').length;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-4xl mx-auto">
       <Link to="/campaigns" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-5">
         <ChevronLeft className="w-4 h-4" /> Back to campaigns
       </Link>
@@ -175,7 +175,7 @@ export default function CampaignDetail() {
       </div>
 
       {/* Journalists */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h2 className="font-semibold text-slate-900">Journalists ({campaignJournalists.length})</h2>
         <div className="flex items-center gap-2">
           <button className="btn-secondary text-sm" onClick={() => setShowPicker(v => !v)}>

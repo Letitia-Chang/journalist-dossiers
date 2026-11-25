@@ -104,7 +104,7 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
     <div className="space-y-5">
       <Section title="The basics" hint="Everything the AI knows about your company comes from this profile.">
         <Field label="Company name *" error={errors.name}>{text('name', { placeholder: 'Acme Robotics' })}</Field>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Website" error={errors.website}>{text('website', { placeholder: 'https://example.com' })}</Field>
           <Field label="Industry" error={errors.industry}>{text('industry', { placeholder: 'Climate tech, fintech, health…' })}</Field>
         </div>
@@ -234,7 +234,7 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
       </Section>
 
       <Section title="Branding" hint="Shown in the sidebar, login screen and browser tab.">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Field label="App name" error={errors.app_name}>{text('app_name', { placeholder: 'Press Dossier' })}</Field>
           <Field label="Logo URL" error={errors.logo_url}>{text('logo_url', { placeholder: 'https://…/logo.png' })}</Field>
           <Field label="Brand color" error={errors.brand_color}>
