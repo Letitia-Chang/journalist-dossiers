@@ -132,14 +132,14 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
           <div className="space-y-3">
             {p.newsworthy_items.map((n, i) => (
               <div key={i} className="border border-slate-200 rounded-lg p-3 space-y-2">
-                <div className="grid grid-cols-12 gap-2">
-                  <select className="form-input col-span-3" value={n.type} disabled={readOnly}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                  <select className="form-input sm:col-span-3" value={n.type} disabled={readOnly}
                     onChange={e => updateAt<NewsworthyItem>('newsworthy_items', i, { type: e.target.value as NewsworthyItem['type'] })}>
                     {ITEM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
-                  <input className="form-input col-span-6" placeholder="Title" value={n.title} disabled={readOnly}
+                  <input className="form-input sm:col-span-6" placeholder="Title" value={n.title} disabled={readOnly}
                     onChange={e => updateAt<NewsworthyItem>('newsworthy_items', i, { title: e.target.value })} />
-                  <input className="form-input col-span-3" placeholder="Date" value={n.date} disabled={readOnly}
+                  <input className="form-input sm:col-span-3" placeholder="Date" value={n.date} disabled={readOnly}
                     onChange={e => updateAt<NewsworthyItem>('newsworthy_items', i, { date: e.target.value })} />
                 </div>
                 <input className="form-input" placeholder="Description" value={n.description} disabled={readOnly}
@@ -202,15 +202,15 @@ export default function CompanyProfileForm({ value: p, onChange, errors = {}, re
           <div className="space-y-2">
             {p.spokespeople.map((s: Spokesperson, i) => (
               <div key={i}>
-                <div className="grid grid-cols-12 gap-2">
-                  <input className="form-input col-span-3" placeholder="Name" value={s.name} disabled={readOnly}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                  <input className="form-input sm:col-span-3" placeholder="Name" value={s.name} disabled={readOnly}
                     onChange={e => updateAt<Spokesperson>('spokespeople', i, { name: e.target.value })} />
-                  <input className="form-input col-span-3" placeholder="Title" value={s.title} disabled={readOnly}
+                  <input className="form-input sm:col-span-3" placeholder="Title" value={s.title} disabled={readOnly}
                     onChange={e => updateAt<Spokesperson>('spokespeople', i, { title: e.target.value })} />
-                  <input className="form-input col-span-5" placeholder="Topics, comma separated" value={s.topics.join(', ')} disabled={readOnly}
+                  <input className="form-input sm:col-span-5" placeholder="Topics, comma separated" value={s.topics.join(', ')} disabled={readOnly}
                     onChange={e => updateAt<Spokesperson>('spokespeople', i, { topics: e.target.value.split(',').map(t => t.trimStart()) })} />
                   {!readOnly && (
-                    <button type="button" className="col-span-1 text-slate-400 hover:text-red-500" title="Remove" onClick={() => removeAt('spokespeople', i)}>
+                    <button type="button" className="sm:col-span-1 text-slate-400 hover:text-red-500" title="Remove" onClick={() => removeAt('spokespeople', i)}>
                       <Trash2 className="w-4 h-4 mx-auto" />
                     </button>
                   )}

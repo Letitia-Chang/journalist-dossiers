@@ -84,7 +84,7 @@ export default function CoveragePage() {
         <div className="card p-5 mb-6 border-brand-200 bg-brand-50">
           <h3 className="font-semibold text-slate-900 mb-4">{editingId ? 'Edit Coverage' : 'New Coverage'}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="form-label">Title *</label>
               <input className="form-input" value={form.title} onChange={e => set('title', e.target.value)} placeholder="Article headline" autoFocus />
             </div>
@@ -110,7 +110,7 @@ export default function CoveragePage() {
                 {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="form-label">Notes</label>
               <textarea className="form-input" rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} />
             </div>

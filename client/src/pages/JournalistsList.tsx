@@ -299,7 +299,7 @@ export default function JournalistsList() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={e => handleDelete(e, j)}
-                          className="p-1 rounded text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                          className="p-1 rounded text-slate-300 hover:text-red-500 lg:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                           title="Delete"
                           aria-label={`Delete ${j.name}`}
                         >

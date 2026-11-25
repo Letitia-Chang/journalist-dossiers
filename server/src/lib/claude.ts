@@ -10,7 +10,7 @@ export const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-8';
  * Created per use so it always reflects the current environment; construction is cheap.
  */
 export function claudeClient(): Anthropic {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: isDemo() ? 0 : 2, timeout: 60_000 });
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: isDemo() ? 0 : 2, timeout: 150_000 });
 }
 
 /** Input caps keep every prompt under this; it is the backstop on what one call can cost. */

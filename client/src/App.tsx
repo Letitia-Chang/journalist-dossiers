@@ -1,5 +1,5 @@
-import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
 import { LayoutDashboard, Users, FileDown, Settings, Rss, Megaphone, Menu, X, Wand2, Activity, Newspaper, BookOpen, LogOut, Target, UserCog, Building2 } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { useSetup } from './context/SetupContext';
@@ -53,7 +53,27 @@ export default function App() {
   const { status, ready, attempts, gaveUp, retry } = useSetup();
   const [suggestionCount, setSuggestionCount] = useState(0);
   const [jSuggestionCount, setJSuggestionCount] = useState(0);
-  const [menuOpen, setMenuOpen] = useState(false); // phones and tablets only
+  // Phones and tablets: the menu is open for one page, so any navigation (including Back) closes it.
+  const { pathname } = useLocation();
+  const [menuPath, setMenuPath] = useState<string | null>(null);
+  const menuOpen = menuPath === pathname;
+  const closeMenu = () => setMenuPath(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const openButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const opener = openButton.current;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuPath(null); };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    closeButton.current?.focus();
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+      opener?.focus();
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -116,18 +136,20 @@ export default function App() {
 
   return (
     <div className="flex bg-slate-50" style={{ margin: 0, minHeight: '100vh', width: '100%' }}>
-      <header className="lg:hidden fixed top-0 inset-x-0 z-20 h-12 bg-slate-900 text-white flex items-center gap-3 px-4">
-        <button onClick={() => setMenuOpen(true)} aria-label="Open menu" aria-expanded={menuOpen} className="p-1 -ml-1"><Menu className="w-5 h-5" /></button>
+      <header inert={menuOpen} className="lg:hidden fixed top-0 inset-x-0 z-20 h-12 bg-slate-900 text-white flex items-center gap-3 px-4">
+        <button ref={openButton} onClick={() => setMenuPath(pathname)} aria-label="Open menu" aria-expanded={menuOpen} aria-controls="main-menu" className="p-1 -ml-1"><Menu className="w-5 h-5" /></button>
         <span className="font-bold text-sm truncate">{status.brand.appName}</span>
       </header>
-      {menuOpen && <div className="lg:hidden fixed inset-0 z-30 bg-slate-900/50" onClick={() => setMenuOpen(false)} aria-hidden="true" />}
+      {menuOpen && <div className="lg:hidden fixed inset-0 z-30 bg-slate-900/50" onClick={closeMenu} aria-hidden="true" />}
 
       <aside
-        className={`w-60 bg-slate-900 text-white flex flex-col shrink-0 fixed inset-y-0 left-0 z-40 overflow-y-auto transition-transform lg:visible lg:translate-x-0 ${menuOpen ? '' : 'invisible -translate-x-full'}`}
-        onClick={e => { if ((e.target as HTMLElement).closest('a')) setMenuOpen(false); }}
+        id="main-menu"
+        aria-label="Main menu"
+        className={`w-60 bg-slate-900 text-white flex flex-col shrink-0 fixed inset-y-0 left-0 z-40 lg:z-10 overflow-y-auto transition-transform lg:visible lg:translate-x-0 ${menuOpen ? '' : 'invisible -translate-x-full'}`}
+        onClick={e => { if ((e.target as HTMLElement).closest('a')) closeMenu(); }}
       >
         <div className="p-5 border-b border-slate-700">
-          <button onClick={() => setMenuOpen(false)} aria-label="Close menu" className="lg:hidden absolute top-4 right-3 p-1 text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
+          <button ref={closeButton} onClick={closeMenu} aria-label="Close menu" className="lg:hidden absolute top-4 right-3 p-1 text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
           <div className="flex items-center gap-2.5">
             <div className="min-w-0">
               {status.brand.logoUrl && <img src={status.brand.logoUrl} alt="" className="h-7 mb-2" />}
@@ -210,7 +232,7 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 lg:ml-60 pt-12 lg:pt-0 min-h-screen">
+      <main inert={menuOpen} className="flex-1 min-w-0 lg:ml-60 pt-12 lg:pt-0 min-h-screen">
         {status.demo && (
           <div className="lg:sticky top-0 z-10 bg-amber-100 border-b border-amber-200 text-amber-900 text-xs text-center py-1.5 px-4">
             <strong>Demo data — fictional.</strong> Every company, journalist and outlet here is made up. Live AI is rate-limited; Gmail and web discovery are disabled.

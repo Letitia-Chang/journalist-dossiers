@@ -105,7 +105,7 @@ export default function CampaignList() {
         <div className="card p-5 mb-6 border-brand-200 bg-brand-50">
           <h3 className="font-semibold text-slate-900 mb-4">New Campaign</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="col-span-2 sm:col-span-1">
+            <div className="sm:col-span-1">
               <label className="form-label">Campaign name</label>
               <input
                 className="form-input"
@@ -114,7 +114,7 @@ export default function CampaignList() {
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               />
             </div>
-            <div className="col-span-2 sm:col-span-1">
+            <div className="sm:col-span-1">
               <label className="form-label">Type</label>
               <select
                 className="form-select"
@@ -126,7 +126,7 @@ export default function CampaignList() {
                 ))}
               </select>
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="form-label">
                 Brief
                 <span className="text-slate-400 font-normal ml-1">

@@ -8,12 +8,12 @@ An open-source PR research tool. Give it your company profile, and it helps you 
 
 ## Why
 
-Most pitches fail because they're sent to the wrong person with the wrong angle. Press Dossier keeps three things together in one place: who covers what (and what they have actually written), how well each journalist fits *your* company, and a draft pitch that uses your real story, news and spokespeople. Every score shows its reasoning and the articles behind it, and nothing is ever sent without a human doing it.
+Most pitches fail because they're sent to the wrong person with the wrong angle. Press Dossier keeps three things together in one place: who covers what (and what they have actually written), how well each journalist fits *your* company, and a draft pitch that uses your real story, news and spokespeople. AI scores come with a reason and, where there is one, the articles they cite; nothing is ever sent without a human doing it.
 
 ## What it does
 
 - **Company profile as the single source of truth.** One profile (what you do, audience, regions, story angles, news, competitors, spokespeople, tone, signature) feeds every AI step. Set it up in a first-run wizard, in Settings, or from a `company.config.json` file with no UI at all.
-- **Configurable fit scoring.** Define your own dimensions (defaults: beat relevance, audience match, similar-company coverage, geography, outlet reach, responsiveness) with weights. Claude scores each journalist per dimension, writes a one-line rationale, and can cite the journalist's recorded articles. Cited URLs are checked against the real article list, so a model can't invent links. (It sees article titles, not full text: treat a score as a lead to check.)
+- **Configurable fit scoring.** Define your own dimensions (defaults: beat relevance, audience match, similar-company coverage, geography, outlet reach, responsiveness) with weights. Claude scores each journalist per dimension, writes a one-line rationale, and can cite the journalist's recorded articles. Cited URLs are kept only if they are in that journalist's article list. (It sees article titles, not full text: treat a score as a lead to check.)
 - **Dossiers.** Beats, bio, articles, outreach history and scores per journalist, with a pipeline and list view.
 - **Pitch drafts.** Built from your profile plus the journalist's dossier: the best-fitting story angle, a relevant news item, the most relevant spokesperson, your tone and signature. Edit, regenerate with instructions, or write your own.
 - **Gmail drafts, never sends.** Optionally create drafts in your own Gmail with the `gmail.compose` scope (create drafts only). A person reviews and sends from Gmail.
@@ -110,7 +110,7 @@ npm test              # server tests (set DATABASE_URL to any local Postgres; th
 npm run build
 ```
 
-CI runs lint, typecheck, tests against a Postgres service, the client build, and a gitleaks secret scan. Tests cover profile validation, prompt building, the score parser's handling of malformed model output, robots.txt rules, the demo limits and sandbox isolation, authentication, data integrity, bad input on every route, and first-run setup.
+CI runs lint, typecheck, tests against a Postgres service, the client build, and a gitleaks secret scan. Tests cover profile validation, prompt building, the score parser's handling of malformed model output, robots.txt rules, the demo limits and sandbox isolation, authentication, data integrity, malformed input across the API, and first-run setup.
 
 ## Limitations
 

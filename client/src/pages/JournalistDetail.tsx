@@ -7,9 +7,11 @@ import { OUTREACH_TYPES, OUTREACH_STATUSES } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import { apiError } from '../lib/errors';
 
-/** People enter "@handle" or a bare domain as often as a full URL. */
-function profileUrl(value: string, base: string): string {
-  return /^https?:\/\//i.test(value) ? value : base + value.replace(/^@/, '');
+/** People enter "@handle", "jane" or "x.com/jane" as often as a full URL. */
+function profileUrl(value: string, handleBase: string): string {
+  const v = value.trim();
+  if (/^https?:\/\//i.test(v)) return v;
+  return /^[\w-]+(\.[\w-]+)+(\/|$)/.test(v) ? `https://${v}` : handleBase + encodeURIComponent(v.replace(/^@/, ''));
 }
 
 export default function JournalistDetail() {
@@ -157,7 +159,7 @@ export default function JournalistDetail() {
             </a>
           )}
           {journalist.linkedin && (
-            <a href={profileUrl(journalist.linkedin, 'https://')} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
+            <a href={profileUrl(journalist.linkedin, 'https://www.linkedin.com/in/')} target="_blank" rel="noreferrer" className="btn-secondary text-xs">
               <Link2 className="w-3 h-3" /> LinkedIn
             </a>
           )}
@@ -228,7 +230,7 @@ export default function JournalistDetail() {
         <div className="card p-5">
           <h3 className="font-semibold text-slate-900 mb-2">Bio / Notes</h3>
           {journalist.bio ? (
-            <p className="text-sm text-slate-600 whitespace-pre-wrap">{journalist.bio}</p>
+            <p className="text-sm text-slate-600 whitespace-pre-wrap break-words">{journalist.bio}</p>
           ) : (
             <p className="text-sm text-slate-400">No bio added yet. <Link to={`/journalists/${id}/edit`} className="text-brand-600 hover:underline">Add one</Link>.</p>
           )}

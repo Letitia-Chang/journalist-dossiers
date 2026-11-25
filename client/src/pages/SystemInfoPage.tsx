@@ -35,20 +35,20 @@ export default function SystemInfoPage() {
         <Row label="Send email">It only creates drafts in Gmail (the gmail.compose permission). A person reviews and sends each one.</Row>
         <Row label="Add people by itself">Every discovered journalist or publication waits for someone to accept or reject it.</Row>
         <Row label="Guess addresses">Emails are typed in or copied from a publication's own page. No enrichment service is used.</Row>
-        <Row label="Ignore robots.txt">Publisher pages are only read when robots.txt allows it, and every request says who is asking.</Row>
+        <Row label="Hide who is crawling">Every request to a publisher says who is asking. Pages are only read when robots.txt allows it; RSS feeds and "is the site up" checks don't consult it.</Row>
       </Section>
 
       <Section icon={Star} title="Fit scores" color="text-yellow-500">
         <Row label="What they are">AI estimates to help you prioritize, not facts. A total is the sum of the scores on your own dimensions.</Row>
         <Row label="What the model sees">Your company profile, and the journalist's beat, bio and the titles of their recorded articles. It does not read the articles themselves.</Row>
-        <Row label="Sources">A score can cite recorded articles. Any link that isn't in that journalist's list is removed, so a source can't be made up, but check that it supports the point.</Row>
+        <Row label="Sources">A score can cite recorded articles. Any cited link that isn't in that journalist's list is removed. Check that a source supports the point: the explanation itself is the model's own words.</Row>
         <Row label="When they run">When you click "Score with AI", and once when you accept a discovered journalist. Editing a journalist doesn't rescore them.</Row>
         <Row label="By hand">You can set any score up to its maximum. Changing one removes the AI's explanation for it.</Row>
       </Section>
 
       <Section icon={RefreshCw} title="Outreach" color="text-blue-500">
         <Row label="Status">A journalist's status is whatever the latest outreach entry says. With no entries it is "Not Started".</Row>
-        <Row label="Sent pitches">Marking a pitch sent logs it once and locks its text as a record.</Row>
+        <Row label="Sent pitches">Marking a pitch sent logs it once and locks its text. It goes if you delete the campaign or the journalist; the outreach log stays with the journalist.</Row>
       </Section>
 
       <Section icon={Clock} title="Started by a person" color="text-brand-500">
