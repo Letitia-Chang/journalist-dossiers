@@ -8,6 +8,7 @@
  *   3. Medium tag feeds    — derived from query keywords, always valid
  */
 
+import { searchTags } from '../lib/topics';
 import { clip } from '../lib/clip';
 import axios from 'axios';
 import { botUserAgent } from '../lib/http';
@@ -117,29 +118,13 @@ async function querySubstack(query: string): Promise<DiscoveredPublication[]> {
 
 // ── Source 3: Medium tag feeds ─────────────────────────────────────────────────
 // Medium exposes RSS at medium.com/feed/tag/{tag}.
-// We derive tags from the query keywords + a curated AI/tech tag list.
-const MEDIUM_AI_TAGS = [
-  'artificial-intelligence', 'machine-learning', 'deep-learning',
-  'startup', 'technology', 'data-science', 'nlp',
-];
-
-function deriveMediumTags(query: string): string[] {
-  const words = query.toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .split(/\s+/)
-    .filter(w => w.length > 2);
-
-  const queryTags = words.map(w => w.replace(/\s+/g, '-'));
-  const combined = [...new Set([...queryTags, ...MEDIUM_AI_TAGS])];
-  return combined.slice(0, 8);
-}
-
+// Tags come only from what the person searched for.
 async function queryMedium(query: string): Promise<DiscoveredPublication[]> {
-  const tags = deriveMediumTags(query);
+  const tags = searchTags(query);
   return tags.map(tag => ({
     name:          `Medium — ${tag.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`,
-    url:           `https://medium.com/tag/${tag}`,
-    feedUrl:       `https://medium.com/feed/tag/${tag}`,
+    url:           `https://medium.com/tag/${encodeURIComponent(tag)}`,
+    feedUrl:       `https://medium.com/feed/tag/${encodeURIComponent(tag)}`,
     description:   `Medium articles tagged "${tag.replace(/-/g, ' ')}"`,
     source:        'medium' as const,
     suggestedTier: 'B' as const,
@@ -165,13 +150,14 @@ export async function discoverPublications(
     ...(medium.status  === 'fulfilled' ? medium.value  : []),
   ];
 
-  // Deduplicate by domain, filter already-tracked
+  // Deduplicate by domain (Medium tags share one, so by URL there), filter already-tracked
   const seen = new Set<string>();
   return all.filter(p => {
     const domain = extractDomain(p.url);
     if (existingDomains.has(domain)) return false;
-    if (seen.has(domain)) return false;
-    seen.add(domain);
+    const key = p.source === 'medium' ? p.url : domain;
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 }

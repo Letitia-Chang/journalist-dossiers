@@ -180,7 +180,7 @@ export default function AdminJournalistSuggestions() {
             </Link>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Journalist Suggestions</h1>
             <p className="text-slate-400 text-sm mt-0.5">
-              Scored by AI/startup relevance across up to 10 recent articles per journalist.
+              Ranked by how closely up to 10 recent headlines match your company profile.
             </p>
           </div>
           <div className="flex items-center gap-2.5">
@@ -262,30 +262,19 @@ export default function AdminJournalistSuggestions() {
                 <p className="text-xs text-slate-400 mb-3">Points are summed across up to 10 recent articles, then capped at 10.</p>
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs text-slate-600">AI category tag (e.g. <em>ai, llm, openai</em>)</span>
-                    <span className="text-xs font-semibold text-emerald-600 shrink-0">+3 pts</span>
+                    <span className="text-xs text-slate-600">Feed category matches a whole industry, spokesperson topic or competitor</span>
+                    <span className="text-xs font-semibold text-emerald-600 shrink-0">+3</span>
                   </div>
                   <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs text-slate-600">Startup tag (e.g. <em>funding, venture capital, saas</em>)</span>
-                    <span className="text-xs font-semibold text-emerald-600 shrink-0">+3 pts</span>
+                    <span className="text-xs text-slate-600">The same for a headline</span>
+                    <span className="text-xs font-semibold text-emerald-600 shrink-0">+2</span>
                   </div>
                   <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs text-slate-600">AI or startup keyword in article title</span>
-                    <span className="text-xs font-semibold text-emerald-600 shrink-0">+2 pts</span>
-                  </div>
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs text-slate-600">Enterprise keyword in title (e.g. <em>saas, cloud, api</em>)</span>
-                    <span className="text-xs font-semibold text-emerald-600 shrink-0">+1 pt</span>
-                  </div>
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs text-slate-600">Noise category (e.g. <em>gaming, entertainment, sports</em>)</span>
-                    <span className="text-xs font-semibold text-red-500 shrink-0">−2 pts</span>
-                  </div>
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs text-slate-600">Noise keyword in title</span>
-                    <span className="text-xs font-semibold text-red-500 shrink-0">−2 pts</span>
+                    <span className="text-xs text-slate-600">One word of an industry or topic, or two words from the rest of your profile (at most 2 points in total)</span>
+                    <span className="text-xs font-semibold text-emerald-600 shrink-0">+1</span>
                   </div>
                 </div>
+                <p className="text-xs text-slate-400 mt-3">Everyone low? Add an industry and spokesperson topics in Company Profile.</p>
                 <div className="mt-3 pt-3 border-t border-slate-100 flex gap-4">
                   <span className="text-xs text-emerald-700 font-medium">6–10 High</span>
                   <span className="text-xs text-amber-700 font-medium">3–5 Mid</span>
