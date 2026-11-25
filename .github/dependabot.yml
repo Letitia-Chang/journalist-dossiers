@@ -1,10 +1,19 @@
 version: 2
 updates:
+  # Small updates, grouped, once a month. Major upgrades are done by hand; security fixes still come.
   - package-ecosystem: npm
     directories: ["/", "/server", "/client"]
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
+    groups:
+      actions: { patterns: ["*"] }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
