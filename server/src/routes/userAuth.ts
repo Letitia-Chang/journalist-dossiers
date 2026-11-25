@@ -3,11 +3,17 @@ import bcrypt from 'bcrypt';
 import pool from '../db';
 import { signToken } from '../middleware/auth';
 import { ensureOrg, seedDimensions } from '../lib/bootstrap';
-import { DEMO_USER_EMAIL } from '../demo/seedData';
+import { isDemo } from '../demo/limits';
+import { createSandbox, sweepSandboxes } from '../demo/seed';
+import { blockInDemo } from '../middleware/demo';
+import { clientIp } from '../lib/clientIp';
+import { bucketFor, HOUR_MS, normalizeIp, take } from '../lib/rateLimit';
 import * as schemas from '../lib/schemas';
 import { parseBody, validateParams } from '../lib/validate';
 
 const router = Router();
+// The demo has no accounts. Without this, the first visitor could sign up as its owner.
+router.use(['/signup', '/login', '/accept-invite'], blockInDemo);
 validateParams(router, { token: 'token' });
 
 // First-run only: the first account becomes the owner of the single company.
@@ -19,7 +25,7 @@ router.post('/signup', async (req, res) => {
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(7001)'); // serialize concurrent first-run signups
-    const { rows: [{ c }] } = await client.query('SELECT COUNT(*)::int AS c FROM users');
+    const { rows: [{ c }] } = await client.query('SELECT COUNT(*)::int AS c FROM users u JOIN organizations o ON o.id = u.org_id WHERE o.demo_expires_at IS NULL');
     if (c > 0) {
       await client.query('ROLLBACK');
       return res.status(403).json({ error: 'Setup is already complete. Ask the owner for an invite.' });
@@ -99,21 +105,15 @@ router.post('/accept-invite', async (req, res) => {
   }
 });
 
-// Public demo only: sign the visitor in as the seeded member account (no password).
-router.post('/demo-login', async (_req, res) => {
-  if (process.env.DEMO_MODE !== 'true') return res.status(404).json({ error: 'Not found' });
-  const { rows: [row] } = await pool.query(
-    `SELECT u.id, u.email, u.name, u.role, o.id AS org_id, o.name AS org_name, o.slug AS org_slug
-     FROM users u JOIN organizations o ON o.id = u.org_id WHERE u.email = $1`,
-    [DEMO_USER_EMAIL],
-  );
-  if (!row) return res.status(503).json({ error: 'Demo is still starting up. Try again in a moment.' });
-  const token = signToken({ sub: row.id, orgId: row.org_id, role: row.role });
-  res.json({
-    token,
-    user: { id: row.id, email: row.email, name: row.name, role: row.role },
-    org: { id: row.org_id, name: row.org_name, slug: row.org_slug },
-  });
+// Public demo only: give the visitor a private sandbox and sign them in to it (no password).
+router.post('/demo-login', async (req, res) => {
+  if (!isDemo()) return res.status(404).json({ error: 'Not found' });
+  const granted = await take([{ bucket: bucketFor('sandbox', normalizeIp(clientIp(req))), windowMs: HOUR_MS, limit: 10 }]);
+  if (granted === 0) return res.status(429).json({ error: 'You have opened the demo many times in the last hour. Please try again later.' });
+
+  const { user, org } = await createSandbox();
+  await sweepSandboxes();
+  res.json({ token: signToken({ sub: user.id, orgId: org.id, role: user.role }), user, org });
 });
 
 router.post('/login', async (req, res) => {

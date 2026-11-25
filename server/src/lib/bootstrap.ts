@@ -4,8 +4,7 @@ import bcrypt from 'bcrypt';
 import { z } from 'zod';
 import pool from '../db';
 import { companyProfileSchema, loadProfile, saveProfile } from './companyProfile';
-import { resetAndSeedDemo } from '../demo/seed';
-import { DEMO_ORG_ID } from '../demo/seedData';
+import { prepareDemo } from '../demo/seed';
 
 /**
  * One company per deployment. On boot we make sure the single organization row exists,
@@ -33,7 +32,7 @@ const configSchema = z.object({
 });
 
 export async function ensureOrg(): Promise<string> {
-  const { rows: [existing] } = await pool.query('SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1');
+  const { rows: [existing] } = await pool.query('SELECT id FROM organizations WHERE demo_expires_at IS NULL ORDER BY created_at ASC LIMIT 1');
   if (existing) return existing.id;
   const { rows: [org] } = await pool.query(
     `INSERT INTO organizations (name, slug) VALUES ('My Company', 'default') RETURNING id`,
@@ -92,7 +91,8 @@ export async function applyConfigFile(orgId: string): Promise<'none' | 'applied'
 async function bootstrapAdminFromEnv(orgId: string): Promise<void> {
   const { ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME } = process.env;
   if (!ADMIN_EMAIL || !ADMIN_PASSWORD) return;
-  const { rows: [{ c }] } = await pool.query('SELECT COUNT(*)::int AS c FROM users');
+  const { rows: [{ c }] } = await pool.query(
+    'SELECT COUNT(*)::int AS c FROM users u JOIN organizations o ON o.id = u.org_id WHERE o.demo_expires_at IS NULL');
   if (c > 0) return;
   if (ADMIN_PASSWORD.length < 8) throw new Error('ADMIN_PASSWORD must be at least 8 characters');
   await pool.query(
@@ -102,16 +102,15 @@ async function bootstrapAdminFromEnv(orgId: string): Promise<void> {
   console.log(`[bootstrap] Created admin ${ADMIN_EMAIL}`);
 }
 
-export async function bootstrap(): Promise<string> {
-  // Public demo: wipe and reseed the fictional company instead of the normal setup path.
+export async function bootstrap(): Promise<void> {
+  // Public demo: visitors get their own sandbox at sign-in, so there is no company to set up.
   if (process.env.DEMO_MODE === 'true') {
-    await resetAndSeedDemo();
-    console.log('[bootstrap] DEMO_MODE: seeded the fictional demo company');
-    return DEMO_ORG_ID;
+    await prepareDemo();
+    console.log('[bootstrap] DEMO_MODE: ready');
+    return;
   }
   const orgId = await ensureOrg();
   await applyConfigFile(orgId);
   await seedDimensions(orgId);
   await bootstrapAdminFromEnv(orgId);
-  return orgId;
 }

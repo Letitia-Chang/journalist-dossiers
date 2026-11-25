@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSetup } from '../context/SetupContext';
 import { useAuth } from '../context/AuthContext';
+import { apiError } from '../lib/errors';
 
 export default function LoginPage() {
   const { login, demoLogin } = useAuth();
@@ -33,17 +34,17 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           {status.brand.logoUrl && <img src={status.brand.logoUrl} alt="" className="h-10 mx-auto mb-3" />}
           <h1 className="text-xl font-bold text-white">{status.brand.appName}</h1>
-          <p className="text-slate-400 text-sm mt-1">{status.brand.companyName ? `Sign in to ${status.brand.companyName}` : 'Welcome back.'}</p>
+          <p className="text-slate-400 text-sm mt-1">{status.brand.companyName ? (status.demo ? `Demo company: ${status.brand.companyName}` : `Sign in to ${status.brand.companyName}`) : 'Welcome back.'}</p>
         </div>
 
         {status.demo && (
           <div className="bg-white rounded-2xl shadow-2xl p-8 mb-4 text-center">
             <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full inline-block px-2.5 py-0.5 mb-3">Demo data — fictional</p>
             <p className="text-sm text-slate-600 mb-4">
-              Explore a made-up company, journalists and outlets. Nothing here is real, and live AI runs are rate-limited.
+              Explore a made-up company, journalists and outlets in your own private copy. Change anything you like: no one else sees it, and it is deleted after a day. Live AI runs are rate-limited.
             </p>
             <button
-              onClick={async () => { setLoading(true); try { await demoLogin(); navigate('/dashboard'); } catch { setError('The demo is still waking up. Try again in a moment.'); } finally { setLoading(false); } }}
+              onClick={async () => { setLoading(true); try { await demoLogin(); navigate('/dashboard'); } catch (err) { setError(apiError(err, 'The demo is still waking up. Try again in a moment.')); } finally { setLoading(false); } }}
               disabled={loading}
               className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-medium text-sm py-2.5 rounded-lg transition-colors"
             >
@@ -53,8 +54,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className={`bg-white rounded-2xl shadow-2xl p-8 ${status.demo ? 'opacity-90' : ''}`}>
-          {status.demo && <p className="text-xs text-slate-400 mb-4 text-center">Maintainer sign-in</p>}
+        {!status.demo && <div className="bg-white rounded-2xl shadow-2xl p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1.5">Email</label>
@@ -95,8 +95,7 @@ export default function LoginPage() {
               {loading ? 'Logging in…' : 'Log in'}
             </button>
           </form>
-
-        </div>
+        </div>}
       </div>
     </div>
   );

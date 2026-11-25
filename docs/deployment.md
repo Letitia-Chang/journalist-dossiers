@@ -45,7 +45,7 @@ Open the site. You should see the "Enter the demo" screen.
 ## Self-hosting for real use
 
 - Don't set `DEMO_MODE`. Visit the app to run the setup wizard, or set `ADMIN_EMAIL` / `ADMIN_PASSWORD` and a `company.config.json` (see [configuration.md](configuration.md)).
-- Use a **persistent Postgres** with backups. The demo database is disposable because it reseeds itself.
+- Use a **persistent Postgres** with backups. The demo database is disposable: it only holds expiring sandboxes.
 - Serve over **HTTPS** and set `FRONTEND_URL` to the exact browser origin.
 - For Gmail drafts, add your API origin's callback to the Google OAuth client: `https://<api-host>/auth/google/callback`, and set `GOOGLE_REDIRECT_URI` to match. The Gmail refresh token is stored unencrypted in the database, so use encryption at rest.
 - Set `BOT_NAME` and `BOT_CONTACT_URL` so publishers can see who is crawling them.

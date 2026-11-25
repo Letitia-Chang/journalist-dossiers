@@ -97,7 +97,7 @@ The reference setup is Vercel (client) + Render (API) + Neon (Postgres); see [do
 
 ## Demo mode
 
-`DEMO_MODE=true` seeds a fictional company ("Lumen Grid"), journalists and outlets; signs visitors in with one click; rate-limits live Claude calls per visitor and per day (falling back to saved results); replaces Gmail with a preview; and disables web discovery. It reseeds on boot and refuses to run against a database containing a real organization. See [docs/demo-mode.md](docs/demo-mode.md).
+`DEMO_MODE=true` seeds a fictional company ("Lumen Grid"), journalists and outlets; gives each visitor a private sandbox with one click; rate-limits live Claude calls per visitor and per day (falling back to saved results); replaces Gmail with a preview; and disables web discovery. It refuses to run against a database containing a real organization. See [docs/demo-mode.md](docs/demo-mode.md).
 
 ![Gmail preview in demo mode](docs/images/gmail-preview.jpg)
 

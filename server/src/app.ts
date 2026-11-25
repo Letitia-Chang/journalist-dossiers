@@ -19,6 +19,7 @@ import googleAuthRouter from './routes/googleAuth';
 import setupRouter from './routes/setup';
 import companyRouter from './routes/company';
 import { requireAuth } from './middleware/auth';
+import { limitDemoWrites } from './middleware/demo';
 import { errorHandler, HttpError } from './lib/httpError';
 import { allowedOrigins, isOriginAllowed } from './lib/cors';
 
@@ -58,6 +59,7 @@ app.use('/auth', googleAuthRouter);
 
 // Authenticate before parsing, so an anonymous request can't make us read a body.
 app.use('/api', requireAuth);
+app.use('/api', limitDemoWrites);
 app.use('/api/publications/import-opml', express.json({ limit: '5mb' }));
 app.use(json);
 

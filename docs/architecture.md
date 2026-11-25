@@ -12,14 +12,14 @@ server/   Express + TypeScript, PostgreSQL via `pg`, migrations via node-pg-migr
 | Path | Responsibility |
 |---|---|
 | `src/app.ts` | Builds the Express app: CORS, JSON, public routes, then everything behind `requireAuth` |
-| `src/index.ts` | Runs `bootstrap()`, then listens (and schedules the demo reseed in demo mode) |
+| `src/index.ts` | Runs `bootstrap()`, then listens (and schedules the sandbox sweep in demo mode) |
 | `src/lib/companyProfile.ts` | The company profile: zod schema, load/save, and `profileToPrompt()` |
 | `src/lib/bootstrap.ts` | Ensures the single org exists, seeds default scoring dimensions, applies `company.config.json`, creates the env admin |
 | `src/lib/http.ts` | Honest User-Agent and the robots.txt check used for third-party page fetches |
 | `src/lib/claude.ts` | The Claude model name (`ANTHROPIC_MODEL`) |
 | `src/routes/*` | One router per resource. Every query is scoped by `org_id` taken from the JWT |
 | `src/services/*` | Scoring, pitch drafts, publication suggestions, discovery (RSS, blogs, staff pages), health checks, Gmail |
-| `src/demo/*` | Demo seed data, the live-AI limiter |
+| `src/demo/*` | Demo seed data, per-visitor sandboxes, the live-AI limiter |
 | `migrations/` | Versioned schema changes (CommonJS) |
 
 ## One company per deployment

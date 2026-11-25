@@ -5,9 +5,7 @@
  */
 import type { CompanyProfile } from '../lib/companyProfile';
 
-export const DEMO_ORG_ID = '00000000-0000-4000-8000-0000000000d1';
-export const DEMO_USER_ID = '00000000-0000-4000-8000-0000000000d2';
-export const DEMO_USER_EMAIL = 'demo@example.com';
+export const LEGACY_DEMO_ORG_ID = '00000000-0000-4000-8000-0000000000d1';
 
 export const DEMO_PROFILE: CompanyProfile = {
   name: 'Lumen Grid',

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Pool, PoolClient } from 'pg';
 import pool from '../db';
 
 /**
@@ -87,18 +88,18 @@ export async function loadProfile(orgId: string): Promise<CompanyProfile | null>
   return parsed.success ? parsed.data : (row as CompanyProfile);
 }
 
-export async function saveProfile(orgId: string, profile: CompanyProfile): Promise<void> {
+export async function saveProfile(orgId: string, profile: CompanyProfile, db: Pool | PoolClient = pool): Promise<void> {
   const values = COLUMNS.map(c => (JSON_COLUMNS.has(c) ? JSON.stringify(profile[c]) : profile[c]));
   const placeholders = COLUMNS.map((_c, i) => `$${i + 2}`).join(', ');
   const updates = COLUMNS.map((c, i) => `${c} = $${i + 2}`).join(', ');
-  await pool.query(
+  await db.query(
     `INSERT INTO company_profile (org_id, ${COLUMNS.join(', ')})
      VALUES ($1, ${placeholders})
      ON CONFLICT (org_id) DO UPDATE SET ${updates}, updated_at = NOW()`,
     [orgId, ...values],
   );
   // Keep the organization's display name in sync with the profile.
-  await pool.query('UPDATE organizations SET name = $1, updated_at = NOW() WHERE id = $2', [profile.name, orgId]);
+  await db.query('UPDATE organizations SET name = $1, updated_at = NOW() WHERE id = $2', [profile.name, orgId]);
 }
 
 // ── Prompt building ───────────────────────────────────────────────────────────

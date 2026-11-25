@@ -1,11 +1,10 @@
 import crypto from 'crypto';
-import bcrypt from 'bcrypt';
+import type { PoolClient } from 'pg';
 import pool from '../db';
 import { saveProfile } from '../lib/companyProfile';
 import { DEFAULT_DIMENSIONS } from '../lib/bootstrap';
 import {
-  DEMO_CAMPAIGN, DEMO_COVERAGE, DEMO_JOURNALISTS, DEMO_ORG_ID, DEMO_OUTLETS, DEMO_PROFILE,
-  DEMO_USER_EMAIL, DEMO_USER_ID,
+  DEMO_CAMPAIGN, DEMO_COVERAGE, DEMO_JOURNALISTS, DEMO_OUTLETS, DEMO_PROFILE, LEGACY_DEMO_ORG_ID,
 } from './seedData';
 import type { AngleKey, DemoJournalist } from './seedData';
 
@@ -83,108 +82,122 @@ export function draftFor(j: DemoJournalist): { subject: string; body: string } {
   };
 }
 
-// ── Reset and seed ────────────────────────────────────────────────────────────
+// ── Sandboxes ─────────────────────────────────────────────────────────────────
+
+export const sandboxHours = () => {
+  const n = Number(process.env.DEMO_SANDBOX_HOURS ?? 24);
+  return Number.isFinite(n) && n > 0 ? n : 24;
+};
+/** Live sandboxes kept at once; past this the oldest is dropped, which bounds the database size. */
+export const MAX_SANDBOXES = 300;
+
+async function insertRows(db: PoolClient, table: string, columns: string[], rows: unknown[][]): Promise<number[]> {
+  if (rows.length === 0) return [];
+  const values = rows.map((r, i) => `(${r.map((_v, k) => `$${i * columns.length + k + 1}`).join(', ')})`).join(', ');
+  const res = await db.query(`INSERT INTO ${table} (${columns.join(', ')}) VALUES ${values} RETURNING id`, rows.flat());
+  return res.rows.map(r => r.id);
+}
 
 /**
- * Wipe the demo organization and rebuild it from the fictional dataset. Fixed IDs keep any
- * browser session issued before a reseed valid. Refuses to run if the database holds any
- * other organization, so DEMO_MODE can never wipe real data.
+ * Create a private copy of the fictional company for one visitor, so nothing a visitor does is
+ * visible to anyone else. Every query in the app is already scoped by organization.
  */
-export async function resetAndSeedDemo(): Promise<void> {
-  const { rows: others } = await pool.query('SELECT id FROM organizations WHERE id <> $1 LIMIT 1', [DEMO_ORG_ID]);
-  if (others.length > 0) {
-    throw new Error('DEMO_MODE refuses to wipe a database that contains a non-demo organization.');
+export async function createSandbox(): Promise<{ user: { id: string; email: string; name: string; role: string }; org: { id: string; name: string; slug: string } }> {
+  const tag = crypto.randomBytes(9).toString('hex');
+  const db = await pool.connect();
+  try {
+    await db.query('BEGIN');
+    const { rows: [org] } = await db.query(
+      `INSERT INTO organizations (name, slug, demo_expires_at) VALUES ($1, $2, NOW() + make_interval(hours => $3)) RETURNING id, name, slug`,
+      [DEMO_PROFILE.name, `demo-${tag}`, Math.ceil(sandboxHours())],
+    );
+    await saveProfile(org.id, DEMO_PROFILE, db);
+    // A member, so visitors can explore and run analyses but not change settings or run discovery.
+    // '!' is not a bcrypt hash, so this account can never be signed in to with a password.
+    const { rows: [user] } = await db.query(
+      `INSERT INTO users (org_id, email, password_hash, name, role) VALUES ($1, $2, '!', 'Demo Visitor', 'member') RETURNING id, email, name, role`,
+      [org.id, `visitor-${tag}@demo.example.com`],
+    );
+
+    const dimIds = await insertRows(db, 'scoring_dimensions', ['org_id', 'name', 'description', 'weight', 'display_order'],
+      DEFAULT_DIMENSIONS.map((d, i) => [org.id, d.name, d.description, d.weight, i]));
+    const outletIds = await insertRows(db, 'publications', ['org_id', 'name', 'url', 'tier', 'focus'],
+      DEMO_OUTLETS.map(o => [org.id, o.name, o.url, o.tier, o.focus]));
+    const outletIndex = (key: string) => DEMO_OUTLETS.findIndex(o => o.key === key);
+    const [campaignId] = await insertRows(db, 'campaigns', ['org_id', 'name', 'brief', 'campaign_type', 'status'],
+      [[org.id, DEMO_CAMPAIGN.name, DEMO_CAMPAIGN.brief, DEMO_CAMPAIGN.type, 'active']]);
+    await insertRows(db, 'campaign_type_styles', ['org_id', 'campaign_type', 'instructions'],
+      [[org.id, DEMO_CAMPAIGN.type, DEMO_CAMPAIGN.styleInstructions]]);
+    const jIds = await insertRows(db, 'journalists', ['org_id', 'publication_id', 'name', 'email', 'bio', 'beats', 'total_score'],
+      DEMO_JOURNALISTS.map(j => [org.id, outletIds[outletIndex(j.outlet)], j.name, j.email, j.bio, j.beats, j.scores.reduce((a, b) => a + b, 0)]));
+
+    const articles: unknown[][] = [];
+    const scores: unknown[][] = [];
+    const drafts: unknown[][] = [];
+    const logs: unknown[][] = [];
+    let coverageJournalistId: number | null = null;
+    const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+
+    DEMO_JOURNALISTS.forEach((j, n) => {
+      const id = jIds[n];
+      const outlet = DEMO_OUTLETS[outletIndex(j.outlet)];
+      for (const a of j.articles) articles.push([org.id, id, a.title, articleUrl(j, a.slug), a.date]);
+      dimIds.forEach((dimId, i) => {
+        const weight = DEFAULT_DIMENSIONS[i].weight;
+        scores.push([org.id, id, dimId, j.scores[i], rationaleFor(i, j, outlet.name, j.scores[i], weight), JSON.stringify(evidenceFor(i, j, j.scores[i], weight))]);
+      });
+      const draft = draftFor(j);
+      const history: [string, string, number][] = j.outreach === 'Covered'
+        ? [['pitch', 'Pitched', 20], ['response', 'Responded', 14], ['note', 'Covered', 5]]
+        : j.outreach === 'Responded' ? [['pitch', 'Pitched', 14], ['response', 'Responded', 10]]
+        : j.outreach === 'Pitched' ? [['pitch', 'Pitched', 7]] : [];
+      drafts.push([org.id, campaignId, id, draft.subject, draft.body, j.outreach ? 'sent' : 'ready', history.length ? daysAgo(history[0][2]) : null]);
+      for (const [type, status, ago] of history) logs.push([org.id, id, campaignId, user.id, type, status, draft.subject, daysAgo(ago)]);
+      if (j.outreach === 'Covered') coverageJournalistId = id;
+    });
+
+    await insertRows(db, 'articles', ['org_id', 'journalist_id', 'title', 'url', 'published_at'], articles);
+    await insertRows(db, 'journalist_scores', ['org_id', 'journalist_id', 'dimension_id', 'score', 'rationale', 'evidence'], scores);
+    await insertRows(db, 'campaign_journalists', ['org_id', 'campaign_id', 'journalist_id', 'draft_subject', 'draft_body', 'status', 'sent_at'], drafts);
+    await insertRows(db, 'outreach_logs', ['org_id', 'journalist_id', 'campaign_id', 'logged_by', 'type', 'status', 'notes', 'logged_at'], logs);
+    await insertRows(db, 'coverage', ['org_id', 'campaign_id', 'journalist_id', 'title', 'url', 'notes', 'published_at'],
+      [[org.id, campaignId, coverageJournalistId, DEMO_COVERAGE.title, DEMO_COVERAGE.url, DEMO_COVERAGE.notes, daysAgo(5)]]);
+
+    await db.query('COMMIT');
+    return { user, org };
+  } catch (err) {
+    await db.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    db.release();
   }
+}
 
-  await pool.query('DELETE FROM organizations WHERE id = $1', [DEMO_ORG_ID]); // cascades to everything
-  await pool.query(`INSERT INTO organizations (id, name, slug) VALUES ($1, $2, 'lumen-grid')`, [DEMO_ORG_ID, DEMO_PROFILE.name]);
-  await saveProfile(DEMO_ORG_ID, DEMO_PROFILE);
-
-  // A member, so visitors can explore and run analyses but not change settings or run discovery.
-  const unguessable = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 10);
+/** Drop expired sandboxes, then the oldest ones past the cap. Never touches a real organization. */
+export async function sweepSandboxes(): Promise<void> {
+  await pool.query('DELETE FROM organizations WHERE demo_expires_at < NOW()');
   await pool.query(
-    `INSERT INTO users (id, org_id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, 'Demo Visitor', 'member')`,
-    [DEMO_USER_ID, DEMO_ORG_ID, DEMO_USER_EMAIL, unguessable],
+    `DELETE FROM organizations WHERE demo_expires_at IS NOT NULL AND id IN (
+       SELECT id FROM organizations WHERE demo_expires_at IS NOT NULL ORDER BY created_at DESC OFFSET $1)`,
+    [MAX_SANDBOXES],
   );
+}
 
-  const dimIds: number[] = [];
-  for (const [i, d] of DEFAULT_DIMENSIONS.entries()) {
-    const { rows: [row] } = await pool.query(
-      `INSERT INTO scoring_dimensions (org_id, name, description, weight, display_order) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [DEMO_ORG_ID, d.name, d.description, d.weight, i],
-    );
-    dimIds.push(row.id);
-  }
+/**
+ * Run on boot in demo mode. Refuses a database that holds a real organization, so DEMO_MODE can
+ * never expose or mix with real data. Existing sandboxes survive, so a restart doesn't sign
+ * visitors out.
+ */
+export async function prepareDemo(): Promise<void> {
+  // Before sandboxes, every visitor shared this one organization.
+  await pool.query('DELETE FROM organizations WHERE id = $1', [LEGACY_DEMO_ORG_ID]);
+  const { rows } = await pool.query('SELECT id FROM organizations WHERE demo_expires_at IS NULL LIMIT 1');
+  if (rows.length > 0) throw new Error('DEMO_MODE refuses to run on a database that contains a real organization.');
+  await sweepSandboxes();
+}
 
-  const outletIds = new Map<string, number>();
-  for (const o of DEMO_OUTLETS) {
-    const { rows: [row] } = await pool.query(
-      `INSERT INTO publications (org_id, name, url, tier, focus) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [DEMO_ORG_ID, o.name, o.url, o.tier, o.focus],
-    );
-    outletIds.set(o.key, row.id);
-  }
-
-  const { rows: [campaign] } = await pool.query(
-    `INSERT INTO campaigns (org_id, name, brief, campaign_type, status) VALUES ($1, $2, $3, $4, 'active') RETURNING id`,
-    [DEMO_ORG_ID, DEMO_CAMPAIGN.name, DEMO_CAMPAIGN.brief, DEMO_CAMPAIGN.type],
-  );
-  await pool.query(
-    `INSERT INTO campaign_type_styles (org_id, campaign_type, instructions) VALUES ($1, $2, $3)`,
-    [DEMO_ORG_ID, DEMO_CAMPAIGN.type, DEMO_CAMPAIGN.styleInstructions],
-  );
-
-  let coverageJournalistId: number | null = null;
-
-  for (const j of DEMO_JOURNALISTS) {
-    const outlet = DEMO_OUTLETS.find(o => o.key === j.outlet)!;
-    const total = j.scores.reduce((a, b) => a + b, 0);
-    const { rows: [jr] } = await pool.query(
-      `INSERT INTO journalists (org_id, publication_id, name, email, bio, beats, total_score)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [DEMO_ORG_ID, outletIds.get(j.outlet), j.name, j.email, j.bio, j.beats, total],
-    );
-
-    for (const a of j.articles) {
-      await pool.query(
-        `INSERT INTO articles (org_id, journalist_id, title, url, published_at) VALUES ($1, $2, $3, $4, $5)`,
-        [DEMO_ORG_ID, jr.id, a.title, articleUrl(j, a.slug), a.date],
-      );
-    }
-
-    for (const [i, dimId] of dimIds.entries()) {
-      const weight = DEFAULT_DIMENSIONS[i].weight;
-      await pool.query(
-        `INSERT INTO journalist_scores (org_id, journalist_id, dimension_id, score, rationale, evidence) VALUES ($1, $2, $3, $4, $5, $6)`,
-        [DEMO_ORG_ID, jr.id, dimId, j.scores[i], rationaleFor(i, j, outlet.name, j.scores[i], weight), JSON.stringify(evidenceFor(i, j, j.scores[i], weight))],
-      );
-    }
-
-    const draft = draftFor(j);
-    const sent = !!j.outreach;
-    await pool.query(
-      `INSERT INTO campaign_journalists (org_id, campaign_id, journalist_id, draft_subject, draft_body, status, sent_at)
-       VALUES ($1, $2, $3, $4, $5, $6, ${sent ? "NOW() - INTERVAL '20 days'" : 'NULL'})`,
-      [DEMO_ORG_ID, campaign.id, jr.id, draft.subject, draft.body, sent ? 'sent' : 'ready'],
-    );
-
-    const logs: [string, string, number][] = j.outreach === 'Covered'
-      ? [['pitch', 'Pitched', 20], ['response', 'Responded', 14], ['note', 'Covered', 5]]
-      : j.outreach === 'Responded' ? [['pitch', 'Pitched', 14], ['response', 'Responded', 10]]
-      : j.outreach === 'Pitched' ? [['pitch', 'Pitched', 7]] : [];
-    for (const [type, status, daysAgo] of logs) {
-      await pool.query(
-        `INSERT INTO outreach_logs (org_id, journalist_id, campaign_id, logged_by, type, status, notes, logged_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() - ($8 || ' days')::interval)`,
-        [DEMO_ORG_ID, jr.id, campaign.id, DEMO_USER_ID, type, status, draft.subject, String(daysAgo)],
-      );
-    }
-    if (j.outreach === 'Covered') coverageJournalistId = jr.id;
-  }
-
-  await pool.query(
-    `INSERT INTO coverage (org_id, campaign_id, journalist_id, title, url, notes, published_at)
-     VALUES ($1, $2, $3, $4, $5, $6, NOW() - INTERVAL '5 days')`,
-    [DEMO_ORG_ID, campaign.id, coverageJournalistId, DEMO_COVERAGE.title, DEMO_COVERAGE.url, DEMO_COVERAGE.notes],
-  );
+/** `npm run demo:reset`: drop every sandbox. */
+export async function resetDemo(): Promise<void> {
+  await prepareDemo();
+  await pool.query('DELETE FROM organizations WHERE demo_expires_at IS NOT NULL');
 }
