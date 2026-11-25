@@ -180,7 +180,7 @@ export default function AdminJournalistSuggestions() {
             </Link>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Journalist Suggestions</h1>
             <p className="text-slate-400 text-sm mt-0.5">
-              Scored by AI/startup relevance across up to 10 recent articles per journalist.
+              Ranked by how closely up to 10 recent headlines match your company profile.
             </p>
           </div>
           <div className="flex items-center gap-2.5">

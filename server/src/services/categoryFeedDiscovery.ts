@@ -2,21 +2,18 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import Parser from 'rss-parser';
 import pool from '../db';
+import { clip } from '../lib/clip';
+import { loadProfile } from '../lib/companyProfile';
+import { matchTopics, topicsFrom, type Topics } from '../lib/topics';
 import { generateRssDiagnosticNote } from './rssDiagnostic';
 import { botUserAgent, isAllowedByRobots } from '../lib/http';
 
 const parser = new Parser({ timeout: 8000, headers: { 'User-Agent': botUserAgent() } });
 
-const SECTION_HREF_KEYWORDS = [
-  'ai', 'artificial-intelligence', 'artificial_intelligence',
-  'machine-learning', 'machine_learning', 'generative-ai', 'generative_ai', 'genai',
-  'llm', 'deep-learning', 'neural', 'startup', 'startups', 'funding', 'venture', 'fintech',
-  'technology', 'tech', 'enterprise', 'software', 'developer', 'innovation', 'future',
-];
-const SECTION_TEXT_KEYWORDS = [
-  'ai', 'artificial intelligence', 'machine learning', 'generative',
-  'startup', 'startups', 'funding', 'venture', 'tech', 'technology', 'enterprise', 'software', 'innovation',
-];
+/** Each candidate can cost several requests, so stay polite. */
+const MAX_MATCHED = 20;
+const MAX_UNMATCHED = 5;
+
 const RSS_SUFFIXES = [
   '/rss/index.xml', '/feed/', '/feed', '/rss/', '/rss', '/feed.xml', '/atom.xml',
   '?format=rss', '?rss=y', '?feed=rss2',
@@ -34,7 +31,7 @@ export interface DiscoveredFeed {
   itemCount: number;
 }
 
-export async function discoverCategoryFeeds(publicationUrl: string): Promise<DiscoveredFeed[]> {
+export async function discoverCategoryFeeds(publicationUrl: string, topics: Topics): Promise<DiscoveredFeed[]> {
   const baseUrl = new URL(publicationUrl);
   let html: string;
   try {
@@ -52,7 +49,9 @@ export async function discoverCategoryFeeds(publicationUrl: string): Promise<Dis
   }
 
   const $ = cheerio.load(html);
-  const candidateMap = new Map<string, string>();
+  // Sections that match what the company does, then, so a publication is never skipped, a few others.
+  const matched = new Map<string, string>();
+  const others = new Map<string, string>();
 
   $('a[href]').each((_i, el) => {
     const rawHref = $(el).attr('href') || '';
@@ -65,20 +64,20 @@ export async function discoverCategoryFeeds(publicationUrl: string): Promise<Dis
     const segments = path.split('/').filter(Boolean);
     if (segments.length > 3) return;
     if (/\.(html?|php|aspx|jpg|png|pdf)$/i.test(path)) return;
-    const hrefMatch = SECTION_HREF_KEYWORDS.some(kw => path.toLowerCase().includes(kw));
-    const textMatch = SECTION_TEXT_KEYWORDS.some(kw => text.toLowerCase().includes(kw));
-    if ((hrefMatch || textMatch) && !candidateMap.has(absUrl)) {
-      const label = segments[segments.length - 1]?.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || text.slice(0, 40) || 'Section';
-      candidateMap.set(absUrl, label);
-    }
+    if (matched.has(absUrl) || others.has(absUrl)) return;
+    const label = clip(segments[segments.length - 1]?.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || text || 'Section', 60);
+    const isMatch = matchTopics(topics, `${text.slice(0, 100)} ${segments.join(' ').replace(/[-_]/g, ' ')}`, []).points > 0;
+    if (isMatch) matched.set(absUrl, label);
+    else if (segments.length === 1) others.set(absUrl, label);
   });
+  const candidates = [...[...matched].slice(0, MAX_MATCHED), ...(matched.size >= MAX_UNMATCHED ? [] : [...others].slice(0, MAX_UNMATCHED - matched.size))];
 
-  console.log(`[FeedDiscovery] ${baseUrl.hostname}: ${candidateMap.size} candidate section URLs`);
+  console.log(`[FeedDiscovery] ${baseUrl.hostname}: ${candidates.length} candidate section URLs`);
 
   const found: DiscoveredFeed[] = [];
   const checkedFeedUrls = new Set<string>();
 
-  for (const [sectionUrl, label] of candidateMap) {
+  for (const [sectionUrl, label] of candidates) {
     if (found.length >= 6) break;
     for (const suffix of RSS_SUFFIXES) {
       const candidate = sectionUrl.replace(/\/$/, '') + suffix;
@@ -116,7 +115,7 @@ export async function discoverAndSaveFeeds(orgId: string, publicationId: number)
 
   let feeds: DiscoveredFeed[];
   try {
-    feeds = await discoverCategoryFeeds(pub.url);
+    feeds = await discoverCategoryFeeds(pub.url, topicsFrom(await loadProfile(orgId)));
   } catch (err: any) {
     // Only set 'none' if there are truly no saved feeds — if broken feeds exist, leave status for scan to determine
     const existingCount = (await pool.query(

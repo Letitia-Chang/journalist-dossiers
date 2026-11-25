@@ -117,21 +117,10 @@ async function querySubstack(query: string): Promise<DiscoveredPublication[]> {
 
 // ── Source 3: Medium tag feeds ─────────────────────────────────────────────────
 // Medium exposes RSS at medium.com/feed/tag/{tag}.
-// We derive tags from the query keywords + a curated AI/tech tag list.
-const MEDIUM_AI_TAGS = [
-  'artificial-intelligence', 'machine-learning', 'deep-learning',
-  'startup', 'technology', 'data-science', 'nlp',
-];
-
+// Tags come only from what the person searched for.
 function deriveMediumTags(query: string): string[] {
-  const words = query.toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .split(/\s+/)
-    .filter(w => w.length > 2);
-
-  const queryTags = words.map(w => w.replace(/\s+/g, '-'));
-  const combined = [...new Set([...queryTags, ...MEDIUM_AI_TAGS])];
-  return combined.slice(0, 8);
+  const words = query.toLowerCase().replace(/[^a-z0-9\s-]/g, '').split(/\s+/).filter(w => w.length > 2);
+  return [...new Set([words.join('-'), ...words])].filter(Boolean).slice(0, 5);
 }
 
 async function queryMedium(query: string): Promise<DiscoveredPublication[]> {
