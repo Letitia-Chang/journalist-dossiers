@@ -26,8 +26,8 @@ router.get('/members', async (req, res) => {
 
 /** Lock the owners, then refuse a change that would leave none. Two owners can't demote each other. */
 async function assertNotLastOwner(db: PoolClient, orgId: string, userId: unknown, message: string): Promise<void> {
-  const { rows: owners } = await db.query(`SELECT id FROM users WHERE org_id = $1 AND role = 'owner' ORDER BY id FOR UPDATE`, [orgId]);
-  if (owners.length <= 1 && owners[0]?.id === userId) throw new HttpError(400, message);
+  const { rows: owners } = await db.query(`SELECT id = $2::uuid AS is_target FROM users WHERE org_id = $1 AND role = 'owner' ORDER BY id FOR UPDATE`, [orgId, userId]);
+  if (owners.length <= 1 && owners[0]?.is_target) throw new HttpError(400, message);
 }
 
 /** Invites someone sent, or that were sent to them, must not outlive their access. */

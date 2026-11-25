@@ -4,9 +4,10 @@
  */
 exports.up = (pgm) => {
   pgm.sql(`
-    -- Lowering a dimension's weight used to leave scores above it.
-    UPDATE journalist_scores s SET score = d.weight FROM scoring_dimensions d
-      WHERE d.id = s.dimension_id AND s.score > d.weight;
+    -- Weights and scores used to be unchecked, so totals could be nonsense or overflow.
+    UPDATE scoring_dimensions SET weight = LEAST(GREATEST(weight, 0), 1000) WHERE weight NOT BETWEEN 0 AND 1000;
+    UPDATE journalist_scores s SET score = LEAST(GREATEST(s.score, 0), d.weight) FROM scoring_dimensions d
+      WHERE d.id = s.dimension_id AND s.score NOT BETWEEN 0 AND d.weight;
     UPDATE journalists j SET total_score = COALESCE(
       (SELECT SUM(s.score) FROM journalist_scores s WHERE s.journalist_id = j.id AND s.org_id = j.org_id), 0)::int;
 

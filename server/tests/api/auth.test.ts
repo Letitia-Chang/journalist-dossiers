@@ -25,6 +25,17 @@ describe.skipIf(!hasDb)('authentication', () => {
     expect((await login('bob@example.com')).body.user?.id).toBe(u.id);
     const owner = await makeUser(ctx, 'owner', u.orgId);
     expect((await request(ctx.app).post('/api/team/invites').set(owner.auth).send({ email: 'bob@example.com' })).status).toBe(409);
+    // An invite made before the account existed can't create its twin either.
+    await ctx.pool.query(`INSERT INTO invites (org_id, email, token, expires_at) VALUES ($1, 'bob@example.com', $2, NOW() + INTERVAL '1 day')`, [u.orgId, 'b'.repeat(48)]);
+    expect((await request(ctx.app).post('/api/auth/accept-invite').send({ token: 'b'.repeat(48), name: 'x', password: PASSWORD })).body.error).toMatch(/email already exists/);
+    // Two old accounts that differ only by case: the spelling decides.
+    await ctx.pool.query('DROP INDEX IF EXISTS users_email_lower_key');
+    const twin = await makeUser(ctx, 'member', u.orgId);
+    await ctx.pool.query('UPDATE users SET email = $1, password_hash = $2 WHERE id = $3', ['bob@example.com', await bcrypt.hash('another-password', 4), twin.id]);
+    expect((await login('Bob@Example.com')).body.user?.id).toBe(u.id);
+    expect((await login('bob@example.com', 'another-password')).body.user?.id).toBe(twin.id);
+    await ctx.pool.query('DELETE FROM users WHERE id = $1', [twin.id]);
+    await ctx.pool.query('CREATE UNIQUE INDEX users_email_lower_key ON users (LOWER(email))');
   });
 
   it('a removed member loses access at once', async () => {
@@ -56,7 +67,10 @@ describe.skipIf(!hasDb)('authentication', () => {
       expect((await request(ctx.app).delete(`/api/team/members/${owner.id}`).set(u.auth)).status).toBe(403);
     }
     expect((await request(ctx.app).delete(`/api/team/members/${owner.id}`).set(owner.auth)).status).toBe(400);
-    expect((await request(ctx.app).put(`/api/team/members/${owner.id}/role`).set(owner.auth).send({ role: 'member' })).status).toBe(400);
+    for (const id of [owner.id, owner.id.toUpperCase()]) { // ids are compared as UUIDs, not text
+      expect((await request(ctx.app).put(`/api/team/members/${id}/role`).set(owner.auth).send({ role: 'member' })).status).toBe(400);
+      expect((await request(ctx.app).delete(`/api/team/members/${id}`).set(owner.auth)).status).toBe(400);
+    }
   });
 
   it('two owners cannot demote or remove each other at the same time', async () => {
@@ -134,12 +148,28 @@ describe.skipIf(!hasDb)('authentication', () => {
       expect((await from('203.0.113.1', PASSWORD)).status).toBe(429);
       for (let i = 0; i < 12; i++) expect((await from('198.51.100.7', PASSWORD)).status).toBe(200); // successes don't count
       // Guessing across many accounts from one address is limited too.
-      await ctx.pool.query(`UPDATE rate_limits SET count = 50 WHERE bucket = $1`, [(await import('../../src/lib/rateLimit')).bucketFor('login-ip', '198.51.100.7')]);
-      expect((await request(ctx.app).post('/api/auth/login').set('x-test-ip', '198.51.100.7').send({ email: 'other@example.com', password: 'x' })).status).toBe(429);
-      // And one account from many addresses, far more loosely.
-      await ctx.pool.query(`UPDATE rate_limits SET count = 1000 WHERE bucket = $1`, [(await import('../../src/lib/rateLimit')).bucketFor('login-account', 'owner@example.com')]);
-      expect((await from('192.0.2.55', 'wrong-password')).status).toBe(429);
+      const codes2 = [];
+      for (let i = 0; i < 52; i++) codes2.push((await request(ctx.app).post('/api/auth/login').set('x-test-ip', '192.0.2.9').send({ email: `u${i}@example.com`, password: 'x' })).status);
+      expect(codes2.filter(x => x === 429)).toHaveLength(2);
+      // Rotating through one IPv6 /48 is limited per account, below the per-address limit.
+      const codes3 = [];
+      for (let i = 0; i < 32; i++) codes3.push((await from(`2001:db8:7:${i}::1`, 'wrong-password')).status);
+      expect(codes3.filter(x => x === 429)).toHaveLength(2);
+      // And none of it locks the owner out from somewhere else.
+      expect((await from('198.51.100.8', PASSWORD)).status).toBe(200);
     } finally { delete process.env.CLIENT_IP_HEADER; delete process.env.TRUST_PROXY; }
+  });
+
+  it('a correct password returns exactly the attempt it used, in the window it used it', async () => {
+    const R = await import('../../src/lib/rateLimit');
+    const c = { bucket: 'x', windowMs: 60_000, limit: 10 };
+    await R.take([c], 3, 1_000);
+    await R.take([c], 2, 61_000);
+    await R.giveBack([c], 1_000);
+    expect(await R.remaining([c], 1_000)).toEqual([8]);
+    expect(await R.remaining([c], 61_000)).toEqual([8]);
+    for (let i = 0; i < 5; i++) await R.giveBack([c], 1_000);
+    expect(await R.remaining([c], 1_000)).toEqual([10]); // never below zero used
   });
 
   it('never puts a session token in the Gmail consent URL', async () => {

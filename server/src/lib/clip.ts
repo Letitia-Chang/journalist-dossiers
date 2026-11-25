@@ -4,7 +4,7 @@ import { link } from './schemas';
 export function clip(value: unknown, max: number): string {
   if (typeof value !== 'string') return '';
   const clean = [...value].map(c => (c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127 ? ' ' : c)).join('').trim();
-  return clean.slice(0, max).trimEnd();
+  return clean.slice(0, max).replace(/[\uD800-\uDBFF]$/, '').trimEnd(); // don't cut an emoji in half
 }
 
 /** A discovered URL, or '' when it is not an http(s) link we would accept from a person. */

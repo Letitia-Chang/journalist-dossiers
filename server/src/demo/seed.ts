@@ -1,6 +1,6 @@
 import crypto from 'crypto';
-import type { PoolClient } from 'pg';
-import pool from '../db';
+import type { Pool, PoolClient } from 'pg';
+import pool, { inTransaction } from '../db';
 import { saveProfile } from '../lib/companyProfile';
 import { DEFAULT_DIMENSIONS } from '../lib/bootstrap';
 import {
@@ -102,13 +102,15 @@ async function insertRows(db: PoolClient, table: string, columns: string[], rows
 
 /**
  * Create a private copy of the fictional company for one visitor, so nothing a visitor does is
- * visible to anyone else. Every query in the app is already scoped by organization.
+ * visible to anyone else. Every query in the app is already scoped by organization. Returns null when
+ * the demo is full.
  */
-export async function createSandbox(): Promise<{ user: { id: string; email: string; name: string; role: string }; org: { id: string; name: string; slug: string } }> {
+export async function createSandbox(): Promise<{ user: { id: string; email: string; name: string; role: string }; org: { id: string; name: string; slug: string } } | null> {
   const tag = crypto.randomBytes(9).toString('hex');
-  const db = await pool.connect();
-  try {
-    await db.query('BEGIN');
+  return inTransaction(async db => {
+    // One at a time, so simultaneous visitors can't all take the last place.
+    await db.query('SELECT pg_advisory_xact_lock(7002)');
+    if (!(await makeRoomForSandbox(db))) return null;
     const { rows: [org] } = await db.query(
       `INSERT INTO organizations (name, slug, demo_expires_at) VALUES ($1, $2, NOW() + make_interval(hours => $3)) RETURNING id, name, slug`,
       [DEMO_PROFILE.name, `demo-${tag}`, Math.ceil(sandboxHours())],
@@ -165,30 +167,24 @@ export async function createSandbox(): Promise<{ user: { id: string; email: stri
     await insertRows(db, 'coverage', ['org_id', 'campaign_id', 'journalist_id', 'title', 'url', 'notes', 'published_at'],
       [[org.id, campaignId, coverageJournalistId, DEMO_COVERAGE.title, DEMO_COVERAGE.url, DEMO_COVERAGE.notes, daysAgo(5)]]);
 
-    await db.query('COMMIT');
     return { user, org };
-  } catch (err) {
-    await db.query('ROLLBACK').catch(() => {});
-    throw err;
-  } finally {
-    db.release();
-  }
+  });
 }
 
 /** Drop expired sandboxes. Never touches a real organization. */
-export async function sweepSandboxes(): Promise<void> {
-  await pool.query('DELETE FROM organizations WHERE demo_expires_at < NOW()');
+export async function sweepSandboxes(db: Pool | PoolClient = pool): Promise<void> {
+  await db.query('DELETE FROM organizations WHERE demo_expires_at < NOW()');
 }
 
 /** Make room for one more sandbox by dropping the oldest unprotected ones. False when the demo is full. */
-export async function makeRoomForSandbox(): Promise<boolean> {
-  await sweepSandboxes();
-  await pool.query(
+export async function makeRoomForSandbox(db: Pool | PoolClient = pool): Promise<boolean> {
+  await sweepSandboxes(db);
+  await db.query(
     `DELETE FROM organizations WHERE demo_expires_at IS NOT NULL AND created_at < NOW() - make_interval(mins => $2)
        AND id IN (SELECT id FROM organizations WHERE demo_expires_at IS NOT NULL ORDER BY created_at DESC OFFSET $1)`,
     [MAX_SANDBOXES - 1, PROTECTED_MINUTES],
   );
-  const { rows: [{ c }] } = await pool.query('SELECT COUNT(*)::int AS c FROM organizations WHERE demo_expires_at IS NOT NULL');
+  const { rows: [{ c }] } = await db.query('SELECT COUNT(*)::int AS c FROM organizations WHERE demo_expires_at IS NOT NULL');
   return c < MAX_SANDBOXES;
 }
 

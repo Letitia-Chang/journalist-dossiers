@@ -124,11 +124,14 @@ describe.skipIf(!hasDb)('demo sandboxes', () => {
       const codes = [];
       for (let i = 0; i < 22; i++) codes.push((await request(ctx.app).post('/api/auth/demo-login').set('x-test-ip', `2001:db8:1:${i}::1`)).status);
       expect(codes).toEqual([...Array(20).fill(200), 429, 429]);
+      // And there is a ceiling across everyone.
+      await ctx.pool.query(`UPDATE rate_limits SET count = 200 WHERE bucket = 'sandbox-all'`);
+      expect((await request(ctx.app).post('/api/auth/demo-login').set('x-test-ip', '203.0.113.77')).status).toBe(429);
     } finally { delete process.env.CLIENT_IP_HEADER; }
 
     await ctx.pool.query('DELETE FROM rate_limits');
     const a = await enter();
-    for (const bucket of ['write:%', 'write-org:%', 'write-all']) {
+    for (const bucket of ['write:%', 'write-net:%', 'write-org:%', 'write-all']) {
       expect((await call(a, 'post', '/api/campaigns', { name: 'c' })).status).toBe(201);
       await ctx.pool.query(`UPDATE rate_limits SET count = 1000000 WHERE bucket LIKE $1`, [bucket]);
       expect((await call(a, 'post', '/api/campaigns', { name: 'c' })).status).toBe(429);
@@ -165,6 +168,17 @@ describe.skipIf(!hasDb)('demo sandboxes', () => {
     expect((await request(ctx.app).post('/api/auth/demo-login')).status).toBe(503);
     expect((await ctx.pool.query('SELECT 1 FROM organizations WHERE demo_expires_at IS NOT NULL')).rowCount).toBe(seed.MAX_SANDBOXES);
     expect((await ctx.pool.query('SELECT 1 FROM organizations WHERE id = $1', [real.orgId])).rowCount).toBe(1);
+  });
+
+  it('simultaneous visitors cannot overshoot the cap', async () => {
+    await ctx.pool.query(`INSERT INTO organizations (name, slug, demo_expires_at) SELECT 'x', 'f' || g, NOW() + INTERVAL '1 hour' FROM generate_series(1, $1) g`, [seed.MAX_SANDBOXES - 3]);
+    process.env.CLIENT_IP_HEADER = 'x-test-ip';
+    try {
+      const res = await Promise.all(Array.from({ length: 20 }, (_, i) => request(ctx.app).post('/api/auth/demo-login').set('x-test-ip', `203.0.113.${i + 1}`)));
+      expect(res.map(r => r.status).filter(s => s === 200)).toHaveLength(3);
+      expect(res.map(r => r.status).filter(s => s === 503)).toHaveLength(17);
+    } finally { delete process.env.CLIENT_IP_HEADER; }
+    expect((await ctx.pool.query('SELECT 1 FROM organizations WHERE demo_expires_at IS NOT NULL')).rowCount).toBe(seed.MAX_SANDBOXES);
   });
 
   it('a sandbox token stops working when the sandbox expires or demo mode is turned off', async () => {

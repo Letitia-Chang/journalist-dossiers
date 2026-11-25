@@ -64,6 +64,12 @@ describe.skipIf(!hasDb)('data integrity', () => {
       const { rows } = await ctx.pool.query(`SELECT j.total_score, SUM(s.score)::int AS sum, MAX(s.score - d.weight) AS over FROM journalists j JOIN journalist_scores s ON s.journalist_id = j.id JOIN scoring_dimensions d ON d.id = s.dimension_id WHERE j.org_id = $1 GROUP BY j.id`, [o.orgId]);
       for (const r of rows) { expect(r.total_score).toBe(r.sum); expect(r.over).toBeLessThanOrEqual(0); }
     });
+    it('an AI score that finishes after the maximum was lowered respects the new maximum', async () => {
+      stub.onCall = async () => { await ctx.pool.query('UPDATE scoring_dimensions SET weight = 2 WHERE id = $1', [d1]); };
+      const res = await api('post', `/api/journalists/${j}/score`);
+      stub.onCall = undefined;
+      expect([res.status, res.body.total_score]).toEqual([200, 2 + 5]); // the stub scores everything 5
+    });
     it('returns scores in display order', async () => {
       expect((await get()).scores.map((s: { dimensionId: number }) => s.dimensionId)).toEqual([d2, d1]);
     });
@@ -161,9 +167,33 @@ describe.skipIf(!hasDb)('data integrity', () => {
     expect((await api('put', `/api/journalists/${id}`, { name: j.name, bio: j.bio, beats: j.beats })).status).toBe(200); // still editable
   });
 
+  it('caps what a feed scan stores', async () => {
+    const http = await import('http');
+    const feed = `<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>f</title><item><title>${'z'.repeat(60_000)}</title><link>javascript:alert(1)</link><dc:creator>Jane Roe</dc:creator><pubDate>${new Date().toUTCString()}</pubDate></item></channel></rss>`;
+    const server = http.createServer((_req, res) => { res.setHeader('content-type', 'application/rss+xml'); res.end(feed); });
+    await new Promise<void>(r => { server.listen(0, () => r()); });
+    const port = (server.address() as import('net').AddressInfo).port;
+    const pub = (await api('post', '/api/publications', { name: 'Feed', url: 'https://f.example', rssUrl: `http://127.0.0.1:${port}/rss` })).body.id;
+    const { scanPublicationRss } = await import('../../src/services/rssService');
+    await scanPublicationRss(o.orgId, pub);
+    server.closeAllConnections(); server.close();
+    const [s] = (await api('get', '/api/journalist-suggestions')).body;
+    expect([s.name, s.recent_article_title.length, s.recent_article_url]).toEqual(['Jane Roe', 300, '']);
+    expect(s.all_articles.length).toBeLessThan(2000);
+  });
+
+  it('keeps old free-form contact details editable, but never multi-line', async () => {
+    const id = (await api('post', '/api/journalists', { name: 'x', email: 'a@x.com; b@x.com' })).body.id;
+    expect((await api('put', `/api/journalists/${id}`, { email: 'a@x.com; b@x.com', bio: 'new' })).status).toBe(200);
+    expect((await api('put', `/api/journalists/${id}`, { email: 'a@x.com\r\nBcc: z@x.com' })).status).toBe(400);
+  });
+
   it('exports cannot run formulas in a spreadsheet', async () => {
     for (const name of ['=HYPERLINK("http://evil.example")', '+1', '-1', '@SUM(A1)', ' =1+1']) await api('post', '/api/journalists', { name, bio: '' });
     const csv = (await api('get', '/api/export/journalists')).text;
+    const target = (await api('get', '/api/journalists')).body[0].id;
+    for (const notes of [' =1+1', '\n=1+1', '\t@x']) await api('post', '/api/outreach', { journalistId: target, type: 'note', status: 'x', notes });
+    expect((await api('get', '/api/export/outreach')).text.match(/,"?'\s*[=@]/g)).toHaveLength(3);
     for (const cell of csv.split('\n').slice(1).map(l => l.split(',')[1])) expect(cell).toMatch(/^"?'/);
   });
 });

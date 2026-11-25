@@ -24,8 +24,8 @@ export const link = z.string().trim().max(2000, 'URL is too long')
     return !scheme || scheme === 'http' || scheme === 'https' || scheme.includes('.');
   }, 'Must be an http(s) URL');
 
-const email = z.string().trim().max(254)
-  .refine(s => s === '' || /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(s), 'Must be a valid email address');
+// Free-form on purpose: people record "a@x.com; b@x.com" or a note. One line, so it is header-safe.
+const email = line(254).trim();
 
 const id = z.number().int().positive().max(2147483647);
 const date = z.preprocess(
@@ -68,7 +68,7 @@ export const outreachCreate = z.object({
 });
 export const outreachUpdate = z.object({ type: line(40).min(1).nullish(), status: line(40).min(1).nullish(), notes: text(4000).nullish() });
 
-const weight = z.number().int().min(0).max(100);
+const weight = z.number().int().min(0).max(1000);
 const order = z.number().int().min(0).max(1000);
 export const dimensionCreate = z.object({ name, description: text(1000).nullish(), weight: weight.nullish(), displayOrder: order.nullish() });
 export const dimensionUpdate = z.object({ name: name.nullish(), description: text(1000).nullish(), weight: weight.nullish(), displayOrder: order.nullish() });
@@ -86,7 +86,8 @@ const loginEmail = z.string().trim().toLowerCase().max(254).min(1, 'Required');
 // bcrypt only reads the first 72 bytes, so a longer password would be silently truncated.
 const password = z.string().min(8, 'Password must be at least 8 characters').refine(s => Buffer.byteLength(s) <= 72, 'Password is too long');
 export const signup = z.object({ email: loginEmail.refine(s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s), 'Must be a valid email address'), password, name });
-export const login = z.object({ email: loginEmail, password: z.string().min(1, 'Required').max(200) });
+// Not lowercased here: if two old accounts differ only by case, the exact spelling picks one.
+export const login = z.object({ email: z.string().trim().max(254).min(1, 'Required'), password: z.string().min(1, 'Required').max(200) });
 export const acceptInvite = z.object({ token: z.string().regex(/^[0-9a-f]{48}$/, 'Invalid token'), name, password });
 export const invite = z.object({
   email: loginEmail.refine(s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s), 'A valid email is required'),

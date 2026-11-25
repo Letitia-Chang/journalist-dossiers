@@ -6,10 +6,10 @@ import { HttpError } from '../lib/httpError';
 import { signToken } from '../middleware/auth';
 import { ensureOrg, seedDimensions } from '../lib/bootstrap';
 import { isDemo } from '../demo/limits';
-import { createSandbox, makeRoomForSandbox } from '../demo/seed';
+import { createSandbox } from '../demo/seed';
 import { blockInDemo } from '../middleware/demo';
 import { clientIp } from '../lib/clientIp';
-import { bucketFor, DAY_MS, giveBack, HOUR_MS, networkOf, normalizeIp, take } from '../lib/rateLimit';
+import { bucketFor, giveBack, HOUR_MS, networkOf, normalizeIp, take } from '../lib/rateLimit';
 import * as schemas from '../lib/schemas';
 import { parseBody, validateParams } from '../lib/validate';
 
@@ -101,9 +101,10 @@ router.post('/demo-login', async (req, res) => {
     { bucket: 'sandbox-all', windowMs: HOUR_MS, limit: 200 },
   ]);
   if (granted === 0) return res.status(429).json({ error: 'The demo has been opened many times in the last hour. Please try again later.' });
-  if (!(await makeRoomForSandbox())) return res.status(503).json({ error: 'The demo is full right now. Please try again in a little while.' });
+  const sandbox = await createSandbox();
+  if (!sandbox) return res.status(503).json({ error: 'The demo is full right now. Please try again in a little while.' });
 
-  const { user, org } = await createSandbox();
+  const { user, org } = sandbox;
   res.json({ token: signToken({ sub: user.id, orgId: org.id, role: user.role }), user, org });
 });
 
@@ -114,23 +115,25 @@ const DUMMY_HASH = '$2b$12$cEbFpgHZNHwrm281DpHnm.SWkSGlhDmCyKySRSyrmC7eO04dgBEOq
 router.post('/login', async (req, res) => {
   const { email, password } = parseBody(schemas.login, req);
 
-  // Failures are limited per account and address, per address, and (far more loosely, since this one
-  // could be used to lock someone out) per account from anywhere. Behind a proxy the address is only
-  // right when TRUST_PROXY / CLIENT_IP_HEADER are set; see docs/deployment.md.
-  const ip = normalizeIp(clientIp(req));
+  // Failures are limited per account from one address and one network, and per address overall. There
+  // is deliberately no limit per account alone: it would let a stranger lock the owner out. Behind a
+  // proxy the address is only right when TRUST_PROXY / CLIENT_IP_HEADER are set; see docs/deployment.md.
+  const ip = clientIp(req);
+  const account = email.toLowerCase();
+  const now = Date.now();
   const counters = [
-    { bucket: bucketFor('login', `${email}|${ip}`), windowMs: LOGIN_WINDOW_MS, limit: 10 },
-    { bucket: bucketFor('login-ip', ip), windowMs: LOGIN_WINDOW_MS, limit: 50 },
-    { bucket: bucketFor('login-account', email), windowMs: DAY_MS, limit: 1000 },
+    { bucket: bucketFor('login', `${account}|${normalizeIp(ip)}`), windowMs: LOGIN_WINDOW_MS, limit: 10 },
+    { bucket: bucketFor('login-net', `${account}|${networkOf(ip)}`), windowMs: LOGIN_WINDOW_MS, limit: 30 },
+    { bucket: bucketFor('login-ip', networkOf(ip)), windowMs: LOGIN_WINDOW_MS, limit: 50 },
   ];
   // Taken up front, so parallel guesses can't slip past, and returned if the password was right.
-  if ((await take(counters)) === 0) return res.status(429).json({ error: 'Too many sign-in attempts. Please wait 15 minutes and try again.' });
+  if ((await take(counters, 1, now)) === 0) return res.status(429).json({ error: 'Too many sign-in attempts. Please wait 15 minutes and try again.' });
 
   const { rows } = await pool.query(
     `SELECT u.id, u.email, u.name, u.role, u.password_hash, o.id as org_id, o.name as org_name, o.slug as org_slug
      FROM users u JOIN organizations o ON o.id = u.org_id
-     WHERE LOWER(u.email) = $1 AND o.demo_expires_at IS NULL
-     ORDER BY (u.email = $1) DESC LIMIT 1`,
+     WHERE LOWER(u.email) = LOWER($1) AND o.demo_expires_at IS NULL
+     ORDER BY (u.email = $1) DESC, u.created_at LIMIT 1`,
     [email],
   );
   const row = rows[0];
@@ -138,7 +141,7 @@ router.post('/login', async (req, res) => {
   if (!row || !matches) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
-  await giveBack(counters);
+  await giveBack(counters, now);
 
   const token = signToken({ sub: row.id, orgId: row.org_id, role: row.role });
   res.json({

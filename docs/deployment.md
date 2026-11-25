@@ -51,6 +51,10 @@ Open the site. You should see the "Enter the demo" screen.
 - Set `BOT_NAME` and `BOT_CONTACT_URL` so publishers can see who is crawling them.
 - `TRUST_PROXY=true` is **required** if the API sits behind a reverse proxy: sign-in throttling and the demo limits are per client address, and without it every visitor looks like the proxy. If a CDN sits in front of that proxy (Render is fronted by Cloudflare), `req.ip` is the CDN's edge address, so also set `CLIENT_IP_HEADER` (the blueprint sets `cf-connecting-ip`); otherwise the demo's per-visitor limits can't tell visitors apart.
 
+## Rolling back
+
+Migrations from this version on add a marker to demo sandboxes that older code doesn't know. To go back to an older version, first run `npm run migrate:down --prefix server` once per migration you are undoing (this also deletes any demo sandboxes), then deploy the older code.
+
 ## Troubleshooting
 
 | Symptom | Likely cause |

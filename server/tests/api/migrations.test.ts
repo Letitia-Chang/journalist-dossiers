@@ -34,16 +34,21 @@ describe.skipIf(!hasDb)('upgrade and rollback', () => {
     const { rows: [d] } = await db.query(`INSERT INTO scoring_dimensions (org_id, name, weight) VALUES ($1, 'd', 10) RETURNING id`, [org.id]);
     const { rows: [j] } = await db.query(`INSERT INTO journalists (org_id, name, total_score, bio) VALUES ($1, 'j', 999, $2) RETURNING id`, [org.id, 'x'.repeat(9000)]);
     await db.query(`INSERT INTO journalist_scores (org_id, journalist_id, dimension_id, score) VALUES ($1, $2, $3, 25)`, [org.id, j.id, d.id]);
+    const { rows: [big] } = await db.query(`INSERT INTO organizations (name, slug) VALUES ('Absurd', 'absurd') RETURNING id`);
+    await db.query(`INSERT INTO scoring_dimensions (org_id, name, weight) VALUES ($1, 'x', 2000000000), ($1, 'y', 2000000000), ($1, 'z', -5)`, [big.id]);
+    await db.query(`INSERT INTO journalists (org_id, name) VALUES ($1, 'absurd')`, [big.id]);
+    await db.query(`INSERT INTO journalist_scores (org_id, journalist_id, dimension_id, score) SELECT j.org_id, j.id, d.id, 2000000000 FROM journalists j JOIN scoring_dimensions d ON d.org_id = j.org_id WHERE j.org_id = $1`, [big.id]);
     for (const t of ['a', 'b']) await db.query(`INSERT INTO invites (org_id, email, token, expires_at) VALUES ($1, 'i@example.com', $2, NOW() + INTERVAL '1 day')`, [org.id, t]);
 
     await migrate('up', Infinity);
     expect((await db.query('SELECT email FROM users ORDER BY email COLLATE "C"')).rows.map(r => r.email)).toEqual(['Twin@example.com', 'mixed@example.com', 'twin@example.com']);
-    expect((await db.query('SELECT total_score, LENGTH(bio) AS len FROM journalists')).rows).toEqual([{ total_score: 10, len: 9000 }]);
+    expect((await db.query(`SELECT total_score FROM journalists WHERE name = 'absurd'`)).rows).toEqual([{ total_score: 2000 }]);
+    expect((await db.query(`SELECT total_score, LENGTH(bio) AS len FROM journalists WHERE name = 'j'`)).rows).toEqual([{ total_score: 10, len: 9000 }]);
     expect((await db.query(`SELECT COUNT(*)::int AS c FROM invites WHERE status = 'pending'`)).rows[0].c).toBe(1);
 
     await db.query(`INSERT INTO organizations (name, slug, demo_expires_at) VALUES ('Sandbox', 's', NOW())`);
     await migrate('down', 3);
-    expect((await db.query('SELECT name FROM organizations')).rows).toEqual([{ name: 'Real' }]); // no sandbox posing as real
+    expect((await db.query('SELECT name FROM organizations ORDER BY created_at')).rows).toEqual([{ name: 'Real' }, { name: 'Absurd' }]); // no sandbox posing as real
     await migrate('up', Infinity);
     expect((await db.query('SELECT COUNT(*)::int AS c FROM users')).rows[0].c).toBe(3);
   });
